@@ -291,7 +291,10 @@ export class App {
   // --- events ---------------------------------------------------------------
 
   _bindEvents() {
-    const editor = this.root.querySelector('#editor');
+    const $ = (s) => this.root.querySelector(s);
+
+    // editor
+    const editor = $('#editor');
     editor.value = this.source;
     editor.addEventListener('input', () => {
       this.source = editor.value;
@@ -299,41 +302,64 @@ export class App {
       this._scheduleRecompile();
     });
 
-    // Mode tabs
+    // mode tabs (also open the panel so the tools are visible)
     this.root.querySelectorAll('[data-mode]').forEach((tab) => {
       tab.addEventListener('click', () => {
         this.mode = tab.dataset.mode;
-        this.root.querySelectorAll('[data-mode]').forEach((t) =>
-          t.classList.toggle('active', t === tab));
-        this.root.querySelector('#pane-code').classList.toggle('hidden', this.mode !== 'code');
-        this.root.querySelector('#pane-build').classList.toggle('hidden', this.mode !== 'build');
+        this.root.querySelectorAll('[data-mode]').forEach((t) => t.classList.toggle('active', t === tab));
+        $('#pane-code').classList.toggle('hidden', this.mode !== 'code');
+        $('#pane-build').classList.toggle('hidden', this.mode !== 'build');
+        this._setPanel(true);
         this.overrides = {};
         this.recompile(true);
       });
     });
 
-    // Export menu
-    this.root.querySelector('#btn-stl').addEventListener('click', () => {
-      if (this.currentModel) triggerDownload(exportSTL(this.currentModel), 'part.stl');
-    });
-    this.root.querySelector('#btn-3mf').addEventListener('click', () => {
-      if (this.currentModel) triggerDownload(export3MF(this.currentModel), 'part.3mf');
-    });
-    this.root.querySelector('#btn-obj').addEventListener('click', () => {
-      if (this.currentModel) triggerDownload(exportOBJ(this.currentModel), 'part.obj');
-    });
+    // collapsible panel
+    $('#panel-toggle').addEventListener('click', () => this._setPanel());
 
-    // Build pane controls
+    // export dropdown
+    const menu = $('#export-menu');
+    $('#export-btn').addEventListener('click', (e) => { e.stopPropagation(); menu.classList.toggle('open'); });
+    const out = (fn, name) => { if (this.currentModel) triggerDownload(fn(this.currentModel), name); menu.classList.remove('open'); };
+    $('#btn-stl').addEventListener('click', () => out(exportSTL, 'part.stl'));
+    $('#btn-3mf').addEventListener('click', () => out(export3MF, 'part.3mf'));
+    $('#btn-obj').addEventListener('click', () => out(exportOBJ, 'part.obj'));
+    document.addEventListener('click', () => menu.classList.remove('open'));
+
+    // view controls
+    $('#v-fit').addEventListener('click', () => this.viewport.fitView());
+    $('#v-top').addEventListener('click', () => this.viewport.setView('top'));
+    $('#v-front').addEventListener('click', () => this.viewport.setView('front'));
+    $('#v-grid').addEventListener('click', (e) => e.currentTarget.classList.toggle('on', this.viewport.toggleGrid()));
+    $('#v-wire').addEventListener('click', (e) => e.currentTarget.classList.toggle('on', this.viewport.toggleWireframe()));
+
+    // HUD collapse
+    $('#hud-toggle').addEventListener('click', () => $('#hud').classList.toggle('collapsed'));
+
+    // build pane
     this._bindBuildPane();
 
-    // Keyboard: Delete removes the selected build shape, Ctrl+D duplicates it.
+    // keyboard shortcuts
     window.addEventListener('keydown', (e) => {
-      if (this.mode !== 'build' || this.selectedNode < 0) return;
       const typing = /^(INPUT|TEXTAREA)$/.test(document.activeElement.tagName);
       if (typing) return;
-      if (e.key === 'Delete' || e.key === 'Backspace') { e.preventDefault(); this._deleteNode(this.selectedNode); }
-      else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'd') { e.preventDefault(); this._duplicateNode(this.selectedNode); }
+      const k = e.key.toLowerCase();
+      if (k === 'f') { this.viewport.fitView(); return; }
+      if (k === 'g') { $('#v-grid').classList.toggle('on', this.viewport.toggleGrid()); return; }
+      if (this.mode === 'build' && this.selectedNode >= 0) {
+        if (e.key === 'Delete' || e.key === 'Backspace') { e.preventDefault(); this._deleteNode(this.selectedNode); }
+        else if ((e.ctrlKey || e.metaKey) && k === 'd') { e.preventDefault(); this._duplicateNode(this.selectedNode); }
+      }
     });
+  }
+
+  // Open/close the left drawer. _setPanel() toggles; _setPanel(true|false) forces.
+  _setPanel(open) {
+    const panel = this.root.querySelector('#panel');
+    const collapse = open === undefined ? !panel.classList.contains('collapsed') : !open;
+    panel.classList.toggle('collapsed', collapse);
+    this.root.querySelector('#panel-toggle').classList.toggle('on', !collapse);
   }
 
   _bindBuildPane() {
@@ -437,21 +463,36 @@ export class App {
   _render() {
     this.root.innerHTML = `
       <div id="boot"><div class="boot-inner"><span class="boot-mark">◆</span><p>loading kernel…</p></div></div>
-      <header class="topbar">
-        <div class="brand"><span class="brand-mark">◆</span> FORGE <em>cad</em></div>
-        <div class="tabs">
-          <button data-mode="code" class="active">code</button>
-          <button data-mode="build">build</button>
-        </div>
-        <div class="exports">
-          <button id="btn-stl" class="exp">STL</button>
-          <button id="btn-3mf" class="exp">3MF</button>
-          <button id="btn-obj" class="exp">OBJ</button>
-        </div>
-      </header>
 
-      <main class="layout">
-        <aside class="panel">
+      <div class="stage">
+        <canvas id="viewport-canvas"></canvas>
+
+        <header class="topbar">
+          <button class="icon-btn on" id="panel-toggle" title="Toggle panel">☰</button>
+          <div class="brand"><span class="brand-mark">◆</span> FORGE <em>cad</em></div>
+          <div class="tabs">
+            <button data-mode="code" class="active">code</button>
+            <button data-mode="build">build</button>
+          </div>
+          <div class="spacer"></div>
+          <div class="viewtools">
+            <button class="icon-btn" id="v-fit" title="Fit to view (F)">⤢</button>
+            <button class="icon-btn" id="v-top" title="Top view">⊟</button>
+            <button class="icon-btn" id="v-front" title="Front view">⊡</button>
+            <button class="icon-btn on" id="v-grid" title="Toggle grid (G)">▦</button>
+            <button class="icon-btn" id="v-wire" title="Toggle wireframe">◇</button>
+          </div>
+          <div class="menu" id="export-menu">
+            <button class="exp" id="export-btn">⤓ Export ▾</button>
+            <div class="menu-pop">
+              <button id="btn-stl">STL — for slicing</button>
+              <button id="btn-3mf">3MF — units, best</button>
+              <button id="btn-obj">OBJ — mesh</button>
+            </div>
+          </div>
+        </header>
+
+        <aside class="panel" id="panel">
           <section id="pane-code" class="pane">
             <div class="pane-title">model source</div>
             <textarea id="editor" spellcheck="false"></textarea>
@@ -475,21 +516,23 @@ export class App {
           </section>
         </aside>
 
-        <div class="stage">
-          <div class="canvas-wrap">
-            <canvas id="viewport-canvas"></canvas>
-            <div class="hud">
-              <div class="hud-row"><span class="hud-key">size</span><span id="hud-dims">—</span></div>
-              <div class="hud-row"><span class="hud-key">volume</span><span id="hud-vol">—</span></div>
-              <div class="hud-row"><span class="hud-key">mesh</span><span id="hud-tris">—</span></div>
-              <div class="hud-row"><span class="hud-key">state</span><span id="hud-watertight" class="hud-ok">—</span></div>
-            </div>
-            <div class="status">
-              <span id="status-dot" class="status-dot state-empty"></span>
-              <span id="status-label">empty</span>
-            </div>
+        <div class="hud" id="hud">
+          <div class="hud-head">
+            <span class="hud-title">readout</span>
+            <button class="hud-x" id="hud-toggle" title="Collapse">⌄</button>
+          </div>
+          <div class="hud-body">
+            <div class="hud-row"><span class="hud-key">size</span><span id="hud-dims">—</span></div>
+            <div class="hud-row"><span class="hud-key">volume</span><span id="hud-vol">—</span></div>
+            <div class="hud-row"><span class="hud-key">mesh</span><span id="hud-tris">—</span></div>
+            <div class="hud-row"><span class="hud-key">state</span><span id="hud-watertight" class="hud-ok">—</span></div>
           </div>
         </div>
-      </main>`;
+
+        <div class="status">
+          <span id="status-dot" class="status-dot state-empty"></span>
+          <span id="status-label">empty</span>
+        </div>
+      </div>`;
   }
 }

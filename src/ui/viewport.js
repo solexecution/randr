@@ -51,6 +51,7 @@ export class Viewport {
     this.edgeMaterial = new THREE.LineBasicMaterial({ color: COLORS.edge });
 
     // --- edit-mode state ---
+    this._wire = false;
     this.editActive = false;
     this.snap = true;
     this.snapStep = 1;             // mm
@@ -87,9 +88,11 @@ export class Viewport {
     plate.rotation.x = -Math.PI / 2;
     plate.position.y = -0.05;
     this.scene.add(plate);
+    this.plate = plate;
 
     const grid = new THREE.GridHelper(w, w / 10, COLORS.gridMajor, COLORS.grid);
     this.scene.add(grid);
+    this.grid = grid;
   }
 
   // --- picking helpers ------------------------------------------------------
@@ -245,6 +248,12 @@ export class Viewport {
       radius = Math.max(60, Math.hypot(size.x, size.y, size.z) * 1.8);
       apply();
     };
+    this._setView = (which) => {
+      if (which === 'top') { phi = 0.001; }
+      else if (which === 'front') { phi = Math.PI / 2 - 0.02; theta = -Math.PI / 2; }
+      else { phi = Math.PI / 4; theta = Math.PI / 4; } // iso
+      apply();
+    };
   }
 
   // --- code mode: one merged solid -----------------------------------------
@@ -296,9 +305,9 @@ export class Viewport {
       const mat = isHole
         ? new THREE.MeshStandardMaterial({
             color: COLORS.hole, transparent: true, opacity: 0.4,
-            roughness: 0.6, metalness: 0, depthWrite: false })
+            roughness: 0.6, metalness: 0, depthWrite: false, wireframe: this._wire })
         : new THREE.MeshStandardMaterial({
-            color: it.color || COLORS.model, metalness: 0.1, roughness: 0.55 });
+            color: it.color || COLORS.model, metalness: 0.1, roughness: 0.55, wireframe: this._wire });
       const mesh = new THREE.Mesh(it.geometry, mat);
       mesh.position.set(it.pos[0], it.pos[1], it.pos[2]);
       const r = it.rot || [0, 0, 0];
@@ -348,6 +357,33 @@ export class Viewport {
 
   frameModel(sizeMm) {
     if (this._frameModel) this._frameModel(sizeMm);
+  }
+
+  // Fit the camera to whatever's currently shown (model in code mode, the
+  // shapes group in build mode).
+  fitView() {
+    const box = new THREE.Box3();
+    const group = this.editActive ? this.editGroup : this.modelGroup;
+    group.traverse((o) => { if (o.isMesh) box.expandByObject(o); });
+    const size = new THREE.Vector3();
+    if (box.isEmpty()) size.set(60, 60, 60); else box.getSize(size);
+    this.frameModel({ x: size.x, y: size.y, z: size.z });
+  }
+
+  setView(which) { if (this._setView) this._setView(which); }
+
+  toggleGrid() {
+    const v = !this.grid.visible;
+    this.grid.visible = v;
+    this.plate.visible = v;
+    return v;
+  }
+
+  toggleWireframe() {
+    this._wire = !this._wire;
+    this.material.wireframe = this._wire;
+    this.editMeshes.forEach((e) => { e.mesh.material.wireframe = this._wire; });
+    return this._wire;
   }
 
   _resize() {
