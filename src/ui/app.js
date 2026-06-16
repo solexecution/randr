@@ -1,0 +1,495 @@
+// Application controller. Ties the three surfaces together:
+//   1. Code pane  — the parametric mini-language (OpenSCAD-style)
+//   2. Build pane — touch primitives you place/drag on the workplane (Tinkercad)
+//   3. Viewport   — the shared result of whichever pane is active
+//
+// Both panes ultimately produce mini-language source, so the kernel only ever
+// sees one input format. The build pane is a structured editor that emits
+// source; a touch-built model can be opened in the code pane and vice versa.
+
+import { loadKernel, inspect, box, cylinder, sphere, cone, roundedBox } from '../kernel/manifold.js';
+import { manifoldToGeometry } from '../kernel/mesh.js';
+import { compile } from '../lang/compile.js';
+import { exportSTL, exportOBJ, export3MF, triggerDownload } from '../kernel/export.js';
+import { Viewport } from './viewport.js';
+import { buildTreeToSource, BuildTree } from './buildtree.js';
+
+// Build one shape's geometry (centered, kernel-accurate) for the editable
+// build-mode view. The manifold is freed immediately after meshing.
+function nodeToGeometry(node) {
+  const f = (k) => { const x = node.fields.find((y) => y.key === k); return x ? x.value : 0; };
+  let m;
+  try {
+    switch (node.kind) {
+      case 'box':        m = box(f('x'), f('y'), f('z')); break;
+      case 'cylinder':   m = cylinder(f('h'), f('r')); break;
+      case 'sphere':     m = sphere(f('r')); break;
+      case 'cone':       m = cone(f('h'), f('r1'), f('r2')); break;
+      case 'roundedBox': m = roundedBox(f('x'), f('y'), f('z'), f('r')); break;
+      default: return null;
+    }
+    const g = manifoldToGeometry(m);
+    m.delete();
+    return g;
+  } catch (e) {
+    if (m) try { m.delete(); } catch { /* freed */ }
+    return null;
+  }
+}
+
+const STARTER = `// Forge — parametric mode.
+// Edit values or drag the sliders. Everything is millimetres.
+
+param width     = 60;
+param depth     = 40;
+param height    = 20;
+param wall      = 3;
+param holeR     = 4;
+
+difference() {
+  roundedBox(width, depth, height, 4);
+  // hollow it out
+  translate([0, 0, wall]) {
+    roundedBox(width - 2*wall, depth - 2*wall, height, 3);
+  }
+  // mounting holes
+  translate([ width/2 - 8,  depth/2 - 8, 0]) cylinder(height + 2, holeR);
+  translate([-width/2 + 8,  depth/2 - 8, 0]) cylinder(height + 2, holeR);
+  translate([ width/2 - 8, -depth/2 + 8, 0]) cylinder(height + 2, holeR);
+  translate([-width/2 + 8, -depth/2 + 8, 0]) cylinder(height + 2, holeR);
+}
+`;
+
+export class App {
+  constructor(root) {
+    this.root = root;
+    this.mode = 'code';            // 'code' | 'build'
+    this.source = STARTER;
+    this.overrides = {};
+    this.params = [];
+    this.currentModel = null;
+    this.buildTree = new BuildTree();
+    this.selectedNode = -1;
+    this._recompileTimer = null;
+  }
+
+  async start() {
+    this._render();
+    await loadKernel();
+    this.viewport = new Viewport(this.root.querySelector('#viewport-canvas'));
+    this.viewport.onSelect = (i) => this._selectNode(i);
+    this.viewport.onShapeMove = (i, pos) => this._onShapeMove(i, pos);
+    this.viewport.onShapeMoveEnd = (i, pos) => this._onShapeMoveEnd(i, pos);
+    window.__forgeExport = { exportSTL, export3MF, exportOBJ }; // scripting/test hook
+    this._bindEvents();
+    this.recompile(true);
+    this.root.querySelector('#boot').classList.add('gone');
+  }
+
+  // --- compile + render loop ------------------------------------------------
+
+  recompile(frame = false) {
+    const source = this.mode === 'build'
+      ? buildTreeToSource(this.buildTree)
+      : this.source;
+
+    const { result, params, error } = compile(source, this.overrides);
+
+    const errEl = this.root.querySelector('#error');
+    if (error) {
+      errEl.textContent = error;
+      errEl.classList.add('show');
+      this._setStatus('error');
+      return;
+    }
+    errEl.classList.remove('show');
+
+    // Replace the merged model and free the previous one.
+    if (this.currentModel && this.currentModel !== result) {
+      try { this.currentModel.delete(); } catch { /* freed */ }
+    }
+    this.currentModel = result;
+
+    // Build mode shows individual shapes; code mode shows the merged solid.
+    if (this.mode === 'build') {
+      this.viewport.setEditMode(true);
+      this._renderEditShapes();
+    } else {
+      this.viewport.setEditMode(false);
+      this.viewport.setModel(result || null);
+    }
+
+    if (result) {
+      const info = inspect(result);
+      if (frame) this.viewport.frameModel({
+        x: info.bbox.size[0], y: info.bbox.size[2], z: info.bbox.size[1],
+      });
+      this._updateHUD(info);
+      this._setStatus('ok');
+    } else {
+      this._updateHUD(null);
+      this._setStatus('empty');
+    }
+
+    // Sync params only in code mode (build mode manages its own controls).
+    if (this.mode === 'code') {
+      this.params = params;
+      this._renderParams();
+    }
+  }
+
+  _scheduleRecompile() {
+    clearTimeout(this._recompileTimer);
+    this._setStatus('working');
+    this._recompileTimer = setTimeout(() => this.recompile(), 180);
+  }
+
+  // --- build-mode editing ---------------------------------------------------
+
+  _renderEditShapes() {
+    const items = this.buildTree.nodes
+      .map((node, index) => ({
+        index, geometry: nodeToGeometry(node),
+        pos: node.pos, rot: node.rot || [0, 0, 0], op: node.op,
+      }))
+      .filter((it) => it.geometry);
+    this.viewport.setEditShapes(items);
+    if (this.selectedNode >= 0 && this.selectedNode < this.buildTree.nodes.length) {
+      this.viewport.selectIndex(this.selectedNode);
+      this._highlightBuildRow(this.selectedNode);
+    } else {
+      this.selectedNode = -1;
+    }
+  }
+
+  _selectNode(i) {
+    this.selectedNode = i;
+    this.viewport.selectIndex(i);
+    this._highlightBuildRow(i);
+  }
+
+  _highlightBuildRow(i) {
+    this.root.querySelectorAll('.build-node').forEach((r) =>
+      r.classList.toggle('sel', Number(r.dataset.node) === i));
+  }
+
+  // live during a drag: move the shape + reflect in the panel, no recompile
+  _onShapeMove(i, pos) {
+    const n = this.buildTree.nodes[i];
+    if (!n) return;
+    n.pos = pos;
+    const host = this.root.querySelector('#build-list');
+    if (host) ['0', '1', '2'].forEach((a) => {
+      const el = host.querySelector(`input[data-pos="${i}:${a}"]`);
+      if (el && document.activeElement !== el) el.value = pos[Number(a)];
+    });
+  }
+
+  // drag finished: settle the merged solid + HUD (export needs it current)
+  _onShapeMoveEnd(i, pos) {
+    const n = this.buildTree.nodes[i];
+    if (!n) return;
+    n.pos = pos;
+    this._recompileMergedHUD();
+  }
+
+  // recompute the merged solid for HUD/export without rebuilding edit meshes
+  _recompileMergedHUD() {
+    const { result, error } = compile(buildTreeToSource(this.buildTree), {});
+    const errEl = this.root.querySelector('#error');
+    if (error) { errEl.textContent = error; errEl.classList.add('show'); this._setStatus('error'); return; }
+    errEl.classList.remove('show');
+    if (this.currentModel && this.currentModel !== result) {
+      try { this.currentModel.delete(); } catch { /* freed */ }
+    }
+    this.currentModel = result;
+    if (result) { this._updateHUD(inspect(result)); this._setStatus('ok'); }
+    else { this._updateHUD(null); this._setStatus('empty'); }
+  }
+
+  // --- HUD + status ---------------------------------------------------------
+
+  _updateHUD(info) {
+    const dims = this.root.querySelector('#hud-dims');
+    const vol = this.root.querySelector('#hud-vol');
+    const tris = this.root.querySelector('#hud-tris');
+    const wt = this.root.querySelector('#hud-watertight');
+    if (!info) {
+      dims.textContent = vol.textContent = tris.textContent = '—';
+      wt.textContent = '—'; wt.className = 'hud-ok';
+      return;
+    }
+    const [x, y, z] = info.bbox.size;
+    const fmt = (n) => n.toFixed(1);
+    dims.textContent = `${fmt(x)} × ${fmt(y)} × ${fmt(z)} mm`;
+    vol.textContent = `${(info.volume / 1000).toFixed(2)} cm³`;
+    tris.textContent = `${info.triangles.toLocaleString()} tris`;
+    // manifold-3d output is watertight by construction (any component count),
+    // so a valid result is always print-safe. genus is shown for info only.
+    wt.textContent = info.genus > 0 ? `manifold ✓ · genus ${info.genus}` : 'manifold ✓';
+    wt.className = 'hud-ok';
+  }
+
+  _setStatus(state) {
+    const dot = this.root.querySelector('#status-dot');
+    const label = this.root.querySelector('#status-label');
+    const map = {
+      ok: ['ready', 'state-ok'],
+      working: ['building…', 'state-working'],
+      error: ['error', 'state-error'],
+      empty: ['empty', 'state-empty'],
+    };
+    const [text, cls] = map[state] || map.empty;
+    dot.className = 'status-dot ' + cls;
+    label.textContent = text;
+  }
+
+  // --- parameter sliders ----------------------------------------------------
+
+  _renderParams() {
+    const host = this.root.querySelector('#params');
+    if (this.params.length === 0) {
+      host.innerHTML = '<p class="muted">No params in this model. Add <code>param name = value;</code> to get a slider.</p>';
+      return;
+    }
+    host.innerHTML = '';
+    for (const p of this.params) {
+      const wrap = document.createElement('div');
+      wrap.className = 'param';
+      const value = this.overrides[p.name] ?? p.value;
+      const lo = Math.min(0, value);
+      const hi = Math.max(value * 2 || 1, value + 10);
+      wrap.innerHTML = `
+        <div class="param-head">
+          <label>${p.name}</label>
+          <input type="number" step="0.1" value="${value}" data-num="${p.name}" />
+        </div>
+        <input type="range" min="${lo}" max="${hi}" step="0.1"
+               value="${value}" data-range="${p.name}" />`;
+      host.appendChild(wrap);
+    }
+
+    host.querySelectorAll('input[data-range]').forEach((el) => {
+      el.addEventListener('input', () => {
+        const name = el.dataset.range;
+        this.overrides[name] = parseFloat(el.value);
+        host.querySelector(`input[data-num="${name}"]`).value = el.value;
+        this._scheduleRecompile();
+      });
+    });
+    host.querySelectorAll('input[data-num]').forEach((el) => {
+      el.addEventListener('input', () => {
+        const name = el.dataset.num;
+        this.overrides[name] = parseFloat(el.value);
+        const range = host.querySelector(`input[data-range="${name}"]`);
+        if (range) range.value = el.value;
+        this._scheduleRecompile();
+      });
+    });
+  }
+
+  // --- events ---------------------------------------------------------------
+
+  _bindEvents() {
+    const editor = this.root.querySelector('#editor');
+    editor.value = this.source;
+    editor.addEventListener('input', () => {
+      this.source = editor.value;
+      this.overrides = {}; // editing code resets param overrides
+      this._scheduleRecompile();
+    });
+
+    // Mode tabs
+    this.root.querySelectorAll('[data-mode]').forEach((tab) => {
+      tab.addEventListener('click', () => {
+        this.mode = tab.dataset.mode;
+        this.root.querySelectorAll('[data-mode]').forEach((t) =>
+          t.classList.toggle('active', t === tab));
+        this.root.querySelector('#pane-code').classList.toggle('hidden', this.mode !== 'code');
+        this.root.querySelector('#pane-build').classList.toggle('hidden', this.mode !== 'build');
+        this.overrides = {};
+        this.recompile(true);
+      });
+    });
+
+    // Export menu
+    this.root.querySelector('#btn-stl').addEventListener('click', () => {
+      if (this.currentModel) triggerDownload(exportSTL(this.currentModel), 'part.stl');
+    });
+    this.root.querySelector('#btn-3mf').addEventListener('click', () => {
+      if (this.currentModel) triggerDownload(export3MF(this.currentModel), 'part.3mf');
+    });
+    this.root.querySelector('#btn-obj').addEventListener('click', () => {
+      if (this.currentModel) triggerDownload(exportOBJ(this.currentModel), 'part.obj');
+    });
+
+    // Build pane controls
+    this._bindBuildPane();
+
+    // Keyboard: Delete removes the selected build shape, Ctrl+D duplicates it.
+    window.addEventListener('keydown', (e) => {
+      if (this.mode !== 'build' || this.selectedNode < 0) return;
+      const typing = /^(INPUT|TEXTAREA)$/.test(document.activeElement.tagName);
+      if (typing) return;
+      if (e.key === 'Delete' || e.key === 'Backspace') { e.preventDefault(); this._deleteNode(this.selectedNode); }
+      else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'd') { e.preventDefault(); this._duplicateNode(this.selectedNode); }
+    });
+  }
+
+  _bindBuildPane() {
+    this.root.querySelectorAll('[data-add]').forEach((b) =>
+      b.addEventListener('click', () => this._addShape(b.dataset.add)));
+    this._renderBuildTree();
+  }
+
+  _addShape(kind) {
+    this.buildTree.add(kind);
+    this.selectedNode = this.buildTree.nodes.length - 1;
+    this._renderBuildTree();
+    this.recompile();
+  }
+
+  _deleteNode(i) {
+    this.buildTree.nodes.splice(i, 1);
+    this.selectedNode = -1;
+    this._renderBuildTree();
+    this.recompile();
+  }
+
+  _duplicateNode(i) {
+    const src = this.buildTree.nodes[i];
+    if (!src) return;
+    const copy = {
+      kind: src.kind,
+      op: src.op,
+      pos: [src.pos[0] + 6, src.pos[1] + 6, src.pos[2]],
+      rot: [...(src.rot || [0, 0, 0])],
+      fields: src.fields.map((f) => ({ ...f })),
+    };
+    this.buildTree.nodes.splice(i + 1, 0, copy);
+    this.selectedNode = i + 1;
+    this._renderBuildTree();
+    this.recompile();
+  }
+
+  _renderBuildTree() {
+    const host = this.root.querySelector('#build-list');
+    host.innerHTML = '';
+    if (this.buildTree.nodes.length === 0) {
+      host.innerHTML = '<p class="muted">Tap a shape above to add it. Click a shape in the scene and drag it on the plate. Mark each one solid or hole, then export.</p>';
+      return;
+    }
+    this.buildTree.nodes.forEach((node, idx) => {
+      const row = document.createElement('div');
+      row.className = 'build-node' + (node.op === 'hole' ? ' is-hole' : '') + (idx === this.selectedNode ? ' sel' : '');
+      row.dataset.node = idx;
+      row.innerHTML = `
+        <div class="bn-head">
+          <span class="bn-kind">${node.kind}</span>
+          <div class="bn-ops">
+            <button data-op="solid" data-i="${idx}" class="${node.op === 'solid' ? 'on' : ''}">solid</button>
+            <button data-op="hole"  data-i="${idx}" class="${node.op === 'hole' ? 'on' : ''}">hole</button>
+            <button data-del="${idx}" class="bn-del">✕</button>
+          </div>
+        </div>
+        <div class="bn-fields">
+          ${node.fields.map((f) => `
+            <label>${f.label}
+              <input type="number" step="0.5" value="${f.value}"
+                     data-field="${idx}:${f.key}" />
+            </label>`).join('')}
+          <label>x <input type="number" step="0.5" value="${node.pos[0]}" data-pos="${idx}:0" /></label>
+          <label>y <input type="number" step="0.5" value="${node.pos[1]}" data-pos="${idx}:1" /></label>
+          <label>z <input type="number" step="0.5" value="${node.pos[2]}" data-pos="${idx}:2" /></label>
+        </div>`;
+      row.addEventListener('mousedown', (e) => {
+        if (e.target.closest('input, button')) return;
+        this._selectNode(idx);
+      });
+      host.appendChild(row);
+    });
+
+    host.querySelectorAll('[data-op]').forEach((b) =>
+      b.addEventListener('click', () => {
+        this.buildTree.nodes[+b.dataset.i].op = b.dataset.op;
+        this._renderBuildTree();
+        this.recompile();
+      }));
+    host.querySelectorAll('[data-del]').forEach((b) =>
+      b.addEventListener('click', () => this._deleteNode(+b.dataset.del)));
+    host.querySelectorAll('[data-field]').forEach((el) =>
+      el.addEventListener('input', () => {
+        const [i, key] = el.dataset.field.split(':');
+        const node = this.buildTree.nodes[+i];
+        node.fields.find((f) => f.key === key).value = parseFloat(el.value);
+        this._scheduleRecompile();
+      }));
+    host.querySelectorAll('[data-pos]').forEach((el) =>
+      el.addEventListener('input', () => {
+        const [i, axis] = el.dataset.pos.split(':');
+        this.buildTree.nodes[+i].pos[+axis] = parseFloat(el.value);
+        this._scheduleRecompile();
+      }));
+  }
+
+  // --- markup ---------------------------------------------------------------
+
+  _render() {
+    this.root.innerHTML = `
+      <div id="boot"><div class="boot-inner"><span class="boot-mark">◆</span><p>loading kernel…</p></div></div>
+      <header class="topbar">
+        <div class="brand"><span class="brand-mark">◆</span> FORGE <em>cad</em></div>
+        <div class="tabs">
+          <button data-mode="code" class="active">code</button>
+          <button data-mode="build">build</button>
+        </div>
+        <div class="exports">
+          <button id="btn-stl" class="exp">STL</button>
+          <button id="btn-3mf" class="exp">3MF</button>
+          <button id="btn-obj" class="exp">OBJ</button>
+        </div>
+      </header>
+
+      <main class="layout">
+        <aside class="panel">
+          <section id="pane-code" class="pane">
+            <div class="pane-title">model source</div>
+            <textarea id="editor" spellcheck="false"></textarea>
+            <div id="error" class="error"></div>
+            <div class="pane-title">parameters</div>
+            <div id="params" class="params"></div>
+          </section>
+
+          <section id="pane-build" class="pane hidden">
+            <div class="pane-title">add shape</div>
+            <div class="add-row">
+              <button data-add="box">box</button>
+              <button data-add="cylinder">cylinder</button>
+              <button data-add="sphere">sphere</button>
+              <button data-add="cone">cone</button>
+              <button data-add="roundedBox">rounded</button>
+            </div>
+            <p class="hint">Click a shape to select · drag it on the plate to move · <b>Del</b> remove · <b>Ctrl+D</b> duplicate</p>
+            <div class="pane-title">parts</div>
+            <div id="build-list" class="build-list"></div>
+          </section>
+        </aside>
+
+        <div class="stage">
+          <div class="canvas-wrap">
+            <canvas id="viewport-canvas"></canvas>
+            <div class="hud">
+              <div class="hud-row"><span class="hud-key">size</span><span id="hud-dims">—</span></div>
+              <div class="hud-row"><span class="hud-key">volume</span><span id="hud-vol">—</span></div>
+              <div class="hud-row"><span class="hud-key">mesh</span><span id="hud-tris">—</span></div>
+              <div class="hud-row"><span class="hud-key">state</span><span id="hud-watertight" class="hud-ok">—</span></div>
+            </div>
+            <div class="status">
+              <span id="status-dot" class="status-dot state-empty"></span>
+              <span id="status-label">empty</span>
+            </div>
+          </div>
+        </div>
+      </main>`;
+  }
+}
