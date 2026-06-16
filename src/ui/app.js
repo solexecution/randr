@@ -80,7 +80,10 @@ export class App {
     this.viewport.onSelect = (i) => this._selectNode(i);
     this.viewport.onShapeMove = (i, pos) => this._onShapeMove(i, pos);
     this.viewport.onShapeMoveEnd = (i, pos) => this._onShapeMoveEnd(i, pos);
+    this.viewport.onTransform = (i, t) => this._onTransform(i, t);
+    this.viewport.onTransformEnd = (i) => this._onTransformEnd(i);
     window.__forgeExport = { exportSTL, export3MF, exportOBJ }; // scripting/test hook
+    window.__dbg = { src: () => buildTreeToSource(this.buildTree), compile }; // debug
     this._bindEvents();
     this.recompile(true);
     this.root.querySelector('#boot').classList.add('gone');
@@ -150,7 +153,7 @@ export class App {
     const items = this.buildTree.nodes
       .map((node, index) => (node.hidden ? null : {
         index, geometry: nodeToGeometry(node),
-        pos: node.pos, rot: node.rot || [0, 0, 0], op: node.op,
+        pos: node.pos, rot: node.rot || [0, 0, 0], scale: node.scale || [1, 1, 1], op: node.op,
         color: node.color, lock: node.locked,
       }))
       .filter((it) => it && it.geometry);
@@ -192,6 +195,31 @@ export class App {
     if (!n) return;
     n.pos = pos;
     this._recompileMergedHUD();
+  }
+
+  // gizmo drag: live pos/rot/scale into the node + panel (no recompile yet).
+  // Round to kill float noise (e.g. -1.8e-15) so the emitted source stays clean.
+  _onTransform(i, t) {
+    const n = this.buildTree.nodes[i];
+    if (!n) return;
+    const r = (v, p) => { const x = Math.round(v * 10 ** p) / 10 ** p; return x === 0 ? 0 : x; };
+    n.pos = t.pos.map((v) => r(v, 2));
+    n.rot = t.rot.map((v) => r(v, 2));
+    n.scale = t.scale.map((v) => r(v, 3));
+    const host = this.root.querySelector('#build-list');
+    if (!host) return;
+    const set = (sel, v) => { const el = host.querySelector(sel); if (el && document.activeElement !== el) el.value = v; };
+    ['0', '1', '2'].forEach((a) => {
+      set(`input[data-pos="${i}:${a}"]`, n.pos[+a]);
+      set(`input[data-rot="${i}:${a}"]`, n.rot[+a]);
+    });
+  }
+
+  _onTransformEnd() { this._recompileMergedHUD(); }
+
+  _setXform(mode) {
+    this.viewport.setTransformMode(mode);
+    this.root.querySelectorAll('[data-xform]').forEach((x) => x.classList.toggle('on', x.dataset.xform === mode));
   }
 
   // recompute the merged solid for HUD/export without rebuilding edit meshes
@@ -338,6 +366,10 @@ export class App {
     // HUD collapse
     $('#hud-toggle').addEventListener('click', () => $('#hud').classList.toggle('collapsed'));
 
+    // transform-mode toolbar (gizmo)
+    this.root.querySelectorAll('[data-xform]').forEach((b) =>
+      b.addEventListener('click', () => this._setXform(b.dataset.xform)));
+
     // build pane
     this._bindBuildPane();
 
@@ -348,6 +380,9 @@ export class App {
       const k = e.key.toLowerCase();
       if (k === 'f') { this.viewport.fitView(); return; }
       if (k === 'g') { $('#v-grid').classList.toggle('on', this.viewport.toggleGrid()); return; }
+      if (this.mode === 'build' && 'wer'.includes(k) && !e.ctrlKey && !e.metaKey) {
+        this._setXform({ w: 'translate', e: 'rotate', r: 'scale' }[k]); return;
+      }
       if (this.mode === 'build' && this.selectedNode >= 0) {
         if (e.key === 'Delete' || e.key === 'Backspace') { e.preventDefault(); this._deleteNode(this.selectedNode); }
         else if ((e.ctrlKey || e.metaKey) && k === 'd') { e.preventDefault(); this._duplicateNode(this.selectedNode); }
@@ -520,6 +555,11 @@ export class App {
           </section>
 
           <section id="pane-build" class="pane hidden">
+            <div class="xform" id="xform">
+              <button data-xform="translate" class="on" title="Move (W)">↔ move</button>
+              <button data-xform="rotate" title="Rotate (E)">⟳ turn</button>
+              <button data-xform="scale" title="Scale (R)">⤢ size</button>
+            </div>
             <div class="pane-title">add shape</div>
             <div class="add-row">
               <button data-add="box">box</button>

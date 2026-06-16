@@ -46,6 +46,7 @@ export class BuildTree {
       op: 'solid',
       pos: [0, 0, baseHalfHeight(kind, get)],
       rot: [0, 0, 0],
+      scale: [1, 1, 1],
       color: PALETTE[colorIx++ % PALETTE.length],
       locked: false,
       hidden: false,
@@ -80,13 +81,17 @@ function shapeCall(node) {
 
 // Wrap a shape call in the transforms it needs (rotate inside translate).
 function placedCall(node) {
-  let call = shapeCall(node);
-  if (!call) return null;
+  const shape = shapeCall(node);
+  if (!shape) return null;
+  // Build TRS from the inside out: scale -> rotate -> translate.
+  let call = `${shape};`;
+  const [sx, sy, sz] = node.scale || [1, 1, 1];
+  if (sx !== 1 || sy !== 1 || sz !== 1) call = `scale([${sx}, ${sy}, ${sz}]) { ${call} }`;
   const [rx, ry, rz] = node.rot || [0, 0, 0];
-  if (rx || ry || rz) call = `rotate([${rx}, ${ry}, ${rz}]) { ${call}; }`;
-  else call = `${call};`;
+  if (rx || ry || rz) call = `rotate([${rx}, ${ry}, ${rz}]) { ${call} }`;
   const [x, y, z] = node.pos;
-  return (x || y || z) ? `translate([${x}, ${y}, ${z}]) { ${call} }` : call;
+  if (x || y || z) call = `translate([${x}, ${y}, ${z}]) { ${call} }`;
+  return call;
 }
 
 export function buildTreeToSource(tree) {

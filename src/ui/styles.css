@@ -167,6 +167,13 @@ input[type=range]::-moz-range-thumb {
 .muted code { font-family: var(--mono); color: var(--cyan); font-size: 12px; }
 
 /* build pane */
+.xform { display: flex; gap: 4px; background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 3px; }
+.xform button {
+  flex: 1; font-family: var(--mono); font-size: 11px; letter-spacing: .02em;
+  color: var(--ink-dim); background: none; border: 0; border-radius: 6px; padding: 6px 4px; cursor: pointer;
+}
+.xform button.on { background: var(--surface-2); color: var(--cyan); }
+
 .add-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
 .add-row button {
   font-family: var(--mono); font-size: 12px; color: var(--ink);

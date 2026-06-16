@@ -5,6 +5,7 @@
 // done without any extra dependencies.
 
 import * as THREE from 'three';
+import { TransformControls } from 'three/addons/controls/TransformControls.js';
 import { manifoldToGeometry, edgesGeometry } from '../kernel/mesh.js';
 
 const COLORS = {
@@ -57,14 +58,19 @@ export class Viewport {
     this.snapStep = 1;             // mm
     this.editMeshes = [];          // [{ index, mesh, op }]
     this.selectedIndex = -1;
+    this.transformMode = 'translate';
+    this._gizmoDragging = false;
     this.onSelect = null;          // (index | -1)
     this.onShapeMove = null;       // (index, [x,y,z]) — live during drag
     this.onShapeMoveEnd = null;    // (index, [x,y,z])
+    this.onTransform = null;       // (index, {pos,rot,scale}) — live during gizmo drag
+    this.onTransformEnd = null;    // (index)
     this._raycaster = new THREE.Raycaster();
     this._ndc = new THREE.Vector2();
     this._outline = null;
 
     this._setupControls();
+    this._setupGizmo();
     this._resize();
     window.addEventListener('resize', () => this._resize());
     this._animate();
@@ -112,7 +118,7 @@ export class Viewport {
   }
 
   _setupControls() {
-    let dragging = false, panning = false, shapeDrag = false;
+    let dragging = false, panning = false, shapeDrag = false, downOnCanvas = false;
     let lastX = 0, lastY = 0, downX = 0, downY = 0, moved = 0;
     let theta = Math.PI / 4, phi = Math.PI / 4, radius = 200;
     const target = new THREE.Vector3(0, 0, 0);
@@ -185,6 +191,8 @@ export class Viewport {
     };
 
     const onDown = (x, y, pan) => {
+      if (this._gizmoDragging || (this.gizmo && this.gizmo.axis)) return; // a gizmo handle is grabbed
+      downOnCanvas = true;
       downX = x; downY = y; moved = 0;
       const hit = pan ? null : this._pickShape(x, y);
       if (hit) beginShapeDrag(hit);
@@ -196,6 +204,8 @@ export class Viewport {
       else if (dragging) moveOrbit(x, y);
     };
     const onUp = () => {
+      if (!downOnCanvas) return; // ignore mouseups that didn't start on the canvas (e.g. panel clicks)
+      downOnCanvas = false;
       if (shapeDrag) {
         const em = this.editMeshes.find((e) => e.index === this.selectedIndex);
         if (em && this.onShapeMoveEnd) this.onShapeMoveEnd(this.selectedIndex,
@@ -258,6 +268,36 @@ export class Viewport {
     };
   }
 
+  // --- transform gizmo (build mode) ----------------------------------------
+
+  _setupGizmo() {
+    const g = new TransformControls(this.camera, this.renderer.domElement);
+    g.setSize(0.82);
+    g.setSpace('world');
+    g.addEventListener('dragging-changed', (e) => {
+      this._gizmoDragging = e.value;
+      if (!e.value && this.onTransformEnd && this.selectedIndex >= 0) this.onTransformEnd(this.selectedIndex);
+    });
+    g.addEventListener('objectChange', () => {
+      const em = this.editMeshes.find((m) => m.index === this.selectedIndex);
+      if (!em || !this.onTransform) return;
+      const m = em.mesh, D = 180 / Math.PI;
+      if (this._outline) { this._outline.position.copy(m.position); this._outline.rotation.copy(m.rotation); this._outline.scale.copy(m.scale); }
+      this.onTransform(this.selectedIndex, {
+        pos: [m.position.x, m.position.y, m.position.z],
+        rot: [m.rotation.x * D, m.rotation.y * D, m.rotation.z * D],
+        scale: [m.scale.x, m.scale.y, m.scale.z],
+      });
+    });
+    this.scene.add(g.getHelper());
+    this.gizmo = g;
+  }
+
+  setTransformMode(mode) {
+    this.transformMode = mode;
+    if (this.gizmo) this.gizmo.setMode(mode);
+  }
+
   // --- code mode: one merged solid -----------------------------------------
 
   setModel(manifold, { showEdges = true } = {}) {
@@ -314,6 +354,8 @@ export class Viewport {
       mesh.position.set(it.pos[0], it.pos[1], it.pos[2]);
       const r = it.rot || [0, 0, 0];
       mesh.rotation.set(r[0] * Math.PI / 180, r[1] * Math.PI / 180, r[2] * Math.PI / 180);
+      const s = it.scale || [1, 1, 1];
+      mesh.scale.set(s[0], s[1], s[2]);
       mesh.userData.index = it.index;
       mesh.renderOrder = isHole ? 1 : 0;
       this.editGroup.add(mesh);
@@ -345,6 +387,11 @@ export class Viewport {
       line.renderOrder = 2;
       this.editGroup.add(line);
       this._outline = line;
+    }
+    // attach the transform gizmo to the selection (not to locked shapes)
+    if (this.gizmo) {
+      if (em && !em.lock) { this.gizmo.attach(em.mesh); this.gizmo.setMode(this.transformMode); }
+      else this.gizmo.detach();
     }
   }
 

@@ -43,6 +43,12 @@ export function tokenize(src) {
     if (/[0-9]/.test(c) || (c === '.' && /[0-9]/.test(src[i + 1]))) {
       let num = '';
       while (i < src.length && /[0-9.]/.test(src[i])) { num += src[i]; advance(); }
+      // optional scientific-notation exponent: e / E, optional sign, digits
+      if ((src[i] === 'e' || src[i] === 'E') && /[0-9+-]/.test(src[i + 1] || '')) {
+        num += src[i]; advance();
+        if (src[i] === '+' || src[i] === '-') { num += src[i]; advance(); }
+        while (i < src.length && /[0-9]/.test(src[i])) { num += src[i]; advance(); }
+      }
       let unit = null;
       const rest = src.slice(i);
       const m = rest.match(/^(mm|cm|deg|rad)/);
