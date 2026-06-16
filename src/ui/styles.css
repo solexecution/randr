@@ -178,6 +178,8 @@ input[type=range]::-moz-range-thumb {
   color: var(--ink-dim); background: none; border: 0; border-radius: 6px; padding: 6px 4px; cursor: pointer;
 }
 .xform button.on { background: var(--surface-2); color: var(--cyan); }
+.xform button:hover:not(:disabled) { color: var(--ink); }
+.xform button:disabled { opacity: .3; cursor: default; }
 
 .add-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
 .add-row button {
@@ -200,6 +202,12 @@ input[type=range]::-moz-range-thumb {
 .hint b { color: var(--ink); font-family: var(--mono); }
 
 .bn-head { display: flex; align-items: center; gap: 5px; margin-bottom: 6px; }
+.bn-grp {
+  font-family: var(--mono); font-size: 9px; font-weight: 700; letter-spacing: .03em;
+  color: var(--bg); background: var(--cyan); border-radius: 4px; padding: 3px 4px;
+  flex: none; min-width: 15px; text-align: center;
+}
+.build-node.is-hole .bn-grp { background: var(--amber); }
 .bn-type {
   flex: 1; min-width: 0; font-family: var(--mono); font-size: 12px; color: var(--ink);
   background: var(--surface-2); border: 1px solid var(--line); border-radius: 6px;

@@ -59,6 +59,7 @@ export function createNode(kind) {
     color: PALETTE[colorIx++ % PALETTE.length],
     locked: false,
     hidden: false,
+    group: null, // group id; members combine (and scope their holes) together
     fields,
   };
 }
@@ -115,23 +116,41 @@ function placedCall(node) {
   return call;
 }
 
+// A group compiles to its own scoped solid: difference(union(its solids), its
+// holes). Returns a single source expression, or null if it has no solids.
+function groupBlock(nodes) {
+  const solids = nodes.filter((n) => n.op !== 'hole').map(placedCall).filter(Boolean);
+  const holes = nodes.filter((n) => n.op === 'hole').map(placedCall).filter(Boolean);
+  if (solids.length === 0) return null;
+  const body = (solids.length === 1 && holes.length === 0)
+    ? solids[0]
+    : `union() { ${solids.join(' ')} }`;
+  if (holes.length === 0) return body;
+  return `difference() { ${body} ${holes.join(' ')} }`;
+}
+
 export function buildTreeToSource(tree) {
-  const solids = [];
-  const holes = [];
-  for (const node of tree.nodes) {
-    if (node.hidden) continue;
-    const placed = placedCall(node);
-    if (!placed) continue;
-    (node.op === 'hole' ? holes : solids).push(placed);
+  const visible = tree.nodes.filter((n) => !n.hidden);
+
+  // Partition into ungrouped nodes and groups. A group's holes only cut that
+  // group; ungrouped (top-level) holes cut everything.
+  const groups = new Map();
+  const loose = [];
+  for (const n of visible) {
+    if (n.group == null) loose.push(n);
+    else { if (!groups.has(n.group)) groups.set(n.group, []); groups.get(n.group).push(n); }
   }
 
-  if (solids.length === 0) return '';
+  const topSolids = loose.filter((n) => n.op !== 'hole').map(placedCall).filter(Boolean);
+  for (const nodes of groups.values()) { const b = groupBlock(nodes); if (b) topSolids.push(b); }
+  const topHoles = loose.filter((n) => n.op === 'hole').map(placedCall).filter(Boolean);
 
-  // solids unioned, then holes subtracted — the mental model of the build pane.
-  const solidBlock = solids.map((s) => '    ' + s).join('\n');
-  if (holes.length === 0) {
+  if (topSolids.length === 0) return '';
+
+  const solidBlock = topSolids.map((s) => '    ' + s).join('\n');
+  if (topHoles.length === 0) {
     return `union() {\n${solidBlock}\n}\n`;
   }
-  const holeBlock = holes.map((h) => '    ' + h).join('\n');
+  const holeBlock = topHoles.map((h) => '    ' + h).join('\n');
   return `difference() {\n  union() {\n${solidBlock.replace(/^/gm, '  ')}\n  }\n${holeBlock}\n}\n`;
 }

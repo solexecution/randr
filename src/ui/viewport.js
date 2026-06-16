@@ -184,8 +184,19 @@ export class Viewport {
       const em = this.editMeshes.find((e) => e.index === this.selectedIndex);
       if (!em) return;
       const local = this.editGroup.worldToLocal(hitV.clone());
-      em.mesh.position.x = snapV(local.x + dragOffset.x);  // language X
-      em.mesh.position.y = snapV(local.y + dragOffset.y);  // language Y (workplane)
+      const nx = snapV(local.x + dragOffset.x);  // language X
+      const ny = snapV(local.y + dragOffset.y);  // language Y (workplane)
+      // Shift every selected shape by the same delta so a group/multi-select
+      // moves together (the primary tracks the cursor, the rest follow).
+      const dx = nx - em.mesh.position.x, dy = ny - em.mesh.position.y;
+      if (this.selectedSet.length > 1) {
+        for (const e of this.editMeshes) {
+          if (e === em || !this.selectedSet.includes(e.index)) continue;
+          e.mesh.position.x += dx; e.mesh.position.y += dy;
+        }
+      }
+      em.mesh.position.x = nx;
+      em.mesh.position.y = ny;
       if (this._outline) this._outline.position.copy(em.mesh.position);
       if (this.onShapeMove) this.onShapeMove(this.selectedIndex,
         [em.mesh.position.x, em.mesh.position.y, em.mesh.position.z]);

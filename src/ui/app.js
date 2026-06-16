@@ -219,14 +219,26 @@ export class App {
     this._renderAlignBar();
   }
 
+  // All node indices that share a node's group (or just itself if ungrouped).
+  _members(i) {
+    const nodes = this.buildTree.nodes;
+    const g = nodes[i] ? nodes[i].group : null;
+    if (g == null) return [i];
+    return nodes.map((n, k) => (n.group === g ? k : -1)).filter((k) => k >= 0);
+  }
+
   _selectNode(i, additive) {
     if (i < 0) {
       if (!additive) this.selectedNodes = [];
     } else if (additive) {
-      const k = this.selectedNodes.indexOf(i);
-      if (k >= 0) this.selectedNodes.splice(k, 1); else this.selectedNodes.push(i);
+      // toggle the whole group the clicked shape belongs to
+      const grp = this._members(i);
+      const present = grp.every((k) => this.selectedNodes.includes(k));
+      this.selectedNodes = present
+        ? this.selectedNodes.filter((k) => !grp.includes(k))
+        : [...new Set([...this.selectedNodes, ...grp])];
     } else {
-      this.selectedNodes = [i];
+      this.selectedNodes = this._members(i);
     }
     this.selectedNode = this.selectedNodes.length ? this.selectedNodes[this.selectedNodes.length - 1] : -1;
     this.viewport.setSelection(this.selectedNodes);
@@ -245,6 +257,45 @@ export class App {
     if (align) align.classList.toggle('hidden', this.selectedNodes.length < 2);
     const ops = this.root.querySelector('#opsbar');
     if (ops) ops.classList.toggle('hidden', this.selectedNodes.length < 1);
+    const grp = this.root.querySelector('#groupbar');
+    if (grp) {
+      const nodes = this.buildTree.nodes;
+      const hasGroup = this.selectedNodes.some((i) => nodes[i] && nodes[i].group != null);
+      const canGroup = this.selectedNodes.length >= 2;
+      grp.classList.toggle('hidden', !(canGroup || hasGroup));
+      const gb = grp.querySelector('[data-group="group"]');
+      const ub = grp.querySelector('[data-group="ungroup"]');
+      if (gb) gb.disabled = !canGroup;
+      if (ub) ub.disabled = !hasGroup;
+    }
+  }
+
+  // Combine the selected shapes into one group (their holes scope to the group,
+  // and they move/duplicate/delete as a unit).
+  _group() {
+    const sel = this.selectedNodes;
+    if (sel.length < 2) return;
+    const nodes = this.buildTree.nodes;
+    const id = nodes.reduce((m, n) => (n.group != null && n.group > m ? n.group : m), 0) + 1;
+    sel.forEach((i) => { if (nodes[i]) nodes[i].group = id; });
+    this.selectedNodes = this._members(sel[sel.length - 1]);
+    this.selectedNode = this.selectedNodes[this.selectedNodes.length - 1];
+    this._renderBuildTree();
+    this.recompile();
+    this._pushHistory();
+    this._toast(`Grouped ${sel.length} parts`);
+  }
+
+  // Dissolve any groups represented in the selection back into loose parts.
+  _ungroup() {
+    const nodes = this.buildTree.nodes;
+    const gids = new Set(this.selectedNodes.map((i) => nodes[i] && nodes[i].group).filter((g) => g != null));
+    if (!gids.size) return;
+    nodes.forEach((n) => { if (gids.has(n.group)) n.group = null; });
+    this._renderBuildTree();
+    this.recompile();
+    this._pushHistory();
+    this._toast('Ungrouped');
   }
 
   // place ops on the selection: drop to plate, center, level (reset rot), reset scale
@@ -289,11 +340,18 @@ export class App {
 
   _duplicateSelected() {
     if (!this.selectedNodes.length) return;
-    const copies = this.selectedNodes.map((i) => this.buildTree.nodes[i]).filter(Boolean).map((s) => ({
-      kind: s.kind, op: s.op, pos: [s.pos[0] + 6, s.pos[1] + 6, s.pos[2]],
-      rot: [...s.rot], scale: [...(s.scale || [1, 1, 1])],
-      color: s.color, locked: s.locked, hidden: s.hidden, fields: s.fields.map((f) => ({ ...f })),
-    }));
+    const nodes = this.buildTree.nodes;
+    let nextG = nodes.reduce((m, n) => (n.group != null && n.group > m ? n.group : m), 0) + 1;
+    const remap = new Map(); // old group id -> fresh id, so the copy is its own group
+    const copies = this.selectedNodes.map((i) => nodes[i]).filter(Boolean).map((s) => {
+      let g = null;
+      if (s.group != null) { if (!remap.has(s.group)) remap.set(s.group, nextG++); g = remap.get(s.group); }
+      return {
+        kind: s.kind, op: s.op, pos: [s.pos[0] + 6, s.pos[1] + 6, s.pos[2]],
+        rot: [...s.rot], scale: [...(s.scale || [1, 1, 1])],
+        color: s.color, locked: s.locked, hidden: s.hidden, group: g, fields: s.fields.map((f) => ({ ...f })),
+      };
+    });
     const start = this.buildTree.nodes.length;
     this.buildTree.nodes.push(...copies);
     this.selectedNodes = copies.map((_, k) => start + k);
@@ -304,15 +362,22 @@ export class App {
     this._renderAlignBar();
   }
 
-  // live during a drag: move the shape + reflect in the panel, no recompile
+  // live during a drag: move the shape (whole group moves together) + reflect
+  // in the panel, no recompile
   _onShapeMove(i, pos) {
-    const n = this.buildTree.nodes[i];
+    const nodes = this.buildTree.nodes;
+    const n = nodes[i];
     if (!n) return;
-    n.pos = pos;
+    const dx = pos[0] - n.pos[0], dy = pos[1] - n.pos[1];
+    const sel = this.selectedNodes.includes(i) ? this.selectedNodes : [i];
     const host = this.root.querySelector('#build-list');
-    if (host) ['0', '1', '2'].forEach((a) => {
-      const el = host.querySelector(`input[data-pos="${i}:${a}"]`);
-      if (el && document.activeElement !== el) el.value = pos[Number(a)];
+    sel.forEach((j) => {
+      const m = nodes[j]; if (!m) return;
+      m.pos = (j === i) ? pos : [m.pos[0] + dx, m.pos[1] + dy, m.pos[2]];
+      if (host) ['0', '1', '2'].forEach((a) => {
+        const el = host.querySelector(`input[data-pos="${j}:${a}"]`);
+        if (el && document.activeElement !== el) el.value = m.pos[+a];
+      });
     });
   }
 
@@ -328,22 +393,44 @@ export class App {
   // gizmo drag: live pos/rot/scale into the node + panel (no recompile yet).
   // Round to kill float noise (e.g. -1.8e-15) so the emitted source stays clean.
   _onTransform(i, t) {
-    const n = this.buildTree.nodes[i];
+    const nodes = this.buildTree.nodes;
+    const n = nodes[i];
     if (!n) return;
     const r = (v, p) => { const x = Math.round(v * 10 ** p) / 10 ** p; return x === 0 ? 0 : x; };
-    n.pos = t.pos.map((v) => r(v, 2));
-    n.rot = t.rot.map((v) => r(v, 2));
-    n.scale = t.scale.map((v) => r(v, 3));
+    const newPos = t.pos.map((v) => r(v, 2));
+    const newRot = t.rot.map((v) => r(v, 2));
+    const newScale = t.scale.map((v) => r(v, 3));
+    const sel = this.selectedNodes.includes(i) ? this.selectedNodes : [i];
+    // Move applies as a rigid delta to the whole group; rotate/scale apply the
+    // same delta/factor to each member (predictable for v1).
+    const dPos = [newPos[0] - n.pos[0], newPos[1] - n.pos[1], newPos[2] - n.pos[2]];
+    const dRot = [newRot[0] - n.rot[0], newRot[1] - n.rot[1], newRot[2] - n.rot[2]];
+    const s0 = n.scale || [1, 1, 1];
+    const fS = [newScale[0] / (s0[0] || 1), newScale[1] / (s0[1] || 1), newScale[2] / (s0[2] || 1)];
+    sel.forEach((j) => {
+      const m = nodes[j]; if (!m) return;
+      if (j === i) { m.pos = newPos; m.rot = newRot; m.scale = newScale; return; }
+      m.pos = [m.pos[0] + dPos[0], m.pos[1] + dPos[1], m.pos[2] + dPos[2]];
+      m.rot = [m.rot[0] + dRot[0], m.rot[1] + dRot[1], m.rot[2] + dRot[2]];
+      const ms = m.scale || [1, 1, 1];
+      m.scale = [ms[0] * fS[0], ms[1] * fS[1], ms[2] * fS[2]];
+    });
     const host = this.root.querySelector('#build-list');
     if (!host) return;
-    const set = (sel, v) => { const el = host.querySelector(sel); if (el && document.activeElement !== el) el.value = v; };
-    ['0', '1', '2'].forEach((a) => {
-      set(`input[data-pos="${i}:${a}"]`, n.pos[+a]);
-      set(`input[data-rot="${i}:${a}"]`, n.rot[+a]);
+    const set = (q, v) => { const el = host.querySelector(q); if (el && document.activeElement !== el) el.value = v; };
+    sel.forEach((j) => {
+      const m = nodes[j]; if (!m) return;
+      ['0', '1', '2'].forEach((a) => { set(`input[data-pos="${j}:${a}"]`, m.pos[+a]); set(`input[data-rot="${j}:${a}"]`, m.rot[+a]); });
     });
   }
 
-  _onTransformEnd() { this._recompileMergedHUD(); this._pushHistory(); }
+  // Single shape: cheap merged-only refresh. Group: rebuild every edit mesh so
+  // the non-primary members (which the gizmo doesn't move live) catch up.
+  _onTransformEnd() {
+    if (this.selectedNodes.length > 1) this.recompile();
+    else this._recompileMergedHUD();
+    this._pushHistory();
+  }
 
   _setXform(mode) {
     this.viewport.setTransformMode(mode);
@@ -394,6 +481,42 @@ export class App {
     if (r) r.disabled = this.histIdx >= this.history.length - 1;
   }
 
+  // Switch code<->build keeping the SAME object on screen. build->code shows
+  // the source that builds the current parts; code->build imports the source
+  // into editable parts (or keeps the parts if the code is their clean mirror).
+  _switchMode(mode) {
+    const $ = (s) => this.root.querySelector(s);
+    if (mode === this.mode) { this._setPanel(true); return; }
+    if (mode === 'code') {
+      this.source = buildTreeToSource(this.buildTree) || this.source;
+      this._codeMirror = this.source; // clean mirror — reused if we switch back unedited
+      $('#editor').value = this.source;
+      this.overrides = {};
+      this.mode = 'code';
+    } else {
+      if (this._codeMirror !== this.source) {
+        try {
+          const nodes = sourceToNodes(this.source);
+          this._liftToPlate(nodes);
+          this.buildTree.nodes = nodes;
+          this.selectedNodes = []; this.selectedNode = -1;
+        } catch (e) {
+          this._toast('This design uses features build mode can’t edit yet — staying in code');
+          this._setPanel(true);
+          return; // stay in code rather than show a different object
+        }
+      }
+      this.mode = 'build';
+    }
+    this.root.querySelectorAll('[data-mode]').forEach((t) => t.classList.toggle('active', t.dataset.mode === this.mode));
+    $('#pane-code').classList.toggle('hidden', this.mode !== 'code');
+    $('#pane-build').classList.toggle('hidden', this.mode !== 'build');
+    this._setPanel(true);
+    if (this.mode === 'build') this._renderBuildTree();
+    this.recompile(true);
+    this._pushHistory();
+  }
+
   _loadTemplate(key) {
     const src = TEMPLATES[key];
     if (!src) return;
@@ -420,6 +543,7 @@ export class App {
     this.mode = 'code';
     this.source = src;
     this.overrides = {};
+    this._codeMirror = null;
     this.root.querySelectorAll('[data-mode]').forEach((t) => t.classList.toggle('active', t.dataset.mode === 'code'));
     this.root.querySelector('#pane-code').classList.remove('hidden');
     this.root.querySelector('#pane-build').classList.add('hidden');
@@ -563,20 +687,13 @@ export class App {
     editor.addEventListener('input', () => {
       this.source = editor.value;
       this.overrides = {}; // editing code resets param overrides
+      this._codeMirror = null; // code edited by hand — no longer a clean mirror of the build tree
       this._scheduleRecompile();
     });
 
     // mode tabs (also open the panel so the tools are visible)
     this.root.querySelectorAll('[data-mode]').forEach((tab) => {
-      tab.addEventListener('click', () => {
-        this.mode = tab.dataset.mode;
-        this.root.querySelectorAll('[data-mode]').forEach((t) => t.classList.toggle('active', t === tab));
-        $('#pane-code').classList.toggle('hidden', this.mode !== 'code');
-        $('#pane-build').classList.toggle('hidden', this.mode !== 'build');
-        this._setPanel(true);
-        this.overrides = {};
-        this.recompile(true);
-      });
+      tab.addEventListener('click', () => this._switchMode(tab.dataset.mode));
     });
 
     // collapsible panel
@@ -626,6 +743,10 @@ export class App {
     this.root.querySelectorAll('[data-op-act]').forEach((b) =>
       b.addEventListener('click', () => this._placeOp(b.dataset.opAct)));
 
+    // group / ungroup toolbar
+    this.root.querySelectorAll('[data-group]').forEach((b) =>
+      b.addEventListener('click', () => (b.dataset.group === 'group' ? this._group() : this._ungroup())));
+
     // build pane
     this._bindBuildPane();
 
@@ -640,6 +761,9 @@ export class App {
       if (k === 'g') { $('#v-grid').classList.toggle('on', this.viewport.toggleGrid()); return; }
       if (this.mode === 'build' && 'wer'.includes(k) && !e.ctrlKey && !e.metaKey) {
         this._setXform({ w: 'translate', e: 'rotate', r: 'scale' }[k]); return;
+      }
+      if (this.mode === 'build' && (e.ctrlKey || e.metaKey) && k === 'g') {
+        e.preventDefault(); if (e.shiftKey) this._ungroup(); else this._group(); return;
       }
       if (this.mode === 'build' && this.selectedNodes.length) {
         if (e.key === 'Delete' || e.key === 'Backspace') { e.preventDefault(); this._deleteSelected(); }
@@ -715,6 +839,7 @@ export class App {
         `<label data-unit="mm">${f.label}<input type="number" step="0.5" value="${f.value}" data-field="${idx}:${f.key}"></label>`).join('');
       row.innerHTML = `
         <div class="bn-head">
+          ${node.group != null ? `<span class="bn-grp" title="Group ${node.group}">G${node.group}</span>` : ''}
           <select class="bn-type" data-type="${idx}" title="Shape type">
             ${KINDS.map((k) => `<option value="${k}" ${k === node.kind ? 'selected' : ''}>${k === 'roundedBox' ? 'rounded' : k}</option>`).join('')}
           </select>
@@ -861,6 +986,11 @@ export class App {
               <button data-align="x" title="Line up on X">X</button>
               <button data-align="y" title="Line up on Y">Y</button>
               <button data-align="z" title="Line up on Z">Z</button>
+            </div>
+            <div class="xform hidden" id="groupbar">
+              <span class="xform-label">group</span>
+              <button data-group="group" title="Group selection (Ctrl+G)">▣ group</button>
+              <button data-group="ungroup" title="Ungroup (Ctrl+Shift+G)">▢ ungroup</button>
             </div>
             <p class="hint">Shift-click shapes to multi-select · align lines them up with the last one.</p>
             <div class="pane-title">add shape</div>
