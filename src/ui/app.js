@@ -60,6 +60,44 @@ difference() {
 }
 `;
 
+// Ready-made parametric starters (loaded into the code pane). All flat-bottomed
+// and print-safe on the A1 mini.
+const TEMPLATES = {
+  'soap dish': `// Soap dish with drainage
+param w = 100; param d = 70; param h = 22; param wall = 3; param holeR = 3;
+difference() {
+  box(w, d, h);
+  translate([0, 0, wall]) { box(w - 2*wall, d - 2*wall, h); }
+  translate([-24, 0, wall/2 - h/2]) cylinder(wall + 6, holeR);
+  translate([-12, 0, wall/2 - h/2]) cylinder(wall + 6, holeR);
+  translate([0, 0, wall/2 - h/2]) cylinder(wall + 6, holeR);
+  translate([12, 0, wall/2 - h/2]) cylinder(wall + 6, holeR);
+  translate([24, 0, wall/2 - h/2]) cylinder(wall + 6, holeR);
+}
+`,
+  'pen cup': `// Pen / tool cup
+param w = 70; param d = 70; param h = 90; param wall = 2.5;
+difference() {
+  box(w, d, h);
+  translate([0, 0, wall]) box(w - 2*wall, d - 2*wall, h);
+}
+`,
+  'coaster': `// Coaster with rim
+param r = 45; param h = 6; param wall = 3;
+difference() {
+  cylinder(h, r);
+  translate([0, 0, wall]) cylinder(h, r - wall);
+}
+`,
+  'stacking bin': `// Stacking bin
+param w = 60; param d = 42; param h = 45; param wall = 2;
+difference() {
+  box(w, d, h);
+  translate([0, 0, wall + 1]) box(w - 2*wall, d - 2*wall, h);
+}
+`,
+};
+
 export class App {
   constructor(root) {
     this.root = root;
@@ -71,6 +109,9 @@ export class App {
     this.buildTree = new BuildTree();
     this.selectedNode = -1;
     this._recompileTimer = null;
+    this.history = [];
+    this.histIdx = -1;
+    this._restoring = false;
   }
 
   async start() {
@@ -86,6 +127,7 @@ export class App {
     window.__dbg = { src: () => buildTreeToSource(this.buildTree), compile }; // debug
     this._bindEvents();
     this.recompile(true);
+    this._pushHistory();
     this.root.querySelector('#boot').classList.add('gone');
   }
 
@@ -144,7 +186,7 @@ export class App {
   _scheduleRecompile() {
     clearTimeout(this._recompileTimer);
     this._setStatus('working');
-    this._recompileTimer = setTimeout(() => this.recompile(), 180);
+    this._recompileTimer = setTimeout(() => { this.recompile(); this._pushHistory(); }, 180);
   }
 
   // --- build-mode editing ---------------------------------------------------
@@ -195,6 +237,7 @@ export class App {
     if (!n) return;
     n.pos = pos;
     this._recompileMergedHUD();
+    this._pushHistory();
   }
 
   // gizmo drag: live pos/rot/scale into the node + panel (no recompile yet).
@@ -215,11 +258,70 @@ export class App {
     });
   }
 
-  _onTransformEnd() { this._recompileMergedHUD(); }
+  _onTransformEnd() { this._recompileMergedHUD(); this._pushHistory(); }
 
   _setXform(mode) {
     this.viewport.setTransformMode(mode);
     this.root.querySelectorAll('[data-xform]').forEach((x) => x.classList.toggle('on', x.dataset.xform === mode));
+  }
+
+  // --- undo / redo (snapshot history) --------------------------------------
+
+  _snapshot() {
+    return JSON.stringify({ mode: this.mode, source: this.source, nodes: this.buildTree.nodes });
+  }
+
+  _pushHistory() {
+    if (this._restoring) return;
+    const snap = this._snapshot();
+    if (this.histIdx >= 0 && this.history[this.histIdx] === snap) return;
+    this.history.splice(this.histIdx + 1);
+    this.history.push(snap);
+    if (this.history.length > 80) this.history.shift();
+    this.histIdx = this.history.length - 1;
+    this._updateHistoryButtons();
+  }
+
+  _restore(snap) {
+    const d = JSON.parse(snap);
+    this._restoring = true;
+    this.mode = d.mode;
+    this.source = d.source;
+    this.buildTree.nodes = d.nodes;
+    this.selectedNode = -1;
+    this.overrides = {};
+    this.root.querySelectorAll('[data-mode]').forEach((t) => t.classList.toggle('active', t.dataset.mode === this.mode));
+    this.root.querySelector('#pane-code').classList.toggle('hidden', this.mode !== 'code');
+    this.root.querySelector('#pane-build').classList.toggle('hidden', this.mode !== 'build');
+    this.root.querySelector('#editor').value = this.source;
+    this._renderBuildTree();
+    this.recompile(true);
+    this._restoring = false;
+    this._updateHistoryButtons();
+  }
+
+  _undo() { if (this.histIdx > 0) { this.histIdx--; this._restore(this.history[this.histIdx]); } }
+  _redo() { if (this.histIdx < this.history.length - 1) { this.histIdx++; this._restore(this.history[this.histIdx]); } }
+
+  _updateHistoryButtons() {
+    const u = this.root.querySelector('#v-undo'), r = this.root.querySelector('#v-redo');
+    if (u) u.disabled = this.histIdx <= 0;
+    if (r) r.disabled = this.histIdx >= this.history.length - 1;
+  }
+
+  _loadTemplate(key) {
+    const src = TEMPLATES[key];
+    if (!src) return;
+    this.mode = 'code';
+    this.source = src;
+    this.overrides = {};
+    this.root.querySelectorAll('[data-mode]').forEach((t) => t.classList.toggle('active', t.dataset.mode === 'code'));
+    this.root.querySelector('#pane-code').classList.remove('hidden');
+    this.root.querySelector('#pane-build').classList.add('hidden');
+    this.root.querySelector('#editor').value = src;
+    this._setPanel(true);
+    this.recompile(true);
+    this._pushHistory();
   }
 
   // recompute the merged solid for HUD/export without rebuilding edit meshes
@@ -356,6 +458,19 @@ export class App {
     $('#btn-obj').addEventListener('click', () => out(exportOBJ, 'part.obj'));
     document.addEventListener('click', () => menu.classList.remove('open'));
 
+    // templates dropdown
+    const tpl = $('#tpl-menu');
+    $('#tpl-btn').addEventListener('click', (e) => { e.stopPropagation(); tpl.classList.toggle('open'); });
+    this.root.querySelectorAll('[data-tpl]').forEach((b) =>
+      b.addEventListener('click', () => { this._loadTemplate(b.dataset.tpl); tpl.classList.remove('open'); }));
+    document.addEventListener('click', () => tpl.classList.remove('open'));
+
+    // undo / redo + snap
+    $('#v-undo').addEventListener('click', () => this._undo());
+    $('#v-redo').addEventListener('click', () => this._redo());
+    $('#v-snap').addEventListener('click', (e) => e.currentTarget.classList.toggle('on', this.viewport.setSnap(!this.viewport.snap)));
+    this._updateHistoryButtons();
+
     // view controls
     $('#v-fit').addEventListener('click', () => this.viewport.fitView());
     $('#v-top').addEventListener('click', () => this.viewport.setView('top'));
@@ -378,6 +493,8 @@ export class App {
       const typing = /^(INPUT|TEXTAREA)$/.test(document.activeElement.tagName);
       if (typing) return;
       const k = e.key.toLowerCase();
+      if ((e.ctrlKey || e.metaKey) && k === 'z' && !e.shiftKey) { e.preventDefault(); this._undo(); return; }
+      if ((e.ctrlKey || e.metaKey) && (k === 'y' || (k === 'z' && e.shiftKey))) { e.preventDefault(); this._redo(); return; }
       if (k === 'f') { this.viewport.fitView(); return; }
       if (k === 'g') { $('#v-grid').classList.toggle('on', this.viewport.toggleGrid()); return; }
       if (this.mode === 'build' && 'wer'.includes(k) && !e.ctrlKey && !e.metaKey) {
@@ -409,6 +526,7 @@ export class App {
     this.selectedNode = this.buildTree.nodes.length - 1;
     this._renderBuildTree();
     this.recompile();
+    this._pushHistory();
   }
 
   _deleteNode(i) {
@@ -416,6 +534,7 @@ export class App {
     this.selectedNode = -1;
     this._renderBuildTree();
     this.recompile();
+    this._pushHistory();
   }
 
   _duplicateNode(i) {
@@ -432,6 +551,7 @@ export class App {
     this.selectedNode = i + 1;
     this._renderBuildTree();
     this.recompile();
+    this._pushHistory();
   }
 
   _renderBuildTree() {
@@ -483,19 +603,19 @@ export class App {
 
     const nodes = this.buildTree.nodes;
     host.querySelectorAll('[data-type]').forEach((el) => el.addEventListener('change', () => {
-      setNodeKind(nodes[+el.dataset.type], el.value); this._renderBuildTree(); this.recompile();
+      setNodeKind(nodes[+el.dataset.type], el.value); this._renderBuildTree(); this.recompile(); this._pushHistory();
     }));
     host.querySelectorAll('[data-color]').forEach((el) => el.addEventListener('input', () => {
       nodes[+el.dataset.color].color = parseInt(el.value.slice(1), 16); this._scheduleRecompile();
     }));
     host.querySelectorAll('[data-op]').forEach((el) => el.addEventListener('click', () => {
-      const n = nodes[+el.dataset.op]; n.op = n.op === 'hole' ? 'solid' : 'hole'; this._renderBuildTree(); this.recompile();
+      const n = nodes[+el.dataset.op]; n.op = n.op === 'hole' ? 'solid' : 'hole'; this._renderBuildTree(); this.recompile(); this._pushHistory();
     }));
     host.querySelectorAll('[data-lock]').forEach((el) => el.addEventListener('click', () => {
-      const n = nodes[+el.dataset.lock]; n.locked = !n.locked; this._renderBuildTree(); this.recompile();
+      const n = nodes[+el.dataset.lock]; n.locked = !n.locked; this._renderBuildTree(); this.recompile(); this._pushHistory();
     }));
     host.querySelectorAll('[data-hide]').forEach((el) => el.addEventListener('click', () => {
-      const n = nodes[+el.dataset.hide]; n.hidden = !n.hidden; this._renderBuildTree(); this.recompile();
+      const n = nodes[+el.dataset.hide]; n.hidden = !n.hidden; this._renderBuildTree(); this.recompile(); this._pushHistory();
     }));
     host.querySelectorAll('[data-del]').forEach((el) => el.addEventListener('click', () => this._deleteNode(+el.dataset.del)));
     host.querySelectorAll('[data-field]').forEach((el) => el.addEventListener('input', () => {
@@ -529,11 +649,24 @@ export class App {
           </div>
           <div class="spacer"></div>
           <div class="viewtools">
+            <button class="icon-btn" id="v-undo" title="Undo (Ctrl+Z)">↶</button>
+            <button class="icon-btn" id="v-redo" title="Redo (Ctrl+Y)">↷</button>
+            <span class="tb-sep"></span>
             <button class="icon-btn" id="v-fit" title="Fit to view (F)">⤢</button>
             <button class="icon-btn" id="v-top" title="Top view">⊟</button>
             <button class="icon-btn" id="v-front" title="Front view">⊡</button>
             <button class="icon-btn on" id="v-grid" title="Toggle grid (G)">▦</button>
             <button class="icon-btn" id="v-wire" title="Toggle wireframe">◇</button>
+            <button class="icon-btn on" id="v-snap" title="Snap to 1 mm / 15°">⌗</button>
+          </div>
+          <div class="menu" id="tpl-menu">
+            <button class="exp" id="tpl-btn">✦ Templates ▾</button>
+            <div class="menu-pop">
+              <button data-tpl="soap dish">Soap dish</button>
+              <button data-tpl="pen cup">Pen cup</button>
+              <button data-tpl="coaster">Coaster</button>
+              <button data-tpl="stacking bin">Stacking bin</button>
+            </div>
           </div>
           <div class="menu" id="export-menu">
             <button class="exp" id="export-btn">⤓ Export ▾</button>

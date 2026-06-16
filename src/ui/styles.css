@@ -84,7 +84,10 @@ body {
 }
 .tabs button.active { background: var(--surface-2); color: var(--ink); }
 
-.viewtools { display: flex; gap: 4px; }
+.viewtools { display: flex; gap: 4px; align-items: center; }
+.tb-sep { width: 1px; height: 20px; background: var(--line); margin: 0 2px; }
+.icon-btn:disabled { opacity: .3; cursor: default; }
+.icon-btn:disabled:hover { border-color: var(--line); color: var(--ink); }
 
 /* export dropdown */
 .menu { position: relative; }

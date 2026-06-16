@@ -291,11 +291,22 @@ export class Viewport {
     });
     this.scene.add(g.getHelper());
     this.gizmo = g;
+    this.setSnap(this.snap);
   }
 
   setTransformMode(mode) {
     this.transformMode = mode;
     if (this.gizmo) this.gizmo.setMode(mode);
+  }
+
+  setSnap(on) {
+    this.snap = on;
+    if (this.gizmo) {
+      this.gizmo.setTranslationSnap(on ? this.snapStep : null);
+      this.gizmo.setRotationSnap(on ? Math.PI / 12 : null); // 15°
+      this.gizmo.setScaleSnap(on ? 0.1 : null);
+    }
+    return on;
   }
 
   // --- code mode: one merged solid -----------------------------------------
