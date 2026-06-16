@@ -12,7 +12,7 @@ import { manifoldToGeometry } from '../kernel/mesh.js';
 import { compile } from '../lang/compile.js';
 import { exportSTL, exportOBJ, export3MF, triggerDownload } from '../kernel/export.js';
 import { Viewport } from './viewport.js';
-import { buildTreeToSource, BuildTree } from './buildtree.js';
+import { buildTreeToSource, BuildTree, setNodeKind } from './buildtree.js';
 
 // Build one shape's geometry (centered, kernel-accurate) for the editable
 // build-mode view. The manifold is freed immediately after meshing.
@@ -148,11 +148,12 @@ export class App {
 
   _renderEditShapes() {
     const items = this.buildTree.nodes
-      .map((node, index) => ({
+      .map((node, index) => (node.hidden ? null : {
         index, geometry: nodeToGeometry(node),
         pos: node.pos, rot: node.rot || [0, 0, 0], op: node.op,
+        color: node.color, lock: node.locked,
       }))
-      .filter((it) => it.geometry);
+      .filter((it) => it && it.geometry);
     this.viewport.setEditShapes(items);
     if (this.selectedNode >= 0 && this.selectedNode < this.buildTree.nodes.length) {
       this.viewport.selectIndex(this.selectedNode);
@@ -405,57 +406,74 @@ export class App {
       host.innerHTML = '<p class="muted">Tap a shape above to add it. Click a shape in the scene and drag it on the plate. Mark each one solid or hole, then export.</p>';
       return;
     }
+    const KINDS = ['box', 'cylinder', 'sphere', 'cone', 'roundedBox'];
+    const hex = (c) => '#' + ((c >>> 0) & 0xffffff).toString(16).padStart(6, '0');
     this.buildTree.nodes.forEach((node, idx) => {
       const row = document.createElement('div');
-      row.className = 'build-node' + (node.op === 'hole' ? ' is-hole' : '') + (idx === this.selectedNode ? ' sel' : '');
+      row.className = 'build-node'
+        + (node.op === 'hole' ? ' is-hole' : '')
+        + (idx === this.selectedNode ? ' sel' : '')
+        + (node.hidden ? ' is-hidden' : '');
       row.dataset.node = idx;
+      const dims = node.fields.map((f) =>
+        `<label>${f.label}<input type="number" step="0.5" value="${f.value}" data-field="${idx}:${f.key}"></label>`).join('');
       row.innerHTML = `
         <div class="bn-head">
-          <span class="bn-kind">${node.kind}</span>
+          <select class="bn-type" data-type="${idx}" title="Shape type">
+            ${KINDS.map((k) => `<option value="${k}" ${k === node.kind ? 'selected' : ''}>${k === 'roundedBox' ? 'rounded' : k}</option>`).join('')}
+          </select>
+          <input type="color" class="bn-color" data-color="${idx}" value="${hex(node.color)}" title="Colour" ${node.op === 'hole' ? 'disabled' : ''}>
           <div class="bn-ops">
-            <button data-op="solid" data-i="${idx}" class="${node.op === 'solid' ? 'on' : ''}">solid</button>
-            <button data-op="hole"  data-i="${idx}" class="${node.op === 'hole' ? 'on' : ''}">hole</button>
-            <button data-del="${idx}" class="bn-del">✕</button>
+            <button class="bn-op ${node.op}" data-op="${idx}" title="Toggle solid / hole">${node.op}</button>
+            <button class="bn-ic ${node.locked ? 'on' : ''}" data-lock="${idx}" title="Lock position">${node.locked ? '🔒' : '🔓'}</button>
+            <button class="bn-ic" data-hide="${idx}" title="${node.hidden ? 'Show' : 'Hide'}">${node.hidden ? '🚫' : '👁'}</button>
+            <button class="bn-ic bn-del" data-del="${idx}" title="Delete">✕</button>
           </div>
         </div>
-        <div class="bn-fields">
-          ${node.fields.map((f) => `
-            <label>${f.label}
-              <input type="number" step="0.5" value="${f.value}"
-                     data-field="${idx}:${f.key}" />
-            </label>`).join('')}
-          <label>x <input type="number" step="0.5" value="${node.pos[0]}" data-pos="${idx}:0" /></label>
-          <label>y <input type="number" step="0.5" value="${node.pos[1]}" data-pos="${idx}:1" /></label>
-          <label>z <input type="number" step="0.5" value="${node.pos[2]}" data-pos="${idx}:2" /></label>
+        <div class="bn-fields">${dims}</div>
+        <div class="bn-fields bn-xyz">
+          <label>x<input type="number" step="0.5" value="${node.pos[0]}" data-pos="${idx}:0"></label>
+          <label>y<input type="number" step="0.5" value="${node.pos[1]}" data-pos="${idx}:1"></label>
+          <label>z<input type="number" step="0.5" value="${node.pos[2]}" data-pos="${idx}:2"></label>
+          <label>rx<input type="number" step="15" value="${node.rot[0]}" data-rot="${idx}:0"></label>
+          <label>ry<input type="number" step="15" value="${node.rot[1]}" data-rot="${idx}:1"></label>
+          <label>rz<input type="number" step="15" value="${node.rot[2]}" data-rot="${idx}:2"></label>
         </div>`;
       row.addEventListener('mousedown', (e) => {
-        if (e.target.closest('input, button')) return;
+        if (e.target.closest('input, button, select')) return;
         this._selectNode(idx);
       });
       host.appendChild(row);
     });
 
-    host.querySelectorAll('[data-op]').forEach((b) =>
-      b.addEventListener('click', () => {
-        this.buildTree.nodes[+b.dataset.i].op = b.dataset.op;
-        this._renderBuildTree();
-        this.recompile();
-      }));
-    host.querySelectorAll('[data-del]').forEach((b) =>
-      b.addEventListener('click', () => this._deleteNode(+b.dataset.del)));
-    host.querySelectorAll('[data-field]').forEach((el) =>
-      el.addEventListener('input', () => {
-        const [i, key] = el.dataset.field.split(':');
-        const node = this.buildTree.nodes[+i];
-        node.fields.find((f) => f.key === key).value = parseFloat(el.value);
-        this._scheduleRecompile();
-      }));
-    host.querySelectorAll('[data-pos]').forEach((el) =>
-      el.addEventListener('input', () => {
-        const [i, axis] = el.dataset.pos.split(':');
-        this.buildTree.nodes[+i].pos[+axis] = parseFloat(el.value);
-        this._scheduleRecompile();
-      }));
+    const nodes = this.buildTree.nodes;
+    host.querySelectorAll('[data-type]').forEach((el) => el.addEventListener('change', () => {
+      setNodeKind(nodes[+el.dataset.type], el.value); this._renderBuildTree(); this.recompile();
+    }));
+    host.querySelectorAll('[data-color]').forEach((el) => el.addEventListener('input', () => {
+      nodes[+el.dataset.color].color = parseInt(el.value.slice(1), 16); this._scheduleRecompile();
+    }));
+    host.querySelectorAll('[data-op]').forEach((el) => el.addEventListener('click', () => {
+      const n = nodes[+el.dataset.op]; n.op = n.op === 'hole' ? 'solid' : 'hole'; this._renderBuildTree(); this.recompile();
+    }));
+    host.querySelectorAll('[data-lock]').forEach((el) => el.addEventListener('click', () => {
+      const n = nodes[+el.dataset.lock]; n.locked = !n.locked; this._renderBuildTree(); this.recompile();
+    }));
+    host.querySelectorAll('[data-hide]').forEach((el) => el.addEventListener('click', () => {
+      const n = nodes[+el.dataset.hide]; n.hidden = !n.hidden; this._renderBuildTree(); this.recompile();
+    }));
+    host.querySelectorAll('[data-del]').forEach((el) => el.addEventListener('click', () => this._deleteNode(+el.dataset.del)));
+    host.querySelectorAll('[data-field]').forEach((el) => el.addEventListener('input', () => {
+      const [i, key] = el.dataset.field.split(':');
+      nodes[+i].fields.find((f) => f.key === key).value = parseFloat(el.value);
+      this._scheduleRecompile();
+    }));
+    host.querySelectorAll('[data-pos]').forEach((el) => el.addEventListener('input', () => {
+      const [i, a] = el.dataset.pos.split(':'); nodes[+i].pos[+a] = parseFloat(el.value); this._scheduleRecompile();
+    }));
+    host.querySelectorAll('[data-rot]').forEach((el) => el.addEventListener('input', () => {
+      const [i, a] = el.dataset.rot.split(':'); nodes[+i].rot[+a] = parseFloat(el.value); this._scheduleRecompile();
+    }));
   }
 
   // --- markup ---------------------------------------------------------------

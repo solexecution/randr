@@ -27,24 +27,43 @@ function baseHalfHeight(kind, get) {
   }
 }
 
+const PALETTE = [0x4dd0e1, 0x66bb6a, 0xffb74d, 0xf778ba, 0xa371f7, 0x56d4dd, 0xff8a65];
+let colorIx = 0;
+
+function fieldsFor(kind) {
+  return DEFS[kind].fields.map(([key, value]) => ({ key, label: key, value }));
+}
+
 export class BuildTree {
   constructor() { this.nodes = []; }
 
   add(kind) {
-    const def = DEFS[kind];
-    if (!def) return null;
-    const fields = def.fields.map(([key, value]) => ({ key, label: key, value }));
+    if (!DEFS[kind]) return null;
+    const fields = fieldsFor(kind);
     const get = (k) => fields.find((x) => x.key === k).value;
     const node = {
       kind,
       op: 'solid',
       pos: [0, 0, baseHalfHeight(kind, get)],
       rot: [0, 0, 0],
+      color: PALETTE[colorIx++ % PALETTE.length],
+      locked: false,
+      hidden: false,
       fields,
     };
     this.nodes.push(node);
     return node;
   }
+}
+
+// Switch a node's primitive type in place: reset its dimensions to the new
+// shape's defaults and re-seat it on the plate (position/rotation/colour kept).
+export function setNodeKind(node, kind) {
+  if (!DEFS[kind]) return;
+  node.kind = kind;
+  node.fields = fieldsFor(kind);
+  const get = (k) => node.fields.find((x) => x.key === k).value;
+  node.pos[2] = baseHalfHeight(kind, get);
 }
 
 function shapeCall(node) {
@@ -74,6 +93,7 @@ export function buildTreeToSource(tree) {
   const solids = [];
   const holes = [];
   for (const node of tree.nodes) {
+    if (node.hidden) continue;
     const placed = placedCall(node);
     if (!placed) continue;
     (node.op === 'hole' ? holes : solids).push(placed);

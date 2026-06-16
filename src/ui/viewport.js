@@ -150,10 +150,12 @@ export class Viewport {
     const zoom = (delta) => { radius = Math.max(20, Math.min(1200, radius * (1 + delta * 0.001))); apply(); };
 
     const beginShapeDrag = (hit) => {
-      shapeDrag = true;
       const idx = hit.object.userData.index;
       this.selectIndex(idx);
       if (this.onSelect) this.onSelect(idx);
+      const locked = this.editMeshes.find((e) => e.index === idx)?.lock;
+      if (locked) return; // select only — don't move a locked shape
+      shapeDrag = true;
       // Drag on the horizontal plane through the shape's current height. The
       // raycaster is still aimed at the pointer-down position here, so the
       // intersection is the grab point — store its offset from the shape origin
@@ -315,7 +317,7 @@ export class Viewport {
       mesh.userData.index = it.index;
       mesh.renderOrder = isHole ? 1 : 0;
       this.editGroup.add(mesh);
-      this.editMeshes.push({ index: it.index, mesh, op: it.op });
+      this.editMeshes.push({ index: it.index, mesh, op: it.op, lock: it.lock });
     }
 
     if (this.selectedIndex >= 0 && this.editMeshes.some((e) => e.index === this.selectedIndex)) {
