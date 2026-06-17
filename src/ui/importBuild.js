@@ -12,8 +12,9 @@ import { createNode } from './buildtree.js';
 const TAU = Math.PI * 2;
 const TRANSFORMS = new Set(['translate', 'rotate', 'scale']);
 const PRIMS = new Set([
-  'box', 'cube', 'cylinder', 'sphere', 'cone', 'pyramid',
-  'torus', 'wedge', 'roundedBox', 'roundedCylinder', 'tube', 'prism', 'text', 'imported', 'bolt', 'nut',
+  'box', 'cube', 'cylinder', 'sphere', 'cone', 'pyramid', 'torus', 'wedge',
+  'dome', 'slot', 'star', 'roundedBox', 'roundedCylinder', 'chamferedBox', 'chamferedCylinder',
+  'tube', 'prism', 'text', 'imported', 'thread', 'bolt', 'nut',
 ]);
 
 const MATH = {

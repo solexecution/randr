@@ -178,6 +178,16 @@ export function evaluate(ast, overrides = {}) {
         return mark(track(K.prism(arg(0, 'h'), arg(1, 'r'), arg(2, 'sides', 6))));
       case 'roundedCylinder':
         return mark(track(K.roundedCylinder(arg(0, 'h'), arg(1, 'r'), arg(2, 'fillet', 2))));
+      case 'chamferedBox':
+        return mark(track(K.chamferedBox(arg(0, 'x'), arg(1, 'y'), arg(2, 'z'), arg(3, 'c', 3))));
+      case 'chamferedCylinder':
+        return mark(track(K.chamferedCylinder(arg(0, 'h'), arg(1, 'r'), arg(2, 'chamfer', 2))));
+      case 'dome':
+        return mark(track(K.dome(arg(0, 'r'))));
+      case 'slot':
+        return mark(track(K.slot(arg(0, 'length'), arg(1, 'r'), arg(2, 'h'))));
+      case 'star':
+        return mark(track(K.star(arg(0, 'points'), arg(1, 'outer'), arg(2, 'inner'), arg(3, 'h'))));
       case 'text':
         return mark(track(K.text(arg(0, 'str', ''), arg(1, 'size', 12), arg(2, 'height', 4))));
       case 'imported':

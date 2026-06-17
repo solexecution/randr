@@ -7,7 +7,7 @@
 // sees one input format. The build pane is a structured editor that emits
 // source; a touch-built model can be opened in the code pane and vice versa.
 
-import { loadKernel, inspect, box, cylinder, sphere, cone, pyramid, torus, wedge, roundedBox, roundedCylinder, tube, prism, text, bolt, nut, meshSolid, importSTL, registerSolid, imported } from '../kernel/manifold.js';
+import { loadKernel, inspect, box, cylinder, sphere, cone, pyramid, torus, wedge, dome, slot, star, roundedBox, roundedCylinder, chamferedBox, chamferedCylinder, tube, prism, text, thread, bolt, nut, meshSolid, importSTL, registerSolid, imported } from '../kernel/manifold.js';
 import { manifoldToGeometry } from '../kernel/mesh.js';
 import { compile } from '../lang/compile.js';
 import { exportSTL, exportOBJ, export3MF, triggerDownload } from '../kernel/export.js';
@@ -29,12 +29,18 @@ function nodeToGeometry(node) {
       case 'pyramid':    m = pyramid(f('h'), f('r')); break;
       case 'torus':      m = torus(f('radius'), f('tube')); break;
       case 'wedge':      m = wedge(f('w'), f('d'), f('h')); break;
+      case 'dome':       m = dome(f('r')); break;
+      case 'slot':       m = slot(f('length'), f('r'), f('h')); break;
+      case 'star':       m = star(f('points'), f('outer'), f('inner'), f('h')); break;
       case 'roundedBox': m = roundedBox(f('x'), f('y'), f('z'), f('r')); break;
       case 'roundedCylinder': m = roundedCylinder(f('h'), f('r'), f('fillet')); break;
+      case 'chamferedBox': m = chamferedBox(f('x'), f('y'), f('z'), f('c')); break;
+      case 'chamferedCylinder': m = chamferedCylinder(f('h'), f('r'), f('chamfer')); break;
       case 'tube':       m = tube(f('h'), f('router'), f('rinner')); break;
       case 'prism':      m = prism(f('h'), f('r'), f('sides')); break;
       case 'text':       m = text(f('str'), f('size'), f('height')); break;
       case 'imported':   m = imported(node.meshId || ''); break;
+      case 'thread':     m = thread(f('length'), f('pitch'), f('d'), 0.61 * f('pitch')); break;
       case 'bolt':       m = bolt(f('d'), f('pitch'), f('length'), f('headAF'), f('headH')); break;
       case 'nut':        m = nut(f('d'), f('pitch'), f('thickness'), f('af')); break;
       default: return null;
@@ -111,6 +117,26 @@ difference() {
 param d = 16; param pitch = 2.5;
 bolt(d, pitch, 20, 24, 10);
 translate([34, 0, 0]) nut(d, pitch, 12, 24);
+`,
+  'washer': `// Washer
+tube(2.5, 11, 5.5);
+`,
+  'L-bracket': `// L-bracket with mounting holes
+param t = 4; param w = 32; param d = 24; param h = 28; param hole = 4;
+difference() {
+  union() {
+    translate([0, 0, t/2]) box(w, d, t);
+    translate([-w/2 + t/2, 0, h/2]) box(t, d, h);
+  }
+  translate([w/4, 0, t/2]) cylinder(t + 2, hole/2);
+  translate([-w/2 + t/2, 0, h*0.7]) rotate([0, 90, 0]) cylinder(t + 6, hole/2);
+}
+`,
+  'knob': `// Stacked rounded knob
+union() {
+  roundedCylinder(6, 16, 4);
+  translate([0, 0, 6]) roundedCylinder(10, 11, 4);
+}
 `,
 };
 
@@ -1149,9 +1175,9 @@ export class App {
       host.innerHTML = '<p class="muted">Tap a shape above to add it. Click a shape in the scene and drag it on the plate. Mark each one solid or hole, then export.</p>';
       return;
     }
-    const KINDS = ['box', 'cylinder', 'sphere', 'cone', 'pyramid', 'torus', 'wedge', 'roundedBox', 'roundedCylinder', 'tube', 'prism', 'text', 'bolt', 'nut'];
-    const KIND_LABEL = { roundedBox: 'rounded', roundedCylinder: 'r-cyl' };
-    const COUNT_KEYS = new Set(['sides', 'segments', 'n', 'count', 'teeth']);
+    const KINDS = ['box', 'cylinder', 'sphere', 'cone', 'pyramid', 'torus', 'wedge', 'dome', 'slot', 'star', 'roundedBox', 'roundedCylinder', 'chamferedBox', 'chamferedCylinder', 'tube', 'prism', 'text', 'thread', 'bolt', 'nut'];
+    const KIND_LABEL = { roundedBox: 'rounded', roundedCylinder: 'r-cyl', chamferedBox: 'cham-box', chamferedCylinder: 'cham-cyl', thread: 'rod' };
+    const COUNT_KEYS = new Set(['sides', 'segments', 'n', 'count', 'teeth', 'points']);
     const hex = (c) => '#' + ((c >>> 0) & 0xffffff).toString(16).padStart(6, '0');
     this.buildTree.nodes.forEach((node, idx) => {
       const row = document.createElement('div');
@@ -1419,13 +1445,18 @@ export class App {
                   <button data-add="prism">⬡ prism</button>
                   <button data-add="wedge">◣ wedge</button>
                   <button data-add="torus">◍ torus</button>
+                  <button data-add="dome">◗ dome</button>
+                  <button data-add="slot">▭ slot</button>
+                  <button data-add="star">★ star</button>
                 </div>
               </section>
               <section class="cat">
-                <h4>Rounded &amp; hollow</h4>
+                <h4>Rounded &amp; chamfered</h4>
                 <div class="cat-grid">
-                  <button data-add="roundedBox">▢ rounded box</button>
-                  <button data-add="roundedCylinder">▯ rounded cyl</button>
+                  <button data-add="roundedBox">▢ round box</button>
+                  <button data-add="roundedCylinder">▯ round cyl</button>
+                  <button data-add="chamferedBox">◇ cham box</button>
+                  <button data-add="chamferedCylinder">⬢ cham cyl</button>
                   <button data-add="tube">◎ tube</button>
                 </div>
               </section>
@@ -1440,6 +1471,7 @@ export class App {
                 <div class="cat-grid">
                   <button data-add="bolt">🔩 bolt</button>
                   <button data-add="nut">⬢ nut</button>
+                  <button data-add="thread">▎ rod</button>
                 </div>
               </section>
               <section class="cat">
@@ -1450,6 +1482,9 @@ export class App {
                   <button data-tpl="coaster">Coaster</button>
                   <button data-tpl="stacking bin">Stacking bin</button>
                   <button data-tpl="bolt &amp; nut">Bolt &amp; nut</button>
+                  <button data-tpl="washer">Washer</button>
+                  <button data-tpl="L-bracket">L-bracket</button>
+                  <button data-tpl="knob">Knob</button>
                 </div>
               </section>
               <section class="cat">

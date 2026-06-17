@@ -14,12 +14,18 @@ const DEFS = {
   pyramid:    { fields: [['h', 26], ['r', 15]] },
   torus:      { fields: [['radius', 18], ['tube', 6]] },
   wedge:      { fields: [['w', 30], ['d', 30], ['h', 24]] },
+  dome:       { fields: [['r', 14]] },
+  slot:       { fields: [['length', 40], ['r', 8], ['h', 10]] },
+  star:       { fields: [['points', 5], ['outer', 18], ['inner', 8], ['h', 8]] },
   roundedBox: { fields: [['x', 24], ['y', 24], ['z', 24], ['r', 4]] },
   roundedCylinder: { fields: [['h', 20], ['r', 12], ['fillet', 3]] },
+  chamferedBox: { fields: [['x', 24], ['y', 24], ['z', 24], ['c', 4]] },
+  chamferedCylinder: { fields: [['h', 20], ['r', 12], ['chamfer', 3]] },
   tube:       { fields: [['h', 20], ['router', 12], ['rinner', 7]] },
   prism:      { fields: [['h', 20], ['r', 12], ['sides', 6]] },
   text:       { fields: [['str', 'Text', 'text'], ['size', 12], ['height', 4]] },
   imported:   { fields: [] }, // geometry comes from a registered mesh (node.meshId)
+  thread:     { fields: [['d', 12], ['pitch', 2.5], ['length', 24]] }, // threaded rod
   bolt:       { fields: [['d', 16], ['pitch', 2.5], ['length', 20], ['headAF', 24], ['headH', 10]] },
   nut:        { fields: [['d', 16], ['pitch', 2.5], ['thickness', 12], ['af', 24]] },
 };
@@ -34,13 +40,19 @@ function baseHalfHeight(kind, get) {
     case 'pyramid':    return get('h') / 2;
     case 'torus':      return get('tube');
     case 'wedge':      return 0; // already sits on the plate
+    case 'dome':       return 0; // hemisphere, flat base on the plate
+    case 'slot':       return get('h') / 2;
+    case 'star':       return get('h') / 2;
     case 'roundedBox': return get('z') / 2;
     case 'roundedCylinder': return 0; // revolve builds it base-on-plate
+    case 'chamferedBox': return get('z') / 2;
+    case 'chamferedCylinder': return 0; // revolve builds it base-on-plate
     case 'sphere':     return get('r');
     case 'tube':       return get('h') / 2;
     case 'prism':      return get('h') / 2;
     case 'text':       return 0; // built base-on-plate, lying flat
     case 'imported':   return 0; // STL centred on X/Y, base on the plate
+    case 'thread':     return 0; // threaded rod, base on the plate
     case 'bolt':       return 0; // built base-on-plate
     case 'nut':        return 0; // built base-on-plate
     default:           return 0;
@@ -106,12 +118,18 @@ function shapeCall(node) {
     case 'pyramid':    return `pyramid(${f('h')}, ${f('r')})`;
     case 'torus':      return `torus(${f('radius')}, ${f('tube')})`;
     case 'wedge':      return `wedge(${f('w')}, ${f('d')}, ${f('h')})`;
+    case 'dome':       return `dome(${f('r')})`;
+    case 'slot':       return `slot(${f('length')}, ${f('r')}, ${f('h')})`;
+    case 'star':       return `star(${f('points')}, ${f('outer')}, ${f('inner')}, ${f('h')})`;
     case 'roundedBox': return `roundedBox(${f('x')}, ${f('y')}, ${f('z')}, ${f('r')})`;
     case 'roundedCylinder': return `roundedCylinder(${f('h')}, ${f('r')}, ${f('fillet')})`;
+    case 'chamferedBox': return `chamferedBox(${f('x')}, ${f('y')}, ${f('z')}, ${f('c')})`;
+    case 'chamferedCylinder': return `chamferedCylinder(${f('h')}, ${f('r')}, ${f('chamfer')})`;
     case 'tube':       return `tube(${f('h')}, ${f('router')}, ${f('rinner')})`;
     case 'prism':      return `prism(${f('h')}, ${f('r')}, ${f('sides')})`;
     case 'text':       return `text("${String(f('str')).replace(/\\/g, '\\\\').replace(/"/g, '\\"')}", ${f('size')}, ${f('height')})`;
     case 'imported':   return `imported("${node.meshId || ''}")`;
+    case 'thread':     return `thread(${f('length')}, ${f('pitch')}, ${f('d')})`;
     case 'bolt':       return `bolt(${f('d')}, ${f('pitch')}, ${f('length')}, ${f('headAF')}, ${f('headH')})`;
     case 'nut':        return `nut(${f('d')}, ${f('pitch')}, ${f('thickness')}, ${f('af')})`;
     default:           return null;

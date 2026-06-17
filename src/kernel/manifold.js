@@ -89,6 +89,17 @@ export function sphere(radius, segments = 64) {
   return kernel().Manifold.sphere(radius, segments);
 }
 
+// Dome / hemisphere: the top half of a sphere, flat base on the plate.
+export function dome(radius, segments = 64) {
+  const M = kernel().Manifold;
+  const s = M.sphere(radius, segments);
+  const cap = M.cube([radius * 2 + 2, radius * 2 + 2, radius], true).translate([0, 0, radius / 2]);
+  const out = M.intersection([s, cap]);
+  s.delete();
+  cap.delete();
+  return out;
+}
+
 // A rounded slab: useful enough to be a primitive. Built as a hull of spheres
 // at the eight corners so the radius is a true fillet on every edge.
 export function roundedBox(x, y, z, r, segments = 32) {
@@ -103,6 +114,33 @@ export function roundedBox(x, y, z, r, segments = 32) {
         corners.push(corner.translate([sx * hx, sy * hy, sz * hz]));
   const out = M.hull(corners);
   corners.forEach((c) => c.delete());
+  corner.delete();
+  return out;
+}
+
+// A unit octahedron scaled to `c` (verts on the axes), used as the chamfer
+// building block — its flat faces become 45 degree bevels when hulled.
+function octahedron(c) {
+  return meshSolid(
+    [c, 0, 0, -c, 0, 0, 0, c, 0, 0, -c, 0, 0, 0, c, 0, 0, -c],
+    [4, 0, 2, 4, 2, 1, 4, 1, 3, 4, 3, 0, 5, 2, 0, 5, 1, 2, 5, 3, 1, 5, 0, 3],
+  );
+}
+
+// Chamfered box: like roundedBox but hulling 8 octahedra, so every edge gets a
+// flat 45 degree bevel of size `c` instead of a round fillet.
+export function chamferedBox(x, y, z, c) {
+  const M = kernel().Manifold;
+  const hx = x / 2 - c, hy = y / 2 - c, hz = z / 2 - c;
+  if (hx <= 0 || hy <= 0 || hz <= 0) return box(x, y, z);
+  const corner = octahedron(c);
+  const corners = [];
+  for (const sx of [-1, 1])
+    for (const sy of [-1, 1])
+      for (const sz of [-1, 1])
+        corners.push(corner.translate([sx * hx, sy * hy, sz * hz]));
+  const out = M.hull(corners);
+  corners.forEach((cc) => cc.delete());
   corner.delete();
   return out;
 }
@@ -124,6 +162,35 @@ export function prism(height, radius, sides = 6) {
   return kernel().Manifold.cylinder(height, radius, radius, Math.max(3, Math.round(sides)), true);
 }
 
+// Stadium / slot prism: a rounded-end bar (hull of two cylinders). `length` is
+// the overall length, `radius` the end radius (half-width). Centred.
+export function slot(length, radius, height, segments = 48) {
+  const M = kernel().Manifold;
+  const r = Math.max(0.5, Math.min(radius, length / 2 - 0.1));
+  const d = Math.max(0, length / 2 - r);
+  const a = M.cylinder(height, r, r, segments, true).translate([-d, 0, 0]);
+  const b = M.cylinder(height, r, r, segments, true).translate([d, 0, 0]);
+  const out = M.hull([a, b]);
+  a.delete();
+  b.delete();
+  return out;
+}
+
+// Star prism: an n-pointed star (alternating outer/inner radius) extruded. Centred.
+export function star(points, outer, inner, height) {
+  const n = Math.max(3, Math.round(points));
+  const pts = [];
+  for (let i = 0; i < n * 2; i++) {
+    const r = (i % 2 === 0) ? outer : Math.max(0.5, Math.min(inner, outer - 0.1));
+    const a = (i / (n * 2)) * Math.PI * 2 + Math.PI / 2;
+    pts.push([r * Math.cos(a), r * Math.sin(a)]);
+  }
+  const cs = kernel().CrossSection([pts]);
+  const out = cs.extrude(height, 0, 0, [1, 1], true);
+  cs.delete();
+  return out;
+}
+
 // Cylinder with filleted top + bottom rim, standing on the plate. Built by
 // revolving a rounded-corner profile (reliable — no general edge fillet needed).
 export function roundedCylinder(height, radius, fillet, segments = 64, arcSeg = 8) {
@@ -134,6 +201,16 @@ export function roundedCylinder(height, radius, fillet, segments = 64, arcSeg = 
   pts.push([0, height]);
   const cs = kernel().CrossSection([pts]);
   const out = cs.revolve(segments, 360); // revolve yields a Z-axis solid, base on z=0
+  cs.delete();
+  return out;
+}
+
+// Cylinder with a 45 degree chamfer on the top + bottom rim (revolve, base on plate).
+export function chamferedCylinder(height, radius, chamfer, segments = 64) {
+  const c = Math.max(0.1, Math.min(chamfer, Math.min(radius - 0.1, height / 2 - 0.1)));
+  const pts = [[0, 0], [radius - c, 0], [radius, c], [radius, height - c], [radius - c, height], [0, height]];
+  const cs = kernel().CrossSection([pts]);
+  const out = cs.revolve(segments, 360);
   cs.delete();
   return out;
 }
