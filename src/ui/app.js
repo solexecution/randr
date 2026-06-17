@@ -351,28 +351,37 @@ export class App {
       r.classList.toggle('sel', sel.has(Number(r.dataset.node))));
   }
 
+  // The build tools stay visible so they're always discoverable; their buttons
+  // just disable until the selection meets each tool's requirement (place/array
+  // need 1 part, align/group need 2). The whole build pane is hidden in code
+  // mode, so nothing leaks there.
   _renderAlignBar() {
-    const align = this.root.querySelector('#alignbar');
-    if (align) align.classList.toggle('hidden', this.selectedNodes.length < 2);
-    const ops = this.root.querySelector('#opsbar');
-    if (ops) ops.classList.toggle('hidden', this.selectedNodes.length < 1);
-    const arr = this.root.querySelector('#arraybar');
-    if (arr) arr.classList.toggle('hidden', this.selectedNodes.length < 1);
+    const sel = this.selectedNodes.length;
+    const nodes = this.buildTree.nodes;
+    const show = (id, disabled) => {
+      const bar = this.root.querySelector(id);
+      if (!bar) return;
+      bar.classList.remove('hidden');
+      bar.querySelectorAll('button').forEach((b) => { b.disabled = disabled; });
+    };
+    show('#opsbar', sel < 1);
+    show('#arraybar', sel < 1);
+    show('#alignbar', sel < 2);
     const grp = this.root.querySelector('#groupbar');
     if (grp) {
-      const nodes = this.buildTree.nodes;
+      grp.classList.remove('hidden');
       const hasGroup = this.selectedNodes.some((i) => nodes[i] && nodes[i].group != null);
-      const canGroup = this.selectedNodes.length >= 2;
-      grp.classList.toggle('hidden', !(canGroup || hasGroup));
+      const canGroup = sel >= 2;
       const gb = grp.querySelector('[data-group="group"]');
       const ub = grp.querySelector('[data-group="ungroup"]');
       if (gb) gb.disabled = !canGroup;
       if (ub) ub.disabled = !hasGroup;
-      // boolean-mode buttons: only meaningful for a group; highlight the active one
+      // boolean-mode buttons: only meaningful for a group; disable (don't hide)
+      // off a group so the option stays discoverable. Highlight the active one.
       const modes = new Set(this.selectedNodes.map((i) => nodes[i]).filter((n) => n && n.group != null).map((n) => n.groupMode || 'union'));
       const active = modes.size === 1 ? [...modes][0] : null;
       grp.querySelectorAll('[data-gmode]').forEach((b) => {
-        b.classList.toggle('hidden', !hasGroup);
+        b.disabled = !hasGroup;
         b.classList.toggle('on', hasGroup && b.dataset.gmode === active);
       });
     }
@@ -1775,7 +1784,7 @@ export class App {
               <button data-gmode="subtract" title="Subtract — first part minus the rest">∖</button>
               <button data-gmode="intersect" title="Keep only the overlap (intersection)">∩</button>
             </div>
-            <p class="hint">Click a part to select · drag on the plate to move · Shift-click to multi-select · <b>Del</b> remove · <b>Ctrl+D</b> duplicate</p>
+            <p class="hint">Click a part to select · drag to move · Shift-click for multi-select · select 2+ to <b>align</b> / <b>group</b> · <b>Del</b> remove · <b>Ctrl+D</b> duplicate</p>
             <div class="parts-head">
               <span class="pane-title">parts</span>
               <button id="collapse-all" class="mini-btn" title="Collapse or expand all parts">collapse all</button>
