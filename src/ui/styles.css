@@ -242,6 +242,29 @@ input[type=range]::-moz-range-thumb {
 }
 .cat-grid button:hover { border-color: var(--cyan); color: var(--cyan); }
 
+/* centered modal variant (Projects manager, name input) vs the anchored Add popover */
+.modal-overlay.center { display: flex; align-items: center; justify-content: center; padding: 20px; }
+.modal-overlay.center.hidden { display: none; } /* beat .center's display:flex when hidden */
+.modal-overlay.center .modal-panel { position: static; top: auto; left: auto; }
+
+.proj-list { display: flex; flex-direction: column; gap: 7px; }
+.proj-row { display: flex; align-items: center; gap: 10px; padding: 9px 11px; background: var(--surface-2); border: 1px solid var(--line); border-radius: 9px; }
+.proj-row.current { border-color: var(--cyan); }
+.proj-main { flex: 1; min-width: 0; cursor: pointer; }
+.proj-name { font-family: var(--mono); font-size: 13px; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.proj-cur { color: var(--cyan); }
+.proj-meta { font-family: var(--mono); font-size: 10px; color: var(--ink-dim); margin-top: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.proj-acts { display: flex; gap: 4px; flex: none; }
+.proj-acts button { font-family: var(--mono); font-size: 11px; color: var(--ink-dim); background: var(--bg); border: 1px solid var(--line); border-radius: 6px; padding: 5px 8px; cursor: pointer; }
+.proj-acts button:hover { border-color: var(--cyan); color: var(--cyan); }
+.proj-del:hover, .proj-del.confirm { border-color: var(--red); color: var(--red); }
+
+.name-panel { width: 380px; }
+.name-input { width: 100%; font-family: var(--mono); font-size: 14px; color: var(--ink); background: var(--surface-2); border: 1px solid var(--line); border-radius: 8px; padding: 11px 12px; }
+.name-input:focus { outline: none; border-color: var(--cyan); }
+.name-actions { margin-top: 12px; }
+.kbd { font-size: 9px; color: var(--ink-dim); border: 1px solid var(--line); border-radius: 4px; padding: 1px 4px; margin-left: 6px; }
+
 .import-btn {
   width: 100%; font-family: var(--mono); font-size: 12px; color: var(--ink);
   background: var(--surface-2); border: 1px solid var(--line); border-radius: 7px;

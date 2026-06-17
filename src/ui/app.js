@@ -7,13 +7,14 @@
 // sees one input format. The build pane is a structured editor that emits
 // source; a touch-built model can be opened in the code pane and vice versa.
 
-import { loadKernel, inspect, box, cylinder, sphere, cone, pyramid, torus, wedge, dome, slot, star, roundedBox, roundedCylinder, chamferedBox, chamferedCylinder, tube, prism, text, thread, bolt, nut, meshSolid, importSTL, registerSolid, imported } from '../kernel/manifold.js';
+import { loadKernel, inspect, box, cylinder, sphere, cone, pyramid, torus, wedge, dome, slot, star, roundedBox, roundedCylinder, chamferedBox, chamferedCylinder, tube, prism, text, thread, bolt, nut, meshSolid, importSTL, registerSolid, imported, solidMesh } from '../kernel/manifold.js';
 import { manifoldToGeometry } from '../kernel/mesh.js';
 import { compile } from '../lang/compile.js';
 import { exportSTL, exportOBJ, export3MF, triggerDownload } from '../kernel/export.js';
 import { Viewport } from './viewport.js';
 import { buildTreeToSource, BuildTree, setNodeKind } from './buildtree.js';
 import { sourceToNodes } from './importBuild.js';
+import * as Projects from './projects.js';
 
 // Build one shape's geometry (centered, kernel-accurate) for the editable
 // build-mode view. The manifold is freed immediately after meshing.
@@ -153,6 +154,8 @@ export class App {
     this.selectedNodes = [];
     this.workplane = null; // {origin,normal,rot} build frame, or null for ground
     this.viewMode = 'edit'; // build view: 'edit' (parts + ghost) | 'result' (combined solid)
+    this.project = null;    // current saved project meta {id,name,created,modified,seconds} or null
+    this._workSeconds = 0;  // accumulated active-edit time for the current project
     this._recompileTimer = null;
     this.history = [];
     this.histIdx = -1;
@@ -173,6 +176,7 @@ export class App {
     this._bindEvents();
     this.recompile(true);
     this._pushHistory();
+    this._initProjects(); // restore last project (or adopt the starter as the first)
     this.root.querySelector('#boot').classList.add('gone');
   }
 
@@ -660,6 +664,7 @@ export class App {
     if (this.history.length > 80) this.history.shift();
     this.histIdx = this.history.length - 1;
     this._updateHistoryButtons();
+    this._scheduleAutosave();
   }
 
   _restore(snap) {
@@ -788,6 +793,218 @@ export class App {
     t.classList.add('show');
     clearTimeout(this._toastTimer);
     this._toastTimer = setTimeout(() => t.classList.remove('show'), 2600);
+  }
+
+  // --- projects (local, persisted in localStorage) --------------------------
+
+  // The full design as a plain serializable object. Imported STL meshes are
+  // captured by value (welded arrays) so a saved project is self-contained.
+  _serializeDesign() {
+    const nodes = this.buildTree.nodes;
+    const meshes = {};
+    for (const n of nodes) {
+      if (n.kind === 'imported' && n.meshId && !meshes[n.meshId]) {
+        const md = solidMesh(n.meshId);
+        if (md) meshes[n.meshId] = md;
+      }
+    }
+    return { v: 1, mode: this.mode, source: this.source, viewMode: this.viewMode, nodes, meshes };
+  }
+
+  // Load a serialized design into the app (restores imported meshes first).
+  _applyDesign(data) {
+    if (!data) return;
+    if (data.meshes) {
+      for (const id in data.meshes) {
+        const md = data.meshes[id];
+        try { registerSolid(id, meshSolid(md.p, md.t)); } catch { /* skip bad mesh */ }
+      }
+    }
+    this.mode = data.mode === 'code' ? 'code' : 'build';
+    this.source = data.source || '';
+    this.viewMode = data.viewMode === 'result' ? 'result' : 'edit';
+    this.buildTree.nodes = Array.isArray(data.nodes) ? data.nodes : [];
+    this.overrides = {};
+    this._codeMirror = null;
+    this.selectedNodes = []; this.selectedNode = -1;
+    this.root.querySelectorAll('[data-mode]').forEach((t) => t.classList.toggle('active', t.dataset.mode === this.mode));
+    this.root.querySelector('#pane-code').classList.toggle('hidden', this.mode !== 'code');
+    this.root.querySelector('#pane-build').classList.toggle('hidden', this.mode !== 'build');
+    this.root.querySelector('#editor').value = this.source;
+    this.root.querySelectorAll('[data-view]').forEach((b) => b.classList.toggle('on', b.dataset.view === this.viewMode));
+    this._renderBuildTree();
+    this.recompile(true);
+    this.history = []; this.histIdx = -1; this._pushHistory();
+    this._updateHistoryButtons();
+  }
+
+  // Write the current design into the open project (+ metadata). No-op if none.
+  _saveCurrent() {
+    if (!this.project) return null;
+    this.project.modified = Date.now();
+    this.project.seconds = this._workSeconds;
+    const entry = Projects.saveProject(this.project, this._serializeDesign());
+    Projects.setCurrentId(this.project.id);
+    return entry;
+  }
+
+  _scheduleAutosave() {
+    if (!this.project || this._restoring) return;
+    clearTimeout(this._autosaveTimer);
+    this._autosaveTimer = setTimeout(() => this._saveCurrent(), 1500);
+  }
+
+  _newProject() {
+    if (this.project) this._saveCurrent();
+    const meta = { id: Projects.newId(), name: this._uniqueName('Untitled'), created: Date.now(), modified: Date.now(), seconds: 0 };
+    this.project = meta;
+    this._workSeconds = 0;
+    this._applyDesign({ v: 1, mode: 'build', source: '', viewMode: 'edit', nodes: [], meshes: {} });
+    this._saveCurrent();
+    this._updateProjectName();
+    this._toast(`New project · ${meta.name}`);
+  }
+
+  _saveProject() {
+    if (!this.project) { this._promptName('Save project as', '', (name) => this._doSaveAs(name)); return; }
+    const entry = this._saveCurrent();
+    this._updateProjectName();
+    this._toast(entry ? `Saved “${this.project.name}”` : 'Save failed — local storage full');
+  }
+
+  _doSaveAs(name) {
+    const clean = (name || '').trim();
+    if (!clean) return;
+    if (this.project) this._saveCurrent(); // checkpoint the source project first
+    const meta = { id: Projects.newId(), name: this._uniqueName(clean), created: Date.now(), modified: Date.now(), seconds: this._workSeconds };
+    this.project = meta;
+    const entry = Projects.saveProject(meta, this._serializeDesign());
+    Projects.setCurrentId(meta.id);
+    this._updateProjectName();
+    this._toast(entry ? `Saved as “${meta.name}”` : 'Save failed — local storage full');
+  }
+
+  _openProject(id) {
+    const meta = Projects.listProjects().find((p) => p.id === id);
+    const data = Projects.loadProject(id);
+    if (!meta || !data) { this._toast('Could not open that project'); return; }
+    if (this.project && this.project.id !== id) this._saveCurrent();
+    this.project = { id: meta.id, name: meta.name, created: meta.created, modified: meta.modified, seconds: meta.seconds || 0 };
+    this._workSeconds = meta.seconds || 0;
+    this._applyDesign(data);
+    Projects.setCurrentId(id);
+    this._updateProjectName();
+    this._closeModal('#proj-modal');
+    this._toast(`Opened “${meta.name}”`);
+  }
+
+  _deleteProject(id) {
+    Projects.deleteProject(id);
+    if (this.project && this.project.id === id) {
+      // deleted the open one — fall back to most recent, or a fresh project
+      const next = Projects.listProjects().sort((a, b) => b.modified - a.modified)[0];
+      if (next) this._openProject(next.id); else this._newProject();
+    }
+    this._renderProjectList();
+    this._updateProjectName();
+  }
+
+  _renameCurrentProject(name) {
+    const clean = (name || '').trim();
+    if (!clean || !this.project) return;
+    this.project.name = this._uniqueName(clean, this.project.id);
+    Projects.renameProject(this.project.id, this.project.name, Date.now());
+    this._updateProjectName();
+    this._renderProjectList();
+  }
+
+  // Make a name unique within the index (append " 2", " 3", …).
+  _uniqueName(base, exceptId) {
+    const taken = new Set(Projects.listProjects().filter((p) => p.id !== exceptId).map((p) => p.name));
+    if (!taken.has(base)) return base;
+    let i = 2;
+    while (taken.has(`${base} ${i}`)) i++;
+    return `${base} ${i}`;
+  }
+
+  _updateProjectName() {
+    const el = this.root.querySelector('#proj-name');
+    if (el) el.textContent = this.project ? this.project.name : 'Untitled';
+  }
+
+  // Count visible (engaged) seconds for the current project; flush periodically.
+  _setupWorkTimer() {
+    let ticks = 0;
+    setInterval(() => {
+      if (document.visibilityState !== 'visible' || !this.project) return;
+      this._workSeconds += 5;
+      if (++ticks % 6 === 0) Projects.touchSeconds(this.project.id, this._workSeconds); // flush ~every 30s
+    }, 5000);
+    window.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'hidden' && this.project) Projects.touchSeconds(this.project.id, this._workSeconds);
+    });
+  }
+
+  // On boot: restore the last project, else adopt the most recent, else create
+  // the first one from the current starter design.
+  _initProjects() {
+    this._setupWorkTimer();
+    const cur = Projects.getCurrentId();
+    const list = Projects.listProjects();
+    const meta = (cur && list.find((p) => p.id === cur)) || list.sort((a, b) => b.modified - a.modified)[0];
+    if (meta) this._openProject(meta.id);
+    else this._doSaveAs('Untitled'); // first run — save the starter as project #1
+  }
+
+  _fmtSize(bytes) {
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+    return `${(bytes / 1048576).toFixed(2)} MB`;
+  }
+
+  _fmtWork(sec) {
+    if (!sec || sec < 60) return '< 1 min';
+    const h = Math.floor(sec / 3600), m = Math.round((sec % 3600) / 60);
+    return h ? `${h}h ${m}m` : `${m} min`;
+  }
+
+  _fmtDate(ts) {
+    if (!ts) return '—';
+    const d = new Date(ts);
+    return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) + ', '
+      + d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
+  }
+
+  _renderProjectList() {
+    const host = this.root.querySelector('#proj-list');
+    if (!host) return;
+    const list = Projects.listProjects().sort((a, b) => b.modified - a.modified);
+    if (!list.length) { host.innerHTML = '<p class="muted">No saved projects yet.</p>'; return; }
+    host.innerHTML = list.map((p) => `
+      <div class="proj-row${this.project && p.id === this.project.id ? ' current' : ''}" data-pid="${p.id}">
+        <div class="proj-main" data-open="${p.id}">
+          <div class="proj-name">${String(p.name).replace(/</g, '&lt;')}${this.project && p.id === this.project.id ? ' ·<span class="proj-cur"> open</span>' : ''}</div>
+          <div class="proj-meta">${this._fmtSize(p.size || 0)} · ${this._fmtWork(p.seconds)} worked · created ${this._fmtDate(p.created)} · edited ${this._fmtDate(p.modified)}</div>
+        </div>
+        <div class="proj-acts">
+          <button data-open="${p.id}" title="Open">Open</button>
+          <button data-rename="${p.id}" title="Rename">✎</button>
+          <button data-del="${p.id}" title="Delete" class="proj-del">✕</button>
+        </div>
+      </div>`).join('');
+  }
+
+  _openModal(sel) { const m = this.root.querySelector(sel); if (m) m.classList.remove('hidden'); }
+  _closeModal(sel) { const m = this.root.querySelector(sel); if (m) m.classList.add('hidden'); }
+
+  // Small reusable name-input modal (no native prompt). cb gets the typed name.
+  _promptName(title, initial, cb) {
+    this._nameCb = cb;
+    this.root.querySelector('#name-title').textContent = title;
+    const input = this.root.querySelector('#name-input');
+    input.value = initial || '';
+    this._openModal('#name-modal');
+    setTimeout(() => { input.focus(); input.select(); }, 30);
   }
 
   // recompute the merged solid for HUD/export without rebuilding edit meshes
@@ -925,6 +1142,42 @@ export class App {
       b.addEventListener('click', () => { this._loadTemplate(b.dataset.tpl); tpl.classList.remove('open'); }));
     document.addEventListener('click', () => tpl.classList.remove('open'));
 
+    // projects (File) dropdown
+    const proj = $('#proj-menu');
+    $('#proj-btn').addEventListener('click', (e) => { e.stopPropagation(); proj.classList.toggle('open'); });
+    document.addEventListener('click', () => proj.classList.remove('open'));
+    $('#proj-new').addEventListener('click', () => this._newProject());
+    $('#proj-save').addEventListener('click', () => this._saveProject());
+    $('#proj-saveas').addEventListener('click', () => this._promptName('Save project as', this.project ? this.project.name : '', (n) => this._doSaveAs(n)));
+    $('#proj-open').addEventListener('click', () => { this._renderProjectList(); this._openModal('#proj-modal'); });
+
+    // projects manager modal
+    const pm = $('#proj-modal');
+    $('#proj-modal-close').addEventListener('click', () => this._closeModal('#proj-modal'));
+    pm.addEventListener('click', (e) => { if (e.target === pm) this._closeModal('#proj-modal'); });
+    $('#proj-list').addEventListener('click', (e) => {
+      const open = e.target.closest('[data-open]');
+      const ren = e.target.closest('[data-rename]');
+      const del = e.target.closest('[data-del]');
+      if (open) { this._openProject(open.dataset.open); return; }
+      if (ren) { const id = ren.dataset.rename; const cur = Projects.listProjects().find((p) => p.id === id); this._promptName('Rename project', cur ? cur.name : '', (n) => { if (this.project && this.project.id === id) this._renameCurrentProject(n); else { Projects.renameProject(id, this._uniqueName((n || '').trim(), id), Date.now()); this._renderProjectList(); } }); return; }
+      if (del) {
+        const id = del.dataset.del;
+        if (del.dataset.confirm) { this._deleteProject(id); return; } // second click confirms
+        del.dataset.confirm = '1'; del.textContent = 'sure?'; del.classList.add('confirm');
+        setTimeout(() => { if (del.isConnected) { del.textContent = '✕'; del.classList.remove('confirm'); delete del.dataset.confirm; } }, 2600);
+      }
+    });
+
+    // name-input modal (Save as / Rename)
+    const nameModal = $('#name-modal');
+    const nameInput = $('#name-input');
+    const nameOk = () => { const cb = this._nameCb; this._nameCb = null; this._closeModal('#name-modal'); if (cb) cb(nameInput.value); };
+    $('#name-ok').addEventListener('click', nameOk);
+    $('#name-cancel').addEventListener('click', () => { this._nameCb = null; this._closeModal('#name-modal'); });
+    nameModal.addEventListener('click', (e) => { if (e.target === nameModal) { this._nameCb = null; this._closeModal('#name-modal'); } });
+    nameInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); nameOk(); } });
+
     // undo / redo + snap
     $('#v-undo').addEventListener('click', () => this._undo());
     $('#v-redo').addEventListener('click', () => this._redo());
@@ -984,13 +1237,17 @@ export class App {
 
     // keyboard shortcuts
     window.addEventListener('keydown', (e) => {
+      const k = e.key.toLowerCase();
+      // Save works anywhere, even with a field focused
+      if ((e.ctrlKey || e.metaKey) && k === 's') { e.preventDefault(); this._saveProject(); return; }
       if (e.key === 'Escape') {
-        const m = this.root.querySelector('#add-modal');
-        if (m && !m.classList.contains('hidden')) { e.preventDefault(); this._closeAddModal(); return; }
+        for (const sel of ['#name-modal', '#proj-modal', '#add-modal']) {
+          const m = this.root.querySelector(sel);
+          if (m && !m.classList.contains('hidden')) { e.preventDefault(); if (sel === '#name-modal') this._nameCb = null; m.classList.add('hidden'); return; }
+        }
       }
       const typing = /^(INPUT|TEXTAREA)$/.test(document.activeElement.tagName);
       if (typing) return;
-      const k = e.key.toLowerCase();
       if ((e.ctrlKey || e.metaKey) && k === 'z' && !e.shiftKey) { e.preventDefault(); this._undo(); return; }
       if ((e.ctrlKey || e.metaKey) && (k === 'y' || (k === 'z' && e.shiftKey))) { e.preventDefault(); this._redo(); return; }
       if (k === 'f') { this.viewport.fitView(); return; }
@@ -1328,6 +1585,15 @@ export class App {
             <button class="icon-btn" id="v-wire" title="Toggle wireframe">◇</button>
             <button class="icon-btn on" id="v-snap" title="Snap to 1 mm / 15°">⌗</button>
           </div>
+          <div class="menu" id="proj-menu">
+            <button class="exp" id="proj-btn">🗂 <span id="proj-name">Untitled</span> ▾</button>
+            <div class="menu-pop">
+              <button id="proj-new">New project</button>
+              <button id="proj-save">Save <span class="kbd">Ctrl+S</span></button>
+              <button id="proj-saveas">Save as…</button>
+              <button id="proj-open">Open / manage…</button>
+            </div>
+          </div>
           <div class="menu" id="tpl-menu">
             <button class="exp" id="tpl-btn">✦ Templates ▾</button>
             <div class="menu-pop">
@@ -1426,6 +1692,31 @@ export class App {
             <div id="build-list" class="build-list"></div>
           </section>
         </aside>
+
+        <div id="proj-modal" class="modal-overlay center hidden">
+          <div class="modal-panel">
+            <div class="modal-head">
+              <span class="modal-title">Projects</span>
+              <button class="modal-x" id="proj-modal-close" aria-label="Close">✕</button>
+            </div>
+            <div class="modal-body">
+              <div id="proj-list" class="proj-list"></div>
+            </div>
+          </div>
+        </div>
+
+        <div id="name-modal" class="modal-overlay center hidden">
+          <div class="modal-panel name-panel">
+            <div class="modal-head">
+              <span class="modal-title" id="name-title">Name</span>
+              <button class="modal-x" id="name-cancel" aria-label="Cancel">✕</button>
+            </div>
+            <div class="modal-body">
+              <input type="text" id="name-input" class="name-input" placeholder="Project name" spellcheck="false" maxlength="60">
+              <div class="name-actions"><button id="name-ok" class="add-open-btn">Save</button></div>
+            </div>
+          </div>
+        </div>
 
         <div id="add-modal" class="modal-overlay hidden">
           <div class="modal-panel" role="dialog" aria-label="Add to scene">

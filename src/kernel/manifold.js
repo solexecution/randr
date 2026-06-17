@@ -330,6 +330,17 @@ export function imported(id) {
   return m.translate([0, 0, 0]); // a fresh copy — the evaluator frees what it builds
 }
 
+// Read a registered solid's welded mesh as plain arrays, for saving a project.
+export function solidMesh(id) {
+  const m = _solidReg.get(id);
+  if (!m) return null;
+  const mesh = m.getMesh();
+  const np = mesh.numProp, vp = mesh.vertProperties;
+  const p = [];
+  for (let i = 0; i < vp.length / np; i++) p.push(vp[i * np], vp[i * np + 1], vp[i * np + 2]);
+  return { p, t: Array.from(mesh.triVerts) };
+}
+
 // --- Fasteners --------------------------------------------------------------
 // Coarse, FDM-printable threads. A real helical thread is made by twist-
 // extruding a 2D cross-section (a core circle with one triangular tooth): as
