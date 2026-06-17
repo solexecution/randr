@@ -119,6 +119,8 @@ export function parse(tokens) {
 
     if (t.type === 'number') { next(); return { type: 'Number', ...t.value }; }
 
+    if (t.type === 'string') { next(); return { type: 'Str', value: t.value }; }
+
     if (t.type === 'punct' && t.value === '(') {
       next();
       const e = expr();

@@ -39,6 +39,25 @@ export function tokenize(src) {
       continue;
     }
 
+    // String literals: "..." or '...', with \" \\ \n \t escapes
+    if (c === '"' || c === "'") {
+      const quote = c;
+      advance();
+      let str = '';
+      while (i < src.length && src[i] !== quote) {
+        if (src[i] === '\\' && i + 1 < src.length) {
+          advance();
+          const e = src[i];
+          str += e === 'n' ? '\n' : e === 't' ? '\t' : e;
+          advance();
+        } else { str += src[i]; advance(); }
+      }
+      if (src[i] !== quote) throw new ForgeError('Unterminated string', line, col);
+      advance();
+      push('string', str);
+      continue;
+    }
+
     // Numbers (with optional decimal and optional 'mm'/'deg' unit suffix)
     if (/[0-9]/.test(c) || (c === '.' && /[0-9]/.test(src[i + 1]))) {
       let num = '';

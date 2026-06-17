@@ -271,6 +271,8 @@ input[type=range]::-moz-range-thumb {
   border-radius: 5px; padding: 4px 5px; width: 100%; min-width: 0;
 }
 .bn-fields input:focus { outline: none; border-color: var(--cyan); }
+.bn-text { grid-column: 1 / -1; }
+.bn-text input { text-transform: none; }
 /* drop the native number spinners so the unit suffix has room and the row stays tidy */
 .bn-fields input[type=number]::-webkit-outer-spin-button,
 .bn-fields input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }

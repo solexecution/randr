@@ -41,6 +41,9 @@ export function evaluate(ast, overrides = {}) {
       case 'Number':
         return numWithUnit(node);
 
+      case 'Str':
+        return node.value;
+
       case 'Ident': {
         if (env.has(node.name)) return env.get(node.name);
         if (node.name === 'PI') return Math.PI;
@@ -173,6 +176,8 @@ export function evaluate(ast, overrides = {}) {
         return mark(track(K.tube(arg(0, 'h'), arg(1, 'router'), arg(2, 'rinner'), arg(3, 'segments', 64))));
       case 'prism':
         return mark(track(K.prism(arg(0, 'h'), arg(1, 'r'), arg(2, 'sides', 6))));
+      case 'text':
+        return mark(track(K.text(arg(0, 'str', ''), arg(1, 'size', 12), arg(2, 'height', 4))));
 
       // --- fasteners ---
       case 'thread':

@@ -13,7 +13,7 @@ const TAU = Math.PI * 2;
 const TRANSFORMS = new Set(['translate', 'rotate', 'scale']);
 const PRIMS = new Set([
   'box', 'cube', 'cylinder', 'sphere', 'cone', 'pyramid',
-  'torus', 'wedge', 'roundedBox', 'tube', 'prism', 'bolt', 'nut',
+  'torus', 'wedge', 'roundedBox', 'tube', 'prism', 'text', 'bolt', 'nut',
 ]);
 
 const MATH = {
@@ -33,6 +33,8 @@ function constEval(node, env) {
       if (node.unit === 'rad') v = (v / TAU) * 360;
       return v;
     }
+    case 'Str':
+      return node.value;
     case 'Ident':
       if (node.name in env) return env[node.name];
       if (node.name === 'PI') return Math.PI;

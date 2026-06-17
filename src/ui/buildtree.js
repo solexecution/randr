@@ -17,6 +17,7 @@ const DEFS = {
   roundedBox: { fields: [['x', 24], ['y', 24], ['z', 24], ['r', 4]] },
   tube:       { fields: [['h', 20], ['router', 12], ['rinner', 7]] },
   prism:      { fields: [['h', 20], ['r', 12], ['sides', 6]] },
+  text:       { fields: [['str', 'Text', 'text'], ['size', 12], ['height', 4]] },
   bolt:       { fields: [['d', 16], ['pitch', 2.5], ['length', 20], ['headAF', 24], ['headH', 10]] },
   nut:        { fields: [['d', 16], ['pitch', 2.5], ['thickness', 12], ['af', 24]] },
 };
@@ -35,6 +36,7 @@ function baseHalfHeight(kind, get) {
     case 'sphere':     return get('r');
     case 'tube':       return get('h') / 2;
     case 'prism':      return get('h') / 2;
+    case 'text':       return 0; // built base-on-plate, lying flat
     case 'bolt':       return 0; // built base-on-plate
     case 'nut':        return 0; // built base-on-plate
     default:           return 0;
@@ -45,7 +47,7 @@ const PALETTE = [0x4dd0e1, 0x66bb6a, 0xffb74d, 0xf778ba, 0xa371f7, 0x56d4dd, 0xf
 let colorIx = 0;
 
 function fieldsFor(kind) {
-  return DEFS[kind].fields.map(([key, value]) => ({ key, label: key, value }));
+  return DEFS[kind].fields.map(([key, value, type]) => ({ key, label: key, value, type: type || 'number' }));
 }
 
 // Build a fresh node sitting on the plate. Exported so the template importer
@@ -101,6 +103,7 @@ function shapeCall(node) {
     case 'roundedBox': return `roundedBox(${f('x')}, ${f('y')}, ${f('z')}, ${f('r')})`;
     case 'tube':       return `tube(${f('h')}, ${f('router')}, ${f('rinner')})`;
     case 'prism':      return `prism(${f('h')}, ${f('r')}, ${f('sides')})`;
+    case 'text':       return `text("${String(f('str')).replace(/\\/g, '\\\\').replace(/"/g, '\\"')}", ${f('size')}, ${f('height')})`;
     case 'bolt':       return `bolt(${f('d')}, ${f('pitch')}, ${f('length')}, ${f('headAF')}, ${f('headH')})`;
     case 'nut':        return `nut(${f('d')}, ${f('pitch')}, ${f('thickness')}, ${f('af')})`;
     default:           return null;

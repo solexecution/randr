@@ -4,6 +4,8 @@
 // so Booleans stay watertight and exports stay print-safe.
 
 import ManifoldModule from 'manifold-3d';
+import { FontLoader } from 'three/addons/loaders/FontLoader.js';
+import fontJson from './font-helvetiker.json';
 
 let _module = null;
 let _loading = null;
@@ -120,6 +122,40 @@ export function tube(height, rOuter, rInner, segments = 64) {
 // Regular n-sided prism (polygon extruded), centred on the origin.
 export function prism(height, radius, sides = 6) {
   return kernel().Manifold.cylinder(height, radius, radius, Math.max(3, Math.round(sides)), true);
+}
+
+// --- Text -------------------------------------------------------------------
+// Parse the bundled typeface once (sync) so text() can run in the eval path.
+let _font = null;
+export function loadFont() {
+  if (!_font) _font = new FontLoader().parse(fontJson);
+  return _font;
+}
+
+// Extruded 3D text, lying flat (base on the plate), centred in X/Y. Glyph
+// outlines come from the three.js font; the holes (letter counters) are cut by
+// the even-odd fill rule. `size` is the cap height in mm, `height` the depth.
+export function text(str, size = 12, height = 4, curveSegments = 6) {
+  const font = loadFont();
+  const shapes = font.generateShapes(String(str == null ? '' : str), size);
+  const contours = [];
+  for (const shape of shapes) {
+    const outer = shape.getPoints(curveSegments).map((p) => [p.x, p.y]);
+    if (outer.length >= 3) contours.push(outer);
+    for (const hole of (shape.holes || [])) {
+      const h = hole.getPoints(curveSegments).map((p) => [p.x, p.y]);
+      if (h.length >= 3) contours.push(h);
+    }
+  }
+  if (!contours.length) return kernel().Manifold.cube([size * 0.4, size * 0.7, height], true);
+  const cs = kernel().CrossSection(contours, 'EvenOdd');
+  const solid = cs.extrude(height, 0, 0, [1, 1], false);
+  cs.delete();
+  const bb = solid.boundingBox();
+  const cx = (bb.min[0] + bb.max[0]) / 2, cy = (bb.min[1] + bb.max[1]) / 2;
+  const out = solid.translate([-cx, -cy, 0]); // centre in X/Y, base stays on z=0
+  solid.delete();
+  return out;
 }
 
 // --- Fasteners --------------------------------------------------------------
