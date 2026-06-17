@@ -16,6 +16,38 @@ import { buildTreeToSource, BuildTree, setNodeKind } from './buildtree.js';
 import { sourceToNodes } from './importBuild.js';
 import * as Projects from './projects.js';
 
+// --- code-editor syntax highlighting ---------------------------------------
+// Tokenise the mini-language for a colour layer behind the textarea. Keeps
+// comments + whitespace (the real tokenizer drops them), so it can't reuse it.
+const HL_KEYWORDS = new Set(['param', 'true', 'false', 'PI']);
+const HL_FUNCS = new Set([
+  'box', 'cube', 'cylinder', 'sphere', 'cone', 'pyramid', 'torus', 'wedge',
+  'dome', 'slot', 'star', 'roundedBox', 'roundedCylinder', 'chamferedBox',
+  'chamferedCylinder', 'tube', 'prism', 'text', 'thread', 'bolt', 'nut', 'imported',
+  'extrude', 'revolve', 'translate', 'rotate', 'scale', 'mirror',
+  'union', 'difference', 'intersection', 'hull',
+  'sin', 'cos', 'tan', 'sqrt', 'abs', 'floor', 'ceil', 'round', 'min', 'max', 'pow',
+]);
+function hlEscape(s) { return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
+function highlightCode(src) {
+  const re = /(\/\/[^\n]*|\/\*[\s\S]*?\*\/)|("(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*')|((?:\d[\d.]*(?:[eE][+-]?\d+)?(?:mm|cm|deg|rad)?)|\.\d+)|([A-Za-z_]\w*)|([+\-*/%=<>!]+)/g;
+  let out = '', last = 0, m;
+  while ((m = re.exec(src))) {
+    out += hlEscape(src.slice(last, m.index));
+    const t = m[0];
+    let cls = '';
+    if (m[1]) cls = 'c';            // comment
+    else if (m[2]) cls = 's';       // string
+    else if (m[3]) cls = 'n';       // number
+    else if (m[4]) cls = HL_KEYWORDS.has(t) ? 'k' : (HL_FUNCS.has(t) ? 'f' : ''); // keyword / function
+    else if (m[5]) cls = 'o';       // operator
+    out += cls ? `<span class="hl-${cls}">${hlEscape(t)}</span>` : hlEscape(t);
+    last = m.index + t.length;
+  }
+  out += hlEscape(src.slice(last));
+  return out;
+}
+
 // Build one shape's geometry (centered, kernel-accurate) for the editable
 // build-mode view. The manifold is freed immediately after meshing.
 function nodeToGeometry(node) {
@@ -233,6 +265,7 @@ export class App {
     if (this.mode === 'code') {
       this.params = params;
       this._renderParams();
+      this._highlightEditor();
     }
   }
 
@@ -1007,6 +1040,13 @@ export class App {
     setTimeout(() => { input.focus(); input.select(); }, 30);
   }
 
+  // Refresh the colour layer behind the code textarea.
+  _highlightEditor() {
+    const code = this.root.querySelector('#editor-code');
+    const ed = this.root.querySelector('#editor');
+    if (code && ed) code.innerHTML = highlightCode(ed.value);
+  }
+
   // recompute the merged solid for HUD/export without rebuilding edit meshes
   _recompileMergedHUD() {
     const { result, error } = compile(buildTreeToSource(this.buildTree), {});
@@ -1111,11 +1151,18 @@ export class App {
     // editor
     const editor = $('#editor');
     editor.value = this.source;
+    this._highlightEditor();
     editor.addEventListener('input', () => {
       this.source = editor.value;
       this.overrides = {}; // editing code resets param overrides
       this._codeMirror = null; // code edited by hand — no longer a clean mirror of the build tree
+      this._highlightEditor();
       this._scheduleRecompile();
+    });
+    // keep the colour layer scroll-aligned with the textarea
+    editor.addEventListener('scroll', () => {
+      const pre = $('#editor-hl');
+      if (pre) { pre.scrollTop = editor.scrollTop; pre.scrollLeft = editor.scrollLeft; }
     });
 
     // mode tabs (also open the panel so the tools are visible)
@@ -1617,7 +1664,10 @@ export class App {
         <aside class="panel" id="panel">
           <section id="pane-code" class="pane">
             <div class="pane-title">model source</div>
-            <textarea id="editor" spellcheck="false"></textarea>
+            <div class="editor-wrap">
+              <pre class="editor-hl" aria-hidden="true"><code id="editor-code"></code></pre>
+              <textarea id="editor" spellcheck="false" autocomplete="off" autocapitalize="off" autocorrect="off"></textarea>
+            </div>
             <div id="error" class="error"></div>
             <div class="pane-title">parameters</div>
             <div id="params" class="params"></div>

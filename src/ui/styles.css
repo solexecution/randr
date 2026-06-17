@@ -126,14 +126,33 @@ body {
   text-transform: uppercase; color: var(--ink-dim); margin-top: 6px;
 }
 
-#editor {
-  width: 100%; min-height: 320px; resize: vertical;
-  font-family: var(--mono); font-size: 13px; line-height: 1.6;
-  color: var(--ink); background: var(--bg);
+/* code editor: a coloured layer (.editor-hl) behind a transparent textarea */
+.editor-wrap {
+  position: relative; min-height: 320px;
   border: 1px solid var(--line); border-radius: var(--radius);
-  padding: 14px; tab-size: 2;
+  background: var(--bg); overflow: hidden;
 }
-#editor:focus { outline: none; border-color: var(--cyan); }
+.editor-wrap:focus-within { border-color: var(--cyan); }
+.editor-hl, #editor {
+  position: absolute; inset: 0; margin: 0; box-sizing: border-box;
+  font-family: var(--mono); font-size: 13px; line-height: 1.6; letter-spacing: 0;
+  padding: 14px; border: 0; tab-size: 2;
+  white-space: pre-wrap; overflow-wrap: break-word; word-break: break-word;
+}
+.editor-hl { overflow: hidden; pointer-events: none; color: var(--ink); z-index: 0; }
+.editor-hl code { font: inherit; white-space: inherit; }
+#editor {
+  z-index: 1; overflow: auto; resize: none;
+  color: transparent; background: transparent; caret-color: var(--cyan);
+}
+#editor:focus { outline: none; }
+/* token colours */
+.hl-c { color: #6b7686; font-style: italic; }
+.hl-s { color: #8fd98f; }
+.hl-n { color: var(--amber); }
+.hl-k { color: #f778ba; }
+.hl-f { color: var(--cyan); }
+.hl-o { color: var(--ink-dim); }
 
 .error {
   display: none; font-family: var(--mono); font-size: 12px; line-height: 1.5;
