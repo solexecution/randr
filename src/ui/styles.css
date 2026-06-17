@@ -180,6 +180,7 @@ input[type=range]::-moz-range-thumb {
 .xform button.on { background: var(--surface-2); color: var(--cyan); }
 .xform button:hover:not(:disabled) { color: var(--ink); }
 .xform button:disabled { opacity: .3; cursor: default; }
+.xform button.hidden { display: none; }
 .xform { flex-wrap: wrap; }
 .arr-f { display: flex; align-items: center; gap: 3px; flex: none; font-family: var(--mono); font-size: 9px; color: var(--ink-dim); }
 .arr-f input {

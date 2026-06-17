@@ -66,6 +66,7 @@ export function createNode(kind) {
     locked: false,
     hidden: false,
     group: null, // group id; members combine (and scope their holes) together
+    groupMode: 'union', // how a group combines: union | subtract | intersect
     fields,
   };
 }
@@ -131,9 +132,15 @@ function groupBlock(nodes) {
   const solids = nodes.filter((n) => n.op !== 'hole').map(placedCall).filter(Boolean);
   const holes = nodes.filter((n) => n.op === 'hole').map(placedCall).filter(Boolean);
   if (solids.length === 0) return null;
-  const body = (solids.length === 1 && holes.length === 0)
-    ? solids[0]
-    : `union() { ${solids.join(' ')} }`;
+  const mode = (nodes.find((n) => n.groupMode) || {}).groupMode || 'union';
+  let body;
+  if (mode === 'intersect' && solids.length > 1) {
+    body = `intersection() { ${solids.join(' ')} }`;
+  } else if (mode === 'subtract' && solids.length > 1) {
+    body = `difference() { ${solids[0]} ${solids.slice(1).join(' ')} }`; // first minus the rest
+  } else {
+    body = (solids.length === 1 && holes.length === 0) ? solids[0] : `union() { ${solids.join(' ')} }`;
+  }
   if (holes.length === 0) return body;
   return `difference() { ${body} ${holes.join(' ')} }`;
 }

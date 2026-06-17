@@ -272,6 +272,13 @@ export class App {
       const ub = grp.querySelector('[data-group="ungroup"]');
       if (gb) gb.disabled = !canGroup;
       if (ub) ub.disabled = !hasGroup;
+      // boolean-mode buttons: only meaningful for a group; highlight the active one
+      const modes = new Set(this.selectedNodes.map((i) => nodes[i]).filter((n) => n && n.group != null).map((n) => n.groupMode || 'union'));
+      const active = modes.size === 1 ? [...modes][0] : null;
+      grp.querySelectorAll('[data-gmode]').forEach((b) => {
+        b.classList.toggle('hidden', !hasGroup);
+        b.classList.toggle('on', hasGroup && b.dataset.gmode === active);
+      });
     }
     this._updateSelReadout();
   }
@@ -321,6 +328,19 @@ export class App {
     this.recompile();
     this._pushHistory();
     this._toast('Ungrouped');
+  }
+
+  // Set how the selected group(s) combine: union (join), subtract (first minus
+  // the rest), or intersect (keep only the overlap).
+  _setGroupMode(mode) {
+    const nodes = this.buildTree.nodes;
+    const gids = new Set(this.selectedNodes.map((i) => nodes[i] && nodes[i].group).filter((g) => g != null));
+    if (!gids.size) return;
+    nodes.forEach((n) => { if (gids.has(n.group)) n.groupMode = mode; });
+    this._renderBuildTree();
+    this.recompile();
+    this._pushHistory();
+    this._renderAlignBar();
   }
 
   // Mirror the selection across an axis through each shape's own centre (a
@@ -855,9 +875,11 @@ export class App {
     this.root.querySelectorAll('[data-op-act]').forEach((b) =>
       b.addEventListener('click', () => this._placeOp(b.dataset.opAct)));
 
-    // group / ungroup toolbar
+    // group / ungroup toolbar + boolean mode
     this.root.querySelectorAll('[data-group]').forEach((b) =>
       b.addEventListener('click', () => (b.dataset.group === 'group' ? this._group() : this._ungroup())));
+    this.root.querySelectorAll('[data-gmode]').forEach((b) =>
+      b.addEventListener('click', () => this._setGroupMode(b.dataset.gmode)));
 
     // mirror / flip + array toolbars
     this.root.querySelectorAll('[data-flip]').forEach((b) =>
@@ -1144,6 +1166,9 @@ export class App {
               <span class="xform-label">group</span>
               <button data-group="group" title="Group selection (Ctrl+G)">▣ group</button>
               <button data-group="ungroup" title="Ungroup (Ctrl+Shift+G)">▢ ungroup</button>
+              <button data-gmode="union" title="Join (union)">∪</button>
+              <button data-gmode="subtract" title="Subtract — first part minus the rest">∖</button>
+              <button data-gmode="intersect" title="Keep only the overlap (intersection)">∩</button>
             </div>
             <p class="hint">Shift-click shapes to multi-select · align lines them up with the last one.</p>
             <div class="pane-title">add shape</div>
