@@ -10,7 +10,8 @@ import { parse } from '../lang/parser.js';
 import { createNode } from './buildtree.js';
 
 const TAU = Math.PI * 2;
-const TRANSFORMS = new Set(['translate', 'rotate', 'scale']);
+const TRANSFORMS = new Set(['translate', 'rotate', 'scale', 'mirror']);
+const BOOLEANS = new Set(['union', 'difference', 'intersection', 'hull']);
 const PRIMS = new Set([
   'box', 'cube', 'cylinder', 'sphere', 'cone', 'pyramid', 'torus', 'wedge',
   'dome', 'slot', 'star', 'roundedBox', 'roundedCylinder', 'chamferedBox', 'chamferedCylinder',
@@ -79,7 +80,14 @@ function unwrap(expr, env) {
     vec = [vec[0] || 0, vec[1] || 0, vec[2] || 0];
     if (expr.name === 'translate') pos = [pos[0] + vec[0], pos[1] + vec[1], pos[2] + vec[2]];
     else if (expr.name === 'rotate') rot = [rot[0] + vec[0], rot[1] + vec[1], rot[2] + vec[2]];
-    else scale = [scale[0] * vec[0], scale[1] * vec[1], scale[2] * vec[2]];
+    else if (expr.name === 'mirror') {
+      // An axis-aligned mirror is a negative scale on that axis (the same way
+      // build's flip stores it). A mirror across an oblique plane has no flat form.
+      const axes = [0, 1, 2].filter((i) => vec[i]);
+      if (axes.length !== 1) throw new ForgeError("Build mode can't represent a mirror across an oblique plane");
+      const m = [1, 1, 1]; m[axes[0]] = -1;
+      scale = [scale[0] * m[0], scale[1] * m[1], scale[2] * m[2]];
+    } else scale = [scale[0] * vec[0], scale[1] * vec[1], scale[2] * vec[2]];
     const kids = expr.children ? expr.children.body : [];
     if (kids.length !== 1 || kids[0].type !== 'ExprStmt') {
       throw new ForgeError('A transform wrapping more than one shape can\'t be imported');
@@ -87,7 +95,8 @@ function unwrap(expr, env) {
     expr = kids[0].expr;
   }
   if (expr.type !== 'Call' || !PRIMS.has(expr.name)) {
-    throw new ForgeError('Template has a shape the build pane can\'t represent');
+    const what = expr.type === 'Call' ? `${expr.name}()` : 'this shape';
+    throw new ForgeError(`Build mode can't represent ${what} yet`);
   }
   const kind = expr.name === 'cube' ? 'box' : expr.name;
   const node = createNode(kind);
@@ -120,21 +129,39 @@ function unwrap(expr, env) {
   return node;
 }
 
-// Flatten a shape expression into build nodes, tagging solids vs holes.
-function collect(expr, env, op, out) {
+const kidsOf = (expr) => (expr.children ? expr.children.body : []).filter((s) => s.type === 'ExprStmt');
+
+// Flatten a shape expression into build nodes, tagging solids vs holes. `grp`
+// ({id,mode}) marks the group the current shapes belong to (null = top level);
+// `state.gid` mints fresh group ids.
+function collect(expr, env, op, out, grp, state) {
   if (expr.type === 'Call' && expr.name === 'difference') {
-    const kids = (expr.children ? expr.children.body : []).filter((s) => s.type === 'ExprStmt');
-    if (kids[0]) collect(kids[0].expr, env, 'solid', out);
-    for (let i = 1; i < kids.length; i++) collect(kids[i].expr, env, 'hole', out);
+    const kids = kidsOf(expr);
+    if (kids[0]) collect(kids[0].expr, env, 'solid', out, grp, state);
+    for (let i = 1; i < kids.length; i++) collect(kids[i].expr, env, 'hole', out, grp, state);
     return;
   }
   if (expr.type === 'Call' && (expr.name === 'union' || expr.name === 'hull')) {
-    const kids = (expr.children ? expr.children.body : []).filter((s) => s.type === 'ExprStmt');
-    kids.forEach((k) => collect(k.expr, env, op, out));
+    kidsOf(expr).forEach((k) => collect(k.expr, env, op, out, grp, state));
+    return;
+  }
+  // intersection has no flat solid/hole form, so bring its parts in as an
+  // intersect group — the inverse of what buildTreeToSource emits for one. A
+  // boolean nested directly inside can't be flattened this way (it would change
+  // the geometry), so bail to keep the design in code rather than corrupt it.
+  if (expr.type === 'Call' && expr.name === 'intersection') {
+    const sub = { id: (state.gid += 1), mode: 'intersect' };
+    kidsOf(expr).forEach((k) => {
+      if (k.expr.type === 'Call' && BOOLEANS.has(k.expr.name)) {
+        throw new ForgeError("Build mode can't represent a boolean inside an intersection yet");
+      }
+      collect(k.expr, env, 'solid', out, sub, state);
+    });
     return;
   }
   const node = unwrap(expr, env);
   node.op = op;
+  if (grp) { node.group = grp.id; node.groupMode = grp.mode; }
   out.push(node);
 }
 
@@ -147,8 +174,9 @@ export function sourceToNodes(source) {
     if (s.type === 'Param' || s.type === 'Assign') env[s.name] = constEval(s.value, env);
   }
   const out = [];
+  const state = { gid: 0 };
   for (const s of ast.body) {
-    if (s.type === 'ExprStmt') collect(s.expr, env, 'solid', out);
+    if (s.type === 'ExprStmt') collect(s.expr, env, 'solid', out, null, state);
   }
   if (out.length === 0) throw new ForgeError('Nothing to import from this template');
   return out;

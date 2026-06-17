@@ -748,7 +748,9 @@ export class App {
           this.buildTree.nodes = nodes;
           this.selectedNodes = []; this.selectedNode = -1;
         } catch (e) {
-          this._toast('This design uses features build mode can’t edit yet — staying in code');
+          const why = (e && e.name === 'ForgeError' && e.message) ? e.message
+            : 'This design uses features build mode can’t edit yet';
+          this._toast(`${why} — staying in code`);
           this._setPanel(true);
           return; // stay in code rather than show a different object
         }
