@@ -148,7 +148,7 @@ body {
 .editor-hl code { font: inherit; white-space: inherit; }
 #editor {
   position: relative; z-index: 1; display: block;
-  flex: 1 1 auto; min-height: 0; overflow: auto;
+  flex: 1 1 auto; min-height: 0; overflow: auto; resize: none;
   color: transparent; background: transparent; caret-color: var(--cyan);
 }
 #editor:focus { outline: none; }
