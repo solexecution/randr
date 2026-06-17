@@ -702,6 +702,7 @@ export class App {
   _loadTemplate(key) {
     const src = TEMPLATES[key];
     if (!src) return;
+    this._closeAddModal();
     // In build mode, bring the template in as editable parts. If it uses
     // something the build tree can't hold, fall back to loading it as code.
     if (this.mode === 'build') {
@@ -951,6 +952,10 @@ export class App {
 
     // keyboard shortcuts
     window.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') {
+        const m = this.root.querySelector('#add-modal');
+        if (m && !m.classList.contains('hidden')) { e.preventDefault(); this._closeAddModal(); return; }
+      }
       const typing = /^(INPUT|TEXTAREA)$/.test(document.activeElement.tagName);
       if (typing) return;
       const k = e.key.toLowerCase();
@@ -985,14 +990,25 @@ export class App {
   }
 
   _bindBuildPane() {
+    // shape/part buttons live in the Add modal; one handler covers them all
     this.root.querySelectorAll('[data-add]').forEach((b) =>
       b.addEventListener('click', () => this._addShape(b.dataset.add)));
     const collapseAll = this.root.querySelector('#collapse-all');
     if (collapseAll) collapseAll.addEventListener('click', () => this._collapseAll());
+
+    // Add modal: open / close / backdrop-dismiss
+    const modal = this.root.querySelector('#add-modal');
+    const openBtn = this.root.querySelector('#add-open');
+    const closeBtn = this.root.querySelector('#add-close');
+    if (openBtn) openBtn.addEventListener('click', () => this._openAddModal());
+    if (closeBtn) closeBtn.addEventListener('click', () => this._closeAddModal());
+    if (modal) modal.addEventListener('click', (e) => { if (e.target === modal) this._closeAddModal(); });
+
+    // STL import (from the modal's Import category)
     const fileInput = this.root.querySelector('#stl-file');
-    const importBtn = this.root.querySelector('#import-stl');
+    const importBtn = this.root.querySelector('#modal-import');
     if (importBtn && fileInput) {
-      importBtn.addEventListener('click', () => fileInput.click());
+      importBtn.addEventListener('click', () => { fileInput.click(); this._closeAddModal(); });
       fileInput.addEventListener('change', (e) => {
         const f = e.target.files && e.target.files[0];
         if (f) this._importSTLFile(f);
@@ -1001,6 +1017,9 @@ export class App {
     }
     this._renderBuildTree();
   }
+
+  _openAddModal() { const m = this.root.querySelector('#add-modal'); if (m) m.classList.remove('hidden'); }
+  _closeAddModal() { const m = this.root.querySelector('#add-modal'); if (m) m.classList.add('hidden'); }
 
   // Read a user-chosen STL, build a watertight solid, and add it as a part.
   _importSTLFile(file) {
@@ -1046,6 +1065,7 @@ export class App {
     this.recompile();
     this._pushHistory();
     this._renderAlignBar();
+    this._closeAddModal();
   }
 
   // Arm a face pick to set the build workplane; clicking empty space resets to
@@ -1279,6 +1299,8 @@ export class App {
           </section>
 
           <section id="pane-build" class="pane hidden">
+            <button id="add-open" class="add-open-btn" title="Add a shape, part, or ready-made object">+ Add shape</button>
+            <input type="file" id="stl-file" accept=".stl,model/stl,application/sla" hidden>
             <div class="xform" id="xform">
               <button data-xform="translate" class="on" title="Move (W)">↔ move</button>
               <button data-xform="rotate" title="Rotate (E)">⟳ turn</button>
@@ -1338,27 +1360,7 @@ export class App {
               <button data-gmode="subtract" title="Subtract — first part minus the rest">∖</button>
               <button data-gmode="intersect" title="Keep only the overlap (intersection)">∩</button>
             </div>
-            <p class="hint">Shift-click shapes to multi-select · align lines them up with the last one.</p>
-            <div class="pane-title">add shape</div>
-            <div class="add-row">
-              <button data-add="box">box</button>
-              <button data-add="cylinder">cylinder</button>
-              <button data-add="sphere">sphere</button>
-              <button data-add="cone">cone</button>
-              <button data-add="pyramid">pyramid</button>
-              <button data-add="torus">torus</button>
-              <button data-add="wedge">wedge</button>
-              <button data-add="roundedBox">rounded</button>
-              <button data-add="roundedCylinder">r-cyl</button>
-              <button data-add="tube">tube</button>
-              <button data-add="prism">prism</button>
-              <button data-add="text">text</button>
-              <button data-add="bolt">bolt</button>
-              <button data-add="nut">nut</button>
-            </div>
-            <button id="import-stl" class="import-btn" title="Import a watertight STL mesh">⬇ import STL</button>
-            <input type="file" id="stl-file" accept=".stl,model/stl,application/sla" hidden>
-            <p class="hint">Click a shape to select · drag it on the plate to move · <b>Del</b> remove · <b>Ctrl+D</b> duplicate</p>
+            <p class="hint">Click a part to select · drag on the plate to move · Shift-click to multi-select · <b>Del</b> remove · <b>Ctrl+D</b> duplicate</p>
             <div class="parts-head">
               <span class="pane-title">parts</span>
               <button id="collapse-all" class="mini-btn" title="Collapse or expand all parts">collapse all</button>
@@ -1366,6 +1368,67 @@ export class App {
             <div id="build-list" class="build-list"></div>
           </section>
         </aside>
+
+        <div id="add-modal" class="modal-overlay hidden">
+          <div class="modal-panel" role="dialog" aria-label="Add to scene">
+            <div class="modal-head">
+              <span class="modal-title">Add to scene</span>
+              <button class="modal-x" id="add-close" title="Close (Esc)">✕</button>
+            </div>
+            <div class="modal-body">
+              <section class="cat">
+                <h4>Basic shapes</h4>
+                <div class="cat-grid">
+                  <button data-add="box">□ box</button>
+                  <button data-add="cylinder">▮ cylinder</button>
+                  <button data-add="sphere">● sphere</button>
+                  <button data-add="cone">▲ cone</button>
+                  <button data-add="pyramid">◭ pyramid</button>
+                  <button data-add="prism">⬡ prism</button>
+                  <button data-add="wedge">◣ wedge</button>
+                  <button data-add="torus">◍ torus</button>
+                </div>
+              </section>
+              <section class="cat">
+                <h4>Rounded &amp; hollow</h4>
+                <div class="cat-grid">
+                  <button data-add="roundedBox">▢ rounded box</button>
+                  <button data-add="roundedCylinder">▯ rounded cyl</button>
+                  <button data-add="tube">◎ tube</button>
+                </div>
+              </section>
+              <section class="cat">
+                <h4>Text</h4>
+                <div class="cat-grid">
+                  <button data-add="text">T text</button>
+                </div>
+              </section>
+              <section class="cat">
+                <h4>Fasteners</h4>
+                <div class="cat-grid">
+                  <button data-add="bolt">🔩 bolt</button>
+                  <button data-add="nut">⬢ nut</button>
+                </div>
+              </section>
+              <section class="cat">
+                <h4>Ready-made · adjustable</h4>
+                <div class="cat-grid">
+                  <button data-tpl="soap dish">Soap dish</button>
+                  <button data-tpl="pen cup">Pen cup</button>
+                  <button data-tpl="coaster">Coaster</button>
+                  <button data-tpl="stacking bin">Stacking bin</button>
+                  <button data-tpl="bolt &amp; nut">Bolt &amp; nut</button>
+                </div>
+              </section>
+              <section class="cat">
+                <h4>Import</h4>
+                <div class="cat-grid">
+                  <button id="modal-import">⬇ STL file…</button>
+                </div>
+              </section>
+            </div>
+          </div>
+        </div>
 
         <div class="hud" id="hud">
           <div class="hud-head">
