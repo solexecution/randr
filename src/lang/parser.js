@@ -145,6 +145,7 @@ export function parse(tokens) {
       next();
       // call?
       if (at('punct', '(')) {
+        const start = t.start; // span the whole call (incl. trailing block/child)
         next();
         const args = [];
         const named = {};
@@ -171,7 +172,8 @@ export function parse(tokens) {
         } else if (at('ident') && peek(1).type === 'punct' && peek(1).value === '(') {
           children = { type: 'Block', body: [statement()] };
         }
-        return { type: 'Call', name: t.value, args, named, children };
+        const end = tokens[pos - 1].end; // end of the last token we consumed
+        return { type: 'Call', name: t.value, args, named, children, start, end };
       }
       return { type: 'Ident', name: t.value };
     }

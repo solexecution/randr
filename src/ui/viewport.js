@@ -411,6 +411,7 @@ export class Viewport {
   // --- code mode: one merged solid -----------------------------------------
 
   setModel(manifold, { showEdges = true } = {}) {
+    this.clearHighlight(); // its geometry/material are ours to free before the wipe
     while (this.modelGroup.children.length) {
       const child = this.modelGroup.children.pop();
       child.geometry?.dispose();
@@ -453,6 +454,34 @@ export class Viewport {
     mesh.renderOrder = 4;
     this.editGroup.add(mesh);
     this._ghostMesh = mesh;
+  }
+
+  // Glow one shape inside the merged (code-mode) model: the object whose code
+  // the caret is in. Added to modelGroup so it inherits the same drop offset as
+  // the merged mesh; depthTest off so it shows through as an amber silhouette
+  // even when the shape is buried inside (or subtracted from) the body.
+  highlightSolid(manifold) {
+    this.clearHighlight();
+    if (!manifold) return;
+    const geom = manifoldToGeometry(manifold);
+    geom.rotateX(-Math.PI / 2); // match setModel's Z-up -> Y-up
+    const mat = new THREE.MeshStandardMaterial({
+      color: 0xffb74d, emissive: 0xff9800, emissiveIntensity: 0.5,
+      transparent: true, opacity: 0.5, depthTest: false, depthWrite: false,
+      side: THREE.DoubleSide, roughness: 0.4, metalness: 0,
+    });
+    const mesh = new THREE.Mesh(geom, mat);
+    mesh.renderOrder = 10;
+    this.modelGroup.add(mesh);
+    this._hlMesh = mesh;
+  }
+
+  clearHighlight() {
+    if (!this._hlMesh) return;
+    this.modelGroup.remove(this._hlMesh);
+    this._hlMesh.geometry.dispose();
+    this._hlMesh.material.dispose();
+    this._hlMesh = null;
   }
 
   // --- build mode: many selectable shapes -----------------------------------

@@ -68,6 +68,9 @@ const r3 = (v) => { const x = Math.round(v * 1000) / 1000; return x === 0 ? 0 : 
 // Peel translate/rotate/scale off a shape, accumulating TRS, until we reach a
 // primitive. Returns a build node (op still 'solid'; caller sets it).
 function unwrap(expr, env) {
+  // Source span of the whole placed statement (outermost transform down to the
+  // primitive) so the editor can map a caret position back to this shape.
+  const srcStart = expr.start, srcEnd = expr.end;
   let pos = [0, 0, 0], rot = [0, 0, 0], scale = [1, 1, 1], guard = 0;
   while (expr.type === 'Call' && TRANSFORMS.has(expr.name)) {
     if (++guard > 16) throw new ForgeError('Too many nested transforms to import');
@@ -88,6 +91,7 @@ function unwrap(expr, env) {
   }
   const kind = expr.name === 'cube' ? 'box' : expr.name;
   const node = createNode(kind);
+  if (srcStart != null) { node.srcStart = srcStart; node.srcEnd = srcEnd; }
   const args = expr.args;
 
   if (kind === 'imported') {

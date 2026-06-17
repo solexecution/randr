@@ -266,6 +266,7 @@ export class App {
       this.params = params;
       this._renderParams();
       this._highlightEditor();
+      this._scheduleCursorHighlight(); // setModel wiped the glow — re-light at the caret
     }
   }
 
@@ -1047,6 +1048,39 @@ export class App {
     if (code && ed) code.innerHTML = highlightCode(ed.value);
   }
 
+  _scheduleCursorHighlight() {
+    clearTimeout(this._cursorTimer);
+    this._cursorTimer = setTimeout(() => this._highlightCursorShape(), 70);
+  }
+
+  // Glow the shape in the 3D view whose code the caret is sitting in. We import
+  // the source to build nodes (each tagged with its source span), find the
+  // smallest span containing the caret, and compile just that node — forced to
+  // a solid so a hole still shows as a positive ghost where it cuts. Anything
+  // build mode can't represent (extrude/revolve/loops) just clears the glow.
+  _highlightCursorShape() {
+    if (this.mode !== 'code') { this.viewport.clearHighlight(); return; }
+    const ed = this.root.querySelector('#editor');
+    if (!ed) return;
+    const caret = ed.selectionStart;
+    let nodes;
+    try { nodes = sourceToNodes(this.source); }
+    catch { this.viewport.clearHighlight(); return; }
+    let hit = null;
+    for (const n of nodes) {
+      if (n.srcStart == null || caret < n.srcStart || caret > n.srcEnd) continue;
+      if (!hit || (n.srcEnd - n.srcStart) < (hit.srcEnd - hit.srcStart)) hit = n;
+    }
+    if (!hit) { this.viewport.clearHighlight(); return; }
+    let result = null;
+    try {
+      const solo = { ...hit, op: 'solid', group: null, groupMode: 'union', hidden: false };
+      result = compile(buildTreeToSource({ nodes: [solo] }), {}).result;
+    } catch { this.viewport.clearHighlight(); return; }
+    this.viewport.highlightSolid(result || null); // copies geometry, safe to free
+    if (result) { try { result.delete(); } catch { /* freed */ } }
+  }
+
   // recompute the merged solid for HUD/export without rebuilding edit meshes
   _recompileMergedHUD() {
     const { result, error } = compile(buildTreeToSource(this.buildTree), {});
@@ -1164,6 +1198,11 @@ export class App {
       const pre = $('#editor-hl');
       if (pre) { pre.scrollTop = editor.scrollTop; pre.scrollLeft = editor.scrollLeft; }
     });
+    // glow the shape the caret is in (caret-move events; typing re-runs it via
+    // recompile). The glow persists when focus leaves the editor so you can
+    // orbit the model while it stays lit.
+    ['keyup', 'click', 'mouseup'].forEach((ev) =>
+      editor.addEventListener(ev, () => this._scheduleCursorHighlight()));
 
     // mode tabs (also open the panel so the tools are visible)
     this.root.querySelectorAll('[data-mode]').forEach((tab) => {

@@ -11,8 +11,11 @@ export function tokenize(src) {
   let i = 0;
   let line = 1;
   let col = 1;
+  let start = 0; // char offset where the current token began
 
-  const push = (type, value) => tokens.push({ type, value, line, col });
+  // start/end are character offsets into src — used to map an editor caret
+  // position back to the AST node (and thus the shape) under it.
+  const push = (type, value) => tokens.push({ type, value, line, col, start, end: i });
   const advance = (n = 1) => {
     for (let k = 0; k < n; k++) {
       if (src[i] === '\n') { line++; col = 1; } else { col++; }
@@ -21,6 +24,7 @@ export function tokenize(src) {
   };
 
   while (i < src.length) {
+    start = i;
     const c = src[i];
 
     // Whitespace
@@ -84,16 +88,17 @@ export function tokenize(src) {
       continue;
     }
 
-    // Two-char operators
+    // Two-char operators (advance before push so token.end is past the token)
     const two = src.slice(i, i + 2);
-    if (TWO_CHAR.includes(two)) { push('op', two); advance(2); continue; }
+    if (TWO_CHAR.includes(two)) { advance(2); push('op', two); continue; }
 
     // Single-char punctuation/operators
-    if (SINGLE.includes(c)) { push('punct', c); advance(); continue; }
+    if (SINGLE.includes(c)) { advance(); push('punct', c); continue; }
 
     throw new ForgeError(`Unexpected character '${c}'`, line, col);
   }
 
+  start = i;
   push('eof', null);
   return tokens;
 }
