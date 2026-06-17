@@ -950,6 +950,12 @@ export class App {
     // build pane
     this._bindBuildPane();
 
+    // keep the Add popover stuck under its button on resize
+    window.addEventListener('resize', () => {
+      const m = this.root.querySelector('#add-modal');
+      if (m && !m.classList.contains('hidden')) this._positionAddModal();
+    });
+
     // keyboard shortcuts
     window.addEventListener('keydown', (e) => {
       if (e.key === 'Escape') {
@@ -1026,7 +1032,24 @@ export class App {
       if (this.mode !== 'build') return;
     }
     const m = this.root.querySelector('#add-modal');
-    if (m) m.classList.remove('hidden');
+    if (!m) return;
+    m.classList.remove('hidden');
+    this._positionAddModal();
+  }
+
+  // Stick the modal panel just under the "+" button (clamped to the viewport).
+  _positionAddModal() {
+    const btn = this.root.querySelector('#add-open');
+    const panel = this.root.querySelector('#add-modal .modal-panel');
+    if (!btn || !panel) return;
+    const r = btn.getBoundingClientRect();
+    const gap = 8;
+    panel.style.top = `${r.bottom + gap}px`;
+    panel.style.maxHeight = `${Math.max(160, window.innerHeight - r.bottom - gap - 14)}px`;
+    let left = r.left;
+    const pw = panel.offsetWidth;
+    if (left + pw > window.innerWidth - 12) left = window.innerWidth - pw - 12;
+    panel.style.left = `${Math.max(12, left)}px`;
   }
   _closeAddModal() { const m = this.root.querySelector('#add-modal'); if (m) m.classList.add('hidden'); }
 
