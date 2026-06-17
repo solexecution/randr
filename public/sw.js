@@ -6,7 +6,7 @@
 // are cached on first fetch via the runtime handler below, which keeps this
 // file stable across builds.
 
-const CACHE = 'randr-v1';
+const CACHE = 'randr-v2';
 // Relative paths so the app works whether it's served from the domain root or a
 // project subpath like /forge-cad/ (GitHub Pages). Resolved against the SW scope.
 const SHELL = [
@@ -41,13 +41,26 @@ self.addEventListener('fetch', (event) => {
   const req = event.request;
   if (req.method !== 'GET') return;
 
-  // Don't try to cache cross-origin font requests opaquely forever; let them
-  // fall through to network and cache what we can.
+  // Navigations: network-first, so a new deploy is picked up immediately (the
+  // fresh index.html points at the new hashed assets). Fall back to the cached
+  // shell when offline.
+  if (req.mode === 'navigate') {
+    event.respondWith(
+      fetch(req).then((res) => {
+        const copy = res.clone();
+        caches.open(CACHE).then((c) => c.put('./index.html', copy));
+        return res;
+      }).catch(() => caches.match('./index.html').then((c) => c || caches.match('./')))
+    );
+    return;
+  }
+
+  // Everything else — hashed JS/WASM/CSS and fonts are immutable — is
+  // cache-first, then cached on first fetch for offline reuse.
   event.respondWith(
     caches.match(req).then((cached) => {
       if (cached) return cached;
       return fetch(req).then((res) => {
-        // Cache same-origin assets (app code, wasm) for offline reuse.
         if (res.ok && new URL(req.url).origin === self.location.origin) {
           const copy = res.clone();
           caches.open(CACHE).then((c) => c.put(req, copy));
