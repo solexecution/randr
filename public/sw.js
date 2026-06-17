@@ -6,12 +6,13 @@
 // are cached on first fetch via the runtime handler below, which keeps this
 // file stable across builds.
 
-const CACHE = 'forge-cad-v3';
+const CACHE = 'randr-v1';
 // Relative paths so the app works whether it's served from the domain root or a
 // project subpath like /forge-cad/ (GitHub Pages). Resolved against the SW scope.
 const SHELL = [
   './',
   './index.html',
+  './favicon.svg',
   './manifest.webmanifest',
   './icons/icon-192.png',
   './icons/icon-512.png',

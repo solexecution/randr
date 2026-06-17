@@ -1310,7 +1310,7 @@ export class App {
 
         <header class="topbar">
           <button class="icon-btn on" id="panel-toggle" title="Toggle panel">☰</button>
-          <div class="brand"><span class="brand-mark">◆</span> FORGE <em>cad</em></div>
+          <div class="brand"><span class="brand-mark">◆</span> Rand<em>R</em></div>
           <div class="tabs">
             <button data-mode="code" class="active">code</button>
             <button data-mode="build">build</button>

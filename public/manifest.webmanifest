@@ -1,7 +1,7 @@
 {
-  "name": "Forge CAD",
-  "short_name": "Forge",
-  "description": "Offline parametric 3D modelling for 3D printing",
+  "name": "RandR",
+  "short_name": "RandR",
+  "description": "RandR — offline parametric 3D modelling for 3D printing",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",

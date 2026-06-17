@@ -1,6 +1,6 @@
 // Fold the single-chunk build (dist-single/) into one self-contained HTML file.
 // Inlines the CSS (with woff2 fonts as data: URIs) and the JS module, strips the
-// PWA manifest link. Output: Forge-CAD.html (here) and ../Forge-CAD.html (the
+// PWA manifest link. Output: RandR.html (here) and ../RandR.html (the
 // copy in Desktop/3d that you open on the tablet).
 import { readFileSync, writeFileSync } from 'fs';
 import { join } from 'path';
@@ -34,8 +34,8 @@ html = html
   .replace(jsTag[0], () => `<script type="module">\n${js}\n</script>`)
   .replace(/<link[^>]*rel="manifest"[^>]*>\s*/g, '');
 
-writeFileSync('Forge-CAD.html', html);
+writeFileSync('RandR.html', html);
 // Also drop a copy in the parent folder (the Desktop/3d working dir) for
 // convenience. Guarded — in CI the parent isn't part of the checkout.
-try { writeFileSync(join('..', 'Forge-CAD.html'), html); } catch { /* not writable (CI) — fine */ }
-console.log(`Forge-CAD.html written (${(Buffer.byteLength(html) / 1048576).toFixed(2)} MB, ${fontCount} fonts inlined)`);
+try { writeFileSync(join('..', 'RandR.html'), html); } catch { /* not writable (CI) — fine */ }
+console.log(`RandR.html written (${(Buffer.byteLength(html) / 1048576).toFixed(2)} MB, ${fontCount} fonts inlined)`);

@@ -1,4 +1,4 @@
-# Forge CAD
+# RandR
 
 Offline, parametric 3D modelling for 3D printing. A workshop instrument that
 runs in the browser, installs as a PWA, and works with no network once cached —
@@ -22,7 +22,7 @@ non-manifold edges that wreck a slice.
 Pushing to `main` builds and deploys automatically (`.github/workflows/deploy.yml`):
 
 - **App (installable PWA):** https://solexecution.github.io/forge-cad/
-- **Single-file build:** https://solexecution.github.io/forge-cad/Forge-CAD.html
+- **Single-file build:** https://solexecution.github.io/forge-cad/RandR.html
 
 On an Android tablet, open the app URL in Chrome and use **⋮ → Add to Home screen / Install app** for an offline, full-screen icon. Or just open the single-file URL.
 
@@ -41,7 +41,7 @@ calls at all**. On a production build the service worker precaches the shell +
 fonts and runtime-caches the hashed app/WASM chunks, so after the first load the
 app is fully offline (verified: the cache holds all 14 assets the app needs).
 
-There is also a single-file build, `Forge-CAD.html` — the whole app (kernel,
+There is also a single-file build, `RandR.html` — the whole app (kernel,
 code, fonts) inlined into one HTML file. Copy it to a device and open it
 directly from the file manager; no server, no install. Best for "use it on the
 tablet right now."
@@ -100,7 +100,7 @@ The web build is the whole app; wrapping it is mechanical:
 
 ```bash
 npm install @capacitor/core @capacitor/cli @capacitor/android
-npx cap init "Forge CAD" com.you.forgecad --web-dir=dist
+npx cap init "RandR" com.you.randr --web-dir=dist
 npm run build
 npx cap add android
 npx cap copy

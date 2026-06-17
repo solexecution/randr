@@ -33,7 +33,7 @@ jobs:
         env:
           FORGE_BASE: ./
       - name: Include the standalone in the site
-        run: cp Forge-CAD.html dist/Forge-CAD.html
+        run: cp RandR.html dist/RandR.html
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:
