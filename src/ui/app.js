@@ -1323,6 +1323,31 @@ export class App {
         toolsDock.classList.remove('open');
         toolsFab.classList.remove('on');
       });
+
+      // Drag the dock by its header (pointer events → works on touch + mouse).
+      const head = this.root.querySelector('#tools-dock-head');
+      if (head) {
+        let sx = 0, sy = 0, ox = 0, oy = 0;
+        const onMove = (e) => {
+          const r = toolsDock.getBoundingClientRect();
+          const x = Math.max(6, Math.min(ox + e.clientX - sx, window.innerWidth - r.width - 6));
+          const y = Math.max(50, Math.min(oy + e.clientY - sy, window.innerHeight - 44));
+          toolsDock.style.left = `${x}px`; toolsDock.style.top = `${y}px`;
+          toolsDock.style.right = 'auto'; toolsDock.style.bottom = 'auto';
+        };
+        const onUp = () => {
+          window.removeEventListener('pointermove', onMove);
+          window.removeEventListener('pointerup', onUp);
+        };
+        head.addEventListener('pointerdown', (e) => {
+          if (e.target.closest('button')) return; // let the ✕ work
+          const r = toolsDock.getBoundingClientRect();
+          sx = e.clientX; sy = e.clientY; ox = r.left; oy = r.top;
+          window.addEventListener('pointermove', onMove);
+          window.addEventListener('pointerup', onUp);
+          e.preventDefault();
+        });
+      }
     }
 
     // multi-select toggle: a sticky additive mode so a tap (no Shift) adds to
@@ -1778,8 +1803,8 @@ export class App {
           <span class="tf-ico">⛭</span><span class="tf-label">Tools</span>
         </button>
         <div id="tools-dock" class="tools-dock" role="dialog" aria-label="Build tools">
-          <div class="tools-dock-head">
-            <span class="tools-dock-title">Tools</span>
+          <div class="tools-dock-head" id="tools-dock-head">
+            <span class="tools-dock-title"><span class="tools-grip">⠿</span> Tools</span>
             <button id="tools-dock-close" class="modal-x" title="Collapse" aria-label="Collapse tools">✕</button>
           </div>
           <div class="tools-dock-body">

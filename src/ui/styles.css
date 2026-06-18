@@ -221,8 +221,9 @@ input[type=range]::-moz-range-thumb {
 }
 .tools-dock.open { display: flex; animation: dock-in .16s ease; }
 @keyframes dock-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
-.tools-dock-head { display: flex; align-items: center; justify-content: space-between; }
+.tools-dock-head { display: flex; align-items: center; justify-content: space-between; cursor: move; touch-action: none; user-select: none; }
 .tools-dock-title { font-family: var(--mono); font-size: 11px; letter-spacing: .14em; text-transform: uppercase; color: var(--ink-dim); }
+.tools-grip { color: var(--ink-dim); opacity: .6; letter-spacing: -1px; margin-right: 2px; }
 .tools-dock-body { display: flex; flex-direction: column; gap: 7px; }
 
 /* build pane */
