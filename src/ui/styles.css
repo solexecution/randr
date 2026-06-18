@@ -225,20 +225,30 @@ input[type=range]::-moz-range-thumb {
 .tools-dock-title { font-family: var(--mono); font-size: 11px; letter-spacing: .14em; text-transform: uppercase; color: var(--ink-dim); }
 .tools-grip { color: var(--ink-dim); opacity: .6; letter-spacing: -1px; margin-right: 2px; }
 
-/* right-click context menu on a part */
+/* right-click context menu on a part — a full action hub with submenus */
 .ctx-menu {
-  position: absolute; z-index: 30; min-width: 150px;
+  position: absolute; z-index: 30; min-width: 168px;
   background: var(--surface-2); border: 1px solid var(--line); border-radius: 9px;
   padding: 5px; display: flex; flex-direction: column; gap: 1px;
   box-shadow: 0 12px 30px rgba(0,0,0,.55);
 }
 .ctx-menu.hidden { display: none; }
-.ctx-menu button {
+.ctx-it {
   font-family: var(--mono); font-size: 12.5px; text-align: left; color: var(--ink);
-  background: none; border: 0; padding: 8px 12px; border-radius: 6px; cursor: pointer;
+  background: none; border: 0; width: 100%; padding: 7px 12px; border-radius: 6px; cursor: pointer;
+  display: flex; align-items: center; justify-content: space-between; gap: 12px; position: relative;
 }
-.ctx-menu button:hover { background: var(--surface); color: var(--cyan); }
-.ctx-menu button.ctx-danger:hover { color: var(--red); }
+.ctx-it:hover { background: var(--surface); color: var(--cyan); }
+.ctx-it.ctx-danger:hover { color: var(--red); }
+.ctx-arr { color: var(--ink-dim); font-size: 10px; }
+.ctx-sep { height: 1px; background: var(--line); margin: 4px 6px; }
+.ctx-sub {
+  display: none; position: absolute; left: 100%; top: -6px; min-width: 152px;
+  background: var(--surface-2); border: 1px solid var(--line); border-radius: 9px;
+  padding: 5px; flex-direction: column; gap: 1px; box-shadow: 0 12px 30px rgba(0,0,0,.55);
+}
+.ctx-has-sub:hover > .ctx-sub { display: flex; }
+.ctx-menu.ctx-left .ctx-sub { left: auto; right: 100%; }
 .tools-dock-body { display: flex; flex-direction: column; gap: 7px; }
 
 /* build pane */

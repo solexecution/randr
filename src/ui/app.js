@@ -636,7 +636,7 @@ export class App {
     this._renderAlignBar();
   }
 
-  // --- right-click context menu -------------------------------------------
+  // --- right-click context menu (full action hub) -------------------------
   _showContextMenu(i, x, y) {
     const menu = this.root.querySelector('#ctx-menu');
     if (!menu) return;
@@ -644,41 +644,64 @@ export class App {
     if (!this.selectedNodes.includes(i)) this._selectNode(i, false); // act on what was clicked
     const nodes = this.buildTree.nodes, n = nodes[i];
     if (!n) { menu.classList.add('hidden'); return; }
+    const can2 = this.selectedNodes.length >= 2;
     const hasGroup = this.selectedNodes.some((j) => nodes[j] && nodes[j].group != null);
-    const items = [
-      ['dup', 'Duplicate'],
-      ['op', n.op === 'hole' ? 'Make solid' : 'Make hole'],
-      ['lock', n.locked ? 'Unlock' : 'Lock'],
-      ['hide', n.hidden ? 'Show' : 'Hide'],
-    ];
-    if (this.selectedNodes.length >= 2) items.push(['group', 'Group']);
-    if (hasGroup) items.push(['ungroup', 'Ungroup']);
-    items.push(['explode', 'Break apart']);
-    items.push(['del', 'Delete']);
-    menu.innerHTML = items.map(([k, label]) =>
-      `<button data-act="${k}" class="${k === 'del' ? 'ctx-danger' : ''}">${label}</button>`).join('');
-    menu.querySelectorAll('button').forEach((b) => b.addEventListener('click', () => {
+
+    const btn = (act, label, danger) => `<button data-act="${act}" class="ctx-it${danger ? ' ctx-danger' : ''}">${label}</button>`;
+    const sub = (label, items) => `<div class="ctx-it ctx-has-sub"><span>${label}</span><span class="ctx-arr">▸</span><div class="ctx-sub">${items.map(([a, l]) => btn(a, l)).join('')}</div></div>`;
+    const sep = '<div class="ctx-sep"></div>';
+
+    let h = '';
+    h += btn('dup', 'Duplicate');
+    h += btn('op', n.op === 'hole' ? 'Make solid' : 'Make hole');
+    h += btn('lock', n.locked ? 'Unlock' : 'Lock');
+    h += btn('hide', n.hidden ? 'Show' : 'Hide');
+    h += sep;
+    h += sub('Transform', [['xf:translate', 'Move'], ['xf:rotate', 'Turn'], ['xf:scale', 'Size']]);
+    h += sub('Place', [['place:drop', 'Drop to base'], ['place:center', 'Center on plate'], ['place:level', 'Level (reset turn)'], ['place:scale', 'Reset size'], ['place:stack', 'Stack on top'], ['flip:x', 'Mirror X'], ['flip:y', 'Mirror Y'], ['flip:z', 'Mirror Z']]);
+    if (can2) h += sub('Align', [['align:x:min', 'X — left'], ['align:x:center', 'X — center'], ['align:x:max', 'X — right'], ['align:y:min', 'Y — front'], ['align:y:center', 'Y — center'], ['align:y:max', 'Y — back'], ['align:z:min', 'Z — down'], ['align:z:center', 'Z — center'], ['align:z:max', 'Z — up']]);
+    h += sub('Array', [['arr:x', 'Row along X'], ['arr:y', 'Row along Y'], ['arr:polar', 'Ring']]);
+    if (can2) h += btn('group', 'Group');
+    if (hasGroup) { h += btn('ungroup', 'Ungroup'); h += sub('Combine', [['gmode:union', 'Join (∪)'], ['gmode:subtract', 'Subtract (∖)'], ['gmode:intersect', 'Intersect (∩)']]); }
+    h += sep;
+    h += btn('explode', 'Break apart');
+    h += btn('del', 'Delete', true);
+    menu.innerHTML = h;
+
+    menu.querySelectorAll('button[data-act]').forEach((b) => b.addEventListener('click', () => {
       menu.classList.add('hidden');
       this._ctxAction(b.dataset.act, i);
     }));
-    menu.classList.remove('hidden');
-    const mw = menu.offsetWidth || 150, mh = menu.offsetHeight || 220;
+
+    menu.classList.remove('hidden', 'ctx-left');
+    const mw = menu.offsetWidth || 180, mh = menu.offsetHeight || 320;
     menu.style.left = `${Math.min(x, window.innerWidth - mw - 8)}px`;
-    menu.style.top = `${Math.min(y, window.innerHeight - mh - 8)}px`;
+    menu.style.top = `${Math.max(8, Math.min(y, window.innerHeight - mh - 8))}px`;
+    if (x > window.innerWidth * 0.55) menu.classList.add('ctx-left'); // flyouts open leftward near the right edge
   }
 
   _ctxAction(act, i) {
-    const nodes = this.buildTree.nodes, n = nodes[i];
-    if (!n) return;
+    const n = this.buildTree.nodes[i];
     const reflow = () => { this._renderBuildTree(); this.recompile(); this._pushHistory(); this._renderAlignBar(); };
-    if (act === 'dup') this._duplicateSelected();
-    else if (act === 'del') this._deleteSelected();
-    else if (act === 'op') { n.op = n.op === 'hole' ? 'solid' : 'hole'; reflow(); }
-    else if (act === 'lock') { n.locked = !n.locked; reflow(); }
-    else if (act === 'hide') { n.hidden = !n.hidden; reflow(); }
-    else if (act === 'group') this._group();
-    else if (act === 'ungroup') this._ungroup();
-    else if (act === 'explode') this._explodeNode(i);
+    switch (act) {
+      case 'dup': return this._duplicateSelected();
+      case 'del': return this._deleteSelected();
+      case 'op': if (n) { n.op = n.op === 'hole' ? 'solid' : 'hole'; reflow(); } return;
+      case 'lock': if (n) { n.locked = !n.locked; reflow(); } return;
+      case 'hide': if (n) { n.hidden = !n.hidden; reflow(); } return;
+      case 'group': return this._group();
+      case 'ungroup': return this._ungroup();
+      case 'explode': return this._explodeNode(i);
+    }
+    const c = act.indexOf(':');
+    if (c < 0) return;
+    const pre = act.slice(0, c), arg = act.slice(c + 1);
+    if (pre === 'xf') this._setXform(arg);
+    else if (pre === 'place') this._placeOp(arg);
+    else if (pre === 'flip') this._flip(arg);
+    else if (pre === 'align') this._align(arg);
+    else if (pre === 'arr') this._arrayOp(arg);
+    else if (pre === 'gmode') this._setGroupMode(arg);
   }
 
   // Break a part into its separate connected pieces (great for an imported STL
