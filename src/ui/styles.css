@@ -267,6 +267,17 @@ input[type=range]::-moz-range-thumb {
 .ctx-arr { color: var(--ink-dim); font-size: 10px; }
 .ctx-key { color: var(--ink-dim); font-size: 11px; letter-spacing: .02em; white-space: nowrap; }
 .ctx-it:hover .ctx-key { color: var(--ink); }
+
+/* layer-preview scrubber */
+.layer-bar {
+  position: absolute; left: 50%; bottom: 22px; transform: translateX(-50%); z-index: 22;
+  display: flex; align-items: center; gap: 12px; padding: 9px 16px;
+  background: var(--surface-2); border: 1px solid var(--line); border-radius: 24px;
+  box-shadow: 0 8px 24px rgba(0,0,0,.5);
+}
+.layer-bar.hidden { display: none; }
+.layer-label { font-family: var(--mono); font-size: 11px; color: var(--ink-dim); white-space: nowrap; min-width: 88px; }
+.layer-bar input[type=range] { width: 300px; max-width: 46vw; accent-color: var(--cyan); cursor: pointer; }
 .ctx-sep { height: 1px; background: var(--line); margin: 4px 6px; }
 .ctx-sub {
   display: none; position: absolute; left: 100%; top: -6px; min-width: 152px;

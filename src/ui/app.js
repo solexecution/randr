@@ -211,6 +211,7 @@ export class App {
     this.workplane = null; // {origin,normal,rot} build frame, or null for ground
     this.viewMode = 'edit'; // build view: 'edit' (parts + ghost) | 'result' (combined solid)
     this.multiSelect = false; // sticky additive selection (touch-friendly — taps add to the selection)
+    this._layerMode = false;  // layer-preview (slice) view active
     this.project = null;    // current saved project meta {id,name,created,modified,seconds} or null
     this._workSeconds = 0;  // accumulated active-edit time for the current project
     this._recompileTimer = null;
@@ -242,6 +243,7 @@ export class App {
   // --- compile + render loop ------------------------------------------------
 
   recompile(frame = false) {
+    if (this._layerMode) this._exitLayers(); // any model change leaves the slice preview
     this._syncBuildTools(); // keep the floating tools button in sync with the mode
     const source = this.mode === 'build'
       ? buildTreeToSource(this.buildTree)
@@ -391,6 +393,33 @@ export class App {
       if (dock) dock.classList.remove('open');
       if (fab) fab.classList.remove('on');
     }
+  }
+
+  // --- layer preview (slice into printed layers) ---------------------------
+  _toggleLayers() {
+    if (this._layerMode) { this._exitLayers(); this.recompile(); return; }
+    const n = this.viewport.showLayers(this.currentModel || null);
+    if (!n) { this._toast('Nothing to slice yet'); return; }
+    this._layerMode = true;
+    this._layerCount = n;
+    const range = this.root.querySelector('#layer-range');
+    if (range) { range.max = String(n - 1); range.value = String(n - 1); }
+    this._updateLayerLabel(n - 1);
+    this.root.querySelector('#layer-bar')?.classList.remove('hidden');
+    this.root.querySelector('#v-layers')?.classList.add('on');
+  }
+
+  _exitLayers() {
+    if (!this._layerMode) return;
+    this._layerMode = false;
+    this.viewport.hideLayers();
+    this.root.querySelector('#layer-bar')?.classList.add('hidden');
+    this.root.querySelector('#v-layers')?.classList.remove('on');
+  }
+
+  _updateLayerLabel(i) {
+    const lbl = this.root.querySelector('#layer-label');
+    if (lbl) lbl.textContent = `layer ${i + 1} / ${this._layerCount}`;
   }
 
   // The build tools stay visible so they're always discoverable; their buttons
@@ -1530,6 +1559,16 @@ export class App {
       });
     }
 
+    // layer preview: toggle + scrub
+    const layerBtn = this.root.querySelector('#v-layers');
+    if (layerBtn) layerBtn.addEventListener('click', () => this._toggleLayers());
+    const layerRange = this.root.querySelector('#layer-range');
+    if (layerRange) layerRange.addEventListener('input', () => {
+      const i = +layerRange.value;
+      this.viewport.setLayerVisible(i);
+      this._updateLayerLabel(i);
+    });
+
     // build view toggle: edit (parts + ghost) vs result (combined solid)
     this.root.querySelectorAll('[data-view]').forEach((b) =>
       b.addEventListener('click', () => this._setViewMode(b.dataset.view)));
@@ -1940,6 +1979,7 @@ export class App {
             <button class="icon-btn" id="v-front" title="Front view">⊡</button>
             <button class="icon-btn on" id="v-grid" title="Toggle grid (G)">▦</button>
             <button class="icon-btn" id="v-wire" title="Toggle wireframe">◇</button>
+            <button class="icon-btn" id="v-layers" title="Layer preview — slice into layers">≣</button>
             <button class="icon-btn on" id="v-snap" title="Snap to 1 mm / 15°">⌗</button>
             <span class="tb-sep"></span>
             <button class="icon-btn" id="help-btn" title="Learn G-code">?</button>
@@ -2067,6 +2107,11 @@ export class App {
               <button data-gmode="intersect" title="Keep only the overlap (intersection)">∩</button>
             </div>
           </div>
+        </div>
+
+        <div id="layer-bar" class="layer-bar hidden">
+          <span id="layer-label" class="layer-label">layer</span>
+          <input type="range" id="layer-range" min="0" max="0" value="0" step="1" aria-label="Layer">
         </div>
 
         <div id="ctx-menu" class="ctx-menu hidden" role="menu"></div>

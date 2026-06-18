@@ -59,6 +59,8 @@ export class Viewport {
     this.magnet = true;            // snap to other parts' edges/centres while dragging
     this.magnetDist = 3;           // snap pull radius (mm)
     this.multiSelect = false;      // sticky additive selection (taps add — touch-friendly, no Shift needed)
+    this._layerGroup = null;       // layer-preview line group
+    this._layerObjs = null;        // per-layer LineSegments (for the slider)
     this.editMeshes = [];          // [{ index, mesh, op }]
     this.selectedIndex = -1;
     this.selectedSet = [];
@@ -579,6 +581,74 @@ export class Viewport {
     this._hlMesh.geometry.dispose();
     this._hlMesh.material.dispose();
     this._hlMesh = null;
+  }
+
+  // --- layer preview: slice the model into printed layers -------------------
+  // Slices `model` every layerH and draws each layer's outline as a line loop,
+  // so you can scrub through and watch the print build up. Returns the layer count.
+  showLayers(model) {
+    this.hideLayers();
+    if (!model) return 0;
+    let bb; try { bb = model.boundingBox(); } catch { return 0; }
+    const minZ = bb.min[2], maxZ = bb.max[2], H = maxZ - minZ;
+    if (H <= 0.01) return 0;
+    let layerH = 0.4;
+    if (H / layerH > 200) layerH = H / 200; // cap the layer count so slicing stays snappy
+    const n = Math.max(1, Math.floor(H / layerH));
+
+    const grp = new THREE.Group();
+    grp.rotation.x = -Math.PI / 2;  // manifold Z-up -> scene Y-up (match setModel)
+    grp.position.y = -minZ;         // drop the bottom layer onto the plate
+    this._layerMat = new THREE.LineBasicMaterial({ color: COLORS.model });
+    this._layerTop = new THREE.LineBasicMaterial({ color: 0xffb74d }); // current (top) layer
+    this._layerObjs = [];
+
+    for (let i = 0; i < n; i++) {
+      const z = minZ + (i + 0.5) * layerH;
+      let cs = null, polys = null;
+      try { cs = model.slice(z); polys = cs.toPolygons(); } catch { /* skip */ }
+      if (cs) { try { cs.delete(); } catch { /* freed */ } }
+      const pts = [];
+      if (polys) for (const poly of polys) {
+        const k = poly.length;
+        for (let j = 0; j < k; j++) {
+          const a = poly[j], b = poly[(j + 1) % k];
+          pts.push(a[0], a[1], z, b[0], b[1], z);
+        }
+      }
+      if (!pts.length) { this._layerObjs.push(null); continue; }
+      const g = new THREE.BufferGeometry();
+      g.setAttribute('position', new THREE.Float32BufferAttribute(pts, 3));
+      const line = new THREE.LineSegments(g, this._layerMat);
+      grp.add(line);
+      this._layerObjs.push(line);
+    }
+
+    this.scene.add(grp);
+    this._layerGroup = grp;
+    this.modelGroup.visible = false;
+    this.editGroup.visible = false;
+    if (this.gizmo) this.gizmo.detach();
+    this.setLayerVisible(this._layerObjs.length - 1);
+    return this._layerObjs.length;
+  }
+
+  setLayerVisible(n) {
+    if (!this._layerObjs) return;
+    this._layerObjs.forEach((o, i) => {
+      if (!o) return;
+      o.visible = i <= n;
+      o.material = (i === n) ? this._layerTop : this._layerMat;
+    });
+  }
+
+  hideLayers() {
+    if (!this._layerGroup) return;
+    this._layerGroup.traverse((o) => { if (o.geometry) o.geometry.dispose(); });
+    this.scene.remove(this._layerGroup);
+    this._layerGroup = null; this._layerObjs = null;
+    if (this._layerMat) { this._layerMat.dispose(); this._layerMat = null; }
+    if (this._layerTop) { this._layerTop.dispose(); this._layerTop = null; }
   }
 
   // --- build mode: many selectable shapes -----------------------------------
