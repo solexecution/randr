@@ -112,13 +112,37 @@ body {
 /* left drawer — a collapsible blade that overlays the full-bleed canvas */
 .panel {
   position: absolute; top: 46px; left: 0; bottom: 0; z-index: 18;
-  width: 320px; max-width: 86vw;
+  width: var(--panel-w, 320px); max-width: 92vw;
   background: rgba(31,35,41,.93); backdrop-filter: blur(10px);
   border-right: 1px solid var(--line);
   overflow-y: auto; overscroll-behavior: contain;
   transition: transform .22s ease;
 }
 .panel.collapsed { transform: translateX(-101%); }
+
+/* drag handle on the panel's right edge to resize it */
+#panel-resize {
+  position: absolute; top: 46px; bottom: 0; left: var(--panel-w, 320px); z-index: 19;
+  width: 8px; margin-left: -4px; cursor: ew-resize; touch-action: none;
+}
+#panel-resize::after {
+  content: ''; position: absolute; top: 0; bottom: 0; left: 3px; width: 2px; background: transparent;
+}
+#panel-resize:hover::after, #panel-resize.dragging::after { background: var(--cyan); }
+#panel.collapsed ~ #panel-resize { display: none; }
+
+/* help (Learn G-code) modal */
+.help-panel { width: 560px; max-width: 92vw; max-height: 84vh; display: flex; flex-direction: column; }
+.help-body { overflow-y: auto; line-height: 1.55; color: var(--ink); font-size: 13.5px; }
+.help-body h1 { font-size: 18px; margin: 2px 0 10px; }
+.help-body h2 { font-size: 15px; margin: 18px 0 6px; color: var(--cyan); }
+.help-body h3 { font-size: 13px; margin: 12px 0 4px; color: var(--ink); }
+.help-body p { margin: 6px 0; color: var(--ink-dim); }
+.help-body ul, .help-body ol { margin: 6px 0; padding-left: 20px; color: var(--ink-dim); }
+.help-body li { margin: 3px 0; }
+.help-body code { font-family: var(--mono); font-size: 12px; background: var(--surface-2); color: var(--cyan); padding: 1px 5px; border-radius: 4px; }
+.help-body strong { color: var(--ink); }
+.help-body hr { border: 0; border-top: 1px solid var(--line); margin: 14px 0; }
 .pane { padding: 10px 12px 18px; display: flex; flex-direction: column; gap: 7px;
   min-height: 100%; box-sizing: border-box; }
 .pane.hidden { display: none; }
@@ -389,7 +413,7 @@ input[type=range]::-moz-range-thumb {
 }
 .bn-collapse:hover { color: var(--cyan); }
 
-.bn-head { display: flex; align-items: center; gap: 5px; margin-bottom: 6px; }
+.bn-head { display: flex; align-items: center; gap: 4px; margin-bottom: 5px; }
 .bn-grp {
   font-family: var(--mono); font-size: 9px; font-weight: 700; letter-spacing: .03em;
   color: var(--bg); background: var(--cyan); border-radius: 4px; padding: 3px 4px;
@@ -402,29 +426,29 @@ input[type=range]::-moz-range-thumb {
   padding: 4px 6px; cursor: pointer; -webkit-appearance: none; appearance: none;
 }
 .bn-type:focus { outline: none; border-color: var(--cyan); }
-.bn-color-wrap { display: flex; align-items: center; gap: 4px; flex: none; }
+.bn-color-wrap { display: flex; align-items: center; gap: 3px; flex: none; }
 .bn-swatch {
-  width: 20px; height: 24px; flex: none; padding: 0; cursor: pointer;
-  background: none; border: 1px solid var(--line); border-radius: 6px;
+  width: 18px; height: 22px; flex: none; padding: 0; cursor: pointer;
+  background: none; border: 1px solid var(--line); border-radius: 5px;
 }
 .bn-swatch::-webkit-color-swatch-wrapper { padding: 2px; }
 .bn-swatch::-webkit-color-swatch { border: none; border-radius: 3px; }
 .bn-hex {
-  width: 58px; flex: none; font-family: var(--mono); font-size: 10.5px; color: var(--ink);
-  background: var(--surface); border: 1px solid var(--line); border-radius: 6px;
-  padding: 4px 5px; text-transform: lowercase;
+  width: 44px; flex: none; font-family: var(--mono); font-size: 9.5px; color: var(--ink);
+  background: var(--surface); border: 1px solid var(--line); border-radius: 5px;
+  padding: 3px 4px; text-transform: lowercase;
 }
 .bn-hex:focus { outline: none; border-color: var(--cyan); }
 .bn-swatch:disabled, .bn-hex:disabled { opacity: .25; cursor: default; }
 .bn-ops { display: flex; gap: 3px; align-items: center; }
 .bn-op {
-  font-family: var(--mono); font-size: 9.5px; letter-spacing: .04em; text-transform: uppercase; font-weight: 600;
+  font-family: var(--mono); font-size: 9px; letter-spacing: .03em; text-transform: uppercase; font-weight: 600;
   color: var(--bg); background: var(--cyan); border: 1px solid var(--cyan);
-  border-radius: 5px; padding: 4px 6px; cursor: pointer; min-width: 38px;
+  border-radius: 5px; padding: 3px 5px; cursor: pointer; min-width: 30px;
 }
 .bn-op.hole { background: var(--amber); border-color: var(--amber); }
 .bn-ic {
-  width: 24px; height: 24px; display: grid; place-items: center; font-size: 11px;
+  width: 21px; height: 21px; flex: none; display: grid; place-items: center; font-size: 10.5px;
   background: var(--surface-2); border: 1px solid var(--line); border-radius: 5px;
   cursor: pointer; color: var(--ink-dim);
 }
@@ -432,15 +456,15 @@ input[type=range]::-moz-range-thumb {
 .bn-ic.on { border-color: var(--amber); }
 .bn-del:hover { border-color: var(--red); color: var(--red); }
 
-.bn-fields { display: grid; grid-template-columns: repeat(3, 1fr); gap: 5px; margin-top: 5px; }
+.bn-fields { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; margin-top: 4px; }
 .bn-fields label {
-  font-family: var(--mono); font-size: 9px; color: var(--ink-dim);
-  display: flex; flex-direction: column; gap: 2px; position: relative;
+  font-family: var(--mono); font-size: 8.5px; color: var(--ink-dim);
+  display: flex; flex-direction: column; gap: 1px; position: relative;
 }
 .bn-fields input {
-  font-family: var(--mono); font-size: 11px; color: var(--ink);
+  font-family: var(--mono); font-size: 10px; color: var(--ink);
   background: var(--surface); border: 1px solid var(--line);
-  border-radius: 5px; padding: 4px 5px; width: 100%; min-width: 0;
+  border-radius: 4px; padding: 2.5px 5px; width: 100%; min-width: 0;
 }
 .bn-fields input:focus { outline: none; border-color: var(--cyan); }
 .bn-text { grid-column: 1 / -1; }
@@ -450,10 +474,10 @@ input[type=range]::-moz-range-thumb {
 .bn-fields input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
 .bn-fields input[type=number] { -moz-appearance: textfield; appearance: textfield; }
 /* unit suffix (mm / °) shown faintly at the right edge of the value */
-.bn-fields label[data-unit] input { padding-right: 19px; }
+.bn-fields label[data-unit] input { padding-right: 16px; }
 .bn-fields label[data-unit]::after {
-  content: attr(data-unit); position: absolute; right: 6px; bottom: 6px;
-  font-family: var(--mono); font-size: 9px; color: var(--ink-dim); pointer-events: none;
+  content: attr(data-unit); position: absolute; right: 5px; bottom: 4px;
+  font-family: var(--mono); font-size: 8.5px; color: var(--ink-dim); pointer-events: none;
 }
 
 /* stage / viewport — full-bleed, fills the whole window */

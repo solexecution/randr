@@ -15,6 +15,7 @@ import { Viewport } from './viewport.js';
 import { buildTreeToSource, BuildTree, setNodeKind } from './buildtree.js';
 import { sourceToNodes } from './importBuild.js';
 import { RECIPES } from './recipes.js';
+import gcodeHelp from '../help/gcode.md?raw';
 import * as Projects from './projects.js';
 
 // --- code-editor syntax highlighting ---------------------------------------
@@ -47,6 +48,28 @@ function highlightCode(src) {
   }
   out += hlEscape(src.slice(last));
   return out;
+}
+
+// Tiny markdown -> HTML for the help modal (headings, lists, bold, `code`, hr).
+function mdToHtml(md) {
+  const inline = (s) => hlEscape(s)
+    .replace(/`([^`]+)`/g, '<code>$1</code>')
+    .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+    .replace(/\*([^*]+)\*/g, '<em>$1</em>');
+  let html = '', list = null;
+  const close = () => { if (list) { html += `</${list}>`; list = null; } };
+  for (const raw of md.split('\n')) {
+    const line = raw.replace(/\r$/, ''), t = line.trim();
+    let m;
+    if (/^---+$/.test(t)) { close(); html += '<hr>'; }
+    else if ((m = t.match(/^(#{1,6})\s+(.*)/))) { close(); const l = m[1].length; html += `<h${l}>${inline(m[2])}</h${l}>`; }
+    else if ((m = line.match(/^(\s*)\d+\.\s+(.*)/))) { if (list !== 'ol') { close(); html += '<ol>'; list = 'ol'; } html += `<li>${inline(m[2])}</li>`; }
+    else if ((m = line.match(/^(\s*)[-*]\s+(.*)/))) { if (list !== 'ul') { close(); html += '<ul>'; list = 'ul'; } html += `<li>${inline(m[2])}</li>`; }
+    else if (t === '') { close(); }
+    else { close(); html += `<p>${inline(t)}</p>`; }
+  }
+  close();
+  return html;
 }
 
 // Build one shape's geometry (centered, kernel-accurate) for the editable
@@ -1477,6 +1500,36 @@ export class App {
       if (menu && !menu.classList.contains('hidden') && !e.target.closest('#ctx-menu')) menu.classList.add('hidden');
     });
 
+    // help (Learn G-code) modal
+    const helpModal = this.root.querySelector('#help-modal');
+    const helpBtn = this.root.querySelector('#help-btn');
+    if (helpBtn && helpModal) {
+      helpBtn.addEventListener('click', () => helpModal.classList.remove('hidden'));
+      const hc = this.root.querySelector('#help-close');
+      if (hc) hc.addEventListener('click', () => helpModal.classList.add('hidden'));
+      helpModal.addEventListener('mousedown', (e) => { if (e.target === helpModal) helpModal.classList.add('hidden'); });
+    }
+
+    // resizable left panel — drag its right edge (pointer events: touch + mouse)
+    const presize = this.root.querySelector('#panel-resize');
+    const stage = this.root.querySelector('.stage');
+    if (presize && stage) {
+      let sx = 0, sw = 0;
+      const move = (e) => {
+        const w = Math.max(240, Math.min(560, sw + (e.clientX - sx)));
+        stage.style.setProperty('--panel-w', `${w}px`);
+      };
+      const up = () => { presize.classList.remove('dragging'); window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', up); };
+      presize.addEventListener('pointerdown', (e) => {
+        sx = e.clientX;
+        sw = this.root.querySelector('#panel').getBoundingClientRect().width;
+        presize.classList.add('dragging');
+        window.addEventListener('pointermove', move);
+        window.addEventListener('pointerup', up);
+        e.preventDefault();
+      });
+    }
+
     // build view toggle: edit (parts + ghost) vs result (combined solid)
     this.root.querySelectorAll('[data-view]').forEach((b) =>
       b.addEventListener('click', () => this._setViewMode(b.dataset.view)));
@@ -1522,7 +1575,7 @@ export class App {
       if (e.key === 'Escape') {
         const ctx = this.root.querySelector('#ctx-menu');
         if (ctx && !ctx.classList.contains('hidden')) { e.preventDefault(); ctx.classList.add('hidden'); return; }
-        for (const sel of ['#name-modal', '#proj-modal', '#add-modal']) {
+        for (const sel of ['#name-modal', '#proj-modal', '#add-modal', '#help-modal']) {
           const m = this.root.querySelector(sel);
           if (m && !m.classList.contains('hidden')) { e.preventDefault(); if (sel === '#name-modal') this._nameCb = null; m.classList.add('hidden'); return; }
         }
@@ -1888,6 +1941,8 @@ export class App {
             <button class="icon-btn on" id="v-grid" title="Toggle grid (G)">▦</button>
             <button class="icon-btn" id="v-wire" title="Toggle wireframe">◇</button>
             <button class="icon-btn on" id="v-snap" title="Snap to 1 mm / 15°">⌗</button>
+            <span class="tb-sep"></span>
+            <button class="icon-btn" id="help-btn" title="Learn G-code">?</button>
           </div>
           <div class="menu" id="proj-menu">
             <button class="exp" id="proj-btn">🗂 <span id="proj-name">Untitled</span> ▾</button>
@@ -1940,6 +1995,7 @@ export class App {
             <div id="build-list" class="build-list"></div>
           </section>
         </aside>
+        <div id="panel-resize" title="Drag to resize the panel"></div>
 
         <button id="tools-fab" class="tools-fab hidden" title="Build tools" aria-label="Build tools">
           <span class="tf-ico">⛭</span><span class="tf-label">Tools</span>
@@ -2014,6 +2070,16 @@ export class App {
         </div>
 
         <div id="ctx-menu" class="ctx-menu hidden" role="menu"></div>
+
+        <div id="help-modal" class="modal-overlay center hidden">
+          <div class="modal-panel help-panel">
+            <div class="modal-head">
+              <span class="modal-title">Learn G-code</span>
+              <button class="modal-x" id="help-close" aria-label="Close">✕</button>
+            </div>
+            <div class="modal-body help-body">${mdToHtml(gcodeHelp)}</div>
+          </div>
+        </div>
 
         <div id="proj-modal" class="modal-overlay center hidden">
           <div class="modal-panel">
