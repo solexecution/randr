@@ -459,15 +459,15 @@ input[type=range]::-moz-range-thumb {
 }
 .bn-op.hole { background: var(--amber); border-color: var(--amber); }
 .bn-ic {
-  width: 21px; height: 21px; flex: none; display: grid; place-items: center; font-size: 10.5px;
-  background: var(--surface-2); border: 1px solid var(--line); border-radius: 5px;
+  width: 27px; height: 27px; flex: none; display: grid; place-items: center; font-size: 13px;
+  background: var(--surface-2); border: 1px solid var(--line); border-radius: 6px;
   cursor: pointer; color: var(--ink-dim);
 }
 .bn-ic:hover { border-color: var(--cyan); }
 .bn-ic.on { border-color: var(--amber); }
 .bn-del:hover { border-color: var(--red); color: var(--red); }
 
-.bn-fields { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; margin-top: 4px; }
+.bn-fields { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; margin-top: 5px; max-width: 300px; }
 .bn-fields label {
   font-family: var(--mono); font-size: 8.5px; color: var(--ink-dim);
   display: flex; flex-direction: column; gap: 1px; position: relative;
@@ -475,7 +475,7 @@ input[type=range]::-moz-range-thumb {
 .bn-fields input {
   font-family: var(--mono); font-size: 10px; color: var(--ink);
   background: var(--surface); border: 1px solid var(--line);
-  border-radius: 4px; padding: 2.5px 5px; width: 100%; min-width: 0;
+  border-radius: 4px; padding: 2px 5px; width: 100%; min-width: 0;
 }
 .bn-fields input:focus { outline: none; border-color: var(--cyan); }
 .bn-text { grid-column: 1 / -1; }
