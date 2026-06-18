@@ -14,6 +14,7 @@ import { exportSTL, exportOBJ, export3MF, triggerDownload } from '../kernel/expo
 import { Viewport } from './viewport.js';
 import { buildTreeToSource, BuildTree, setNodeKind } from './buildtree.js';
 import { sourceToNodes } from './importBuild.js';
+import { RECIPES } from './recipes.js';
 import * as Projects from './projects.js';
 
 // --- code-editor syntax highlighting ---------------------------------------
@@ -200,12 +201,14 @@ export class App {
     await loadKernel();
     this.viewport = new Viewport(this.root.querySelector('#viewport-canvas'));
     this.viewport.onSelect = (i, additive) => this._selectNode(i, additive);
+    this.viewport.onContext = (i, x, y) => this._showContextMenu(i, x, y);
     this.viewport.onShapeMove = (i, pos) => this._onShapeMove(i, pos);
     this.viewport.onShapeMoveEnd = (i, pos) => this._onShapeMoveEnd(i, pos);
     this.viewport.onTransform = (i, t) => this._onTransform(i, t);
     this.viewport.onTransformEnd = (i) => this._onTransformEnd(i);
     window.__forgeExport = { exportSTL, export3MF, exportOBJ }; // scripting/test hook
-    window.__dbg = { src: () => buildTreeToSource(this.buildTree), compile, meshSolid, importSTL }; // debug
+    window.__dbg = { src: () => buildTreeToSource(this.buildTree), compile, meshSolid, importSTL, registerSolid }; // debug
+    window.__recipes = RECIPES; // simple-mode makes (test hook)
     this._bindEvents();
     this.recompile(true);
     this._pushHistory();
@@ -631,6 +634,84 @@ export class App {
     this.recompile();
     this._pushHistory();
     this._renderAlignBar();
+  }
+
+  // --- right-click context menu -------------------------------------------
+  _showContextMenu(i, x, y) {
+    const menu = this.root.querySelector('#ctx-menu');
+    if (!menu) return;
+    if (i < 0) { menu.classList.add('hidden'); return; }
+    if (!this.selectedNodes.includes(i)) this._selectNode(i, false); // act on what was clicked
+    const nodes = this.buildTree.nodes, n = nodes[i];
+    if (!n) { menu.classList.add('hidden'); return; }
+    const hasGroup = this.selectedNodes.some((j) => nodes[j] && nodes[j].group != null);
+    const items = [
+      ['dup', 'Duplicate'],
+      ['op', n.op === 'hole' ? 'Make solid' : 'Make hole'],
+      ['lock', n.locked ? 'Unlock' : 'Lock'],
+      ['hide', n.hidden ? 'Show' : 'Hide'],
+    ];
+    if (this.selectedNodes.length >= 2) items.push(['group', 'Group']);
+    if (hasGroup) items.push(['ungroup', 'Ungroup']);
+    items.push(['explode', 'Break apart']);
+    items.push(['del', 'Delete']);
+    menu.innerHTML = items.map(([k, label]) =>
+      `<button data-act="${k}" class="${k === 'del' ? 'ctx-danger' : ''}">${label}</button>`).join('');
+    menu.querySelectorAll('button').forEach((b) => b.addEventListener('click', () => {
+      menu.classList.add('hidden');
+      this._ctxAction(b.dataset.act, i);
+    }));
+    menu.classList.remove('hidden');
+    const mw = menu.offsetWidth || 150, mh = menu.offsetHeight || 220;
+    menu.style.left = `${Math.min(x, window.innerWidth - mw - 8)}px`;
+    menu.style.top = `${Math.min(y, window.innerHeight - mh - 8)}px`;
+  }
+
+  _ctxAction(act, i) {
+    const nodes = this.buildTree.nodes, n = nodes[i];
+    if (!n) return;
+    const reflow = () => { this._renderBuildTree(); this.recompile(); this._pushHistory(); this._renderAlignBar(); };
+    if (act === 'dup') this._duplicateSelected();
+    else if (act === 'del') this._deleteSelected();
+    else if (act === 'op') { n.op = n.op === 'hole' ? 'solid' : 'hole'; reflow(); }
+    else if (act === 'lock') { n.locked = !n.locked; reflow(); }
+    else if (act === 'hide') { n.hidden = !n.hidden; reflow(); }
+    else if (act === 'group') this._group();
+    else if (act === 'ungroup') this._ungroup();
+    else if (act === 'explode') this._explodeNode(i);
+  }
+
+  // Break a part into its separate connected pieces (great for an imported STL
+  // that's really several objects) so each can be moved / edited / cut on its own.
+  _explodeNode(i) {
+    const nodes = this.buildTree.nodes, n = nodes[i];
+    if (!n) return;
+    let man = null;
+    try {
+      const solo = { ...n, op: 'solid', group: null, groupMode: 'union', hidden: false };
+      man = compile(buildTreeToSource({ nodes: [solo] }), {}).result;
+    } catch { this._toast('Couldn’t break this part apart'); return; }
+    if (!man) { this._toast('Nothing to break apart'); return; }
+    let comps = [];
+    try { comps = man.decompose(); } catch { comps = []; }
+    if (!comps || comps.length <= 1) {
+      this._toast('This is one connected piece — nothing to break apart');
+      return;
+    }
+    const pieces = comps.map((c, k) => {
+      const id = `piece-${Date.now()}-${k}`;
+      try { registerSolid(id, c); } catch { return null; }
+      return {
+        kind: 'imported', op: n.op, pos: [0, 0, 0], rot: [0, 0, 0], scale: [1, 1, 1],
+        color: n.color, locked: false, hidden: false, group: null, groupMode: 'union',
+        collapsed: false, meshId: id, meshName: `${n.meshName || 'piece'} ${k + 1}`, fields: [],
+      };
+    }).filter(Boolean);
+    if (!pieces.length) { this._toast('Couldn’t break this part apart'); return; }
+    this.buildTree.nodes.splice(i, 1, ...pieces);
+    this.selectedNodes = []; this.selectedNode = -1;
+    this._renderBuildTree(); this.recompile(); this._pushHistory(); this._renderAlignBar();
+    this._toast(`Broke into ${pieces.length} pieces`);
   }
 
   // live during a drag: move the shape (whole group moves together) + reflect
@@ -1360,6 +1441,12 @@ export class App {
       this._toast(this.multiSelect ? 'Multi-select on — tap parts to add them' : 'Multi-select off');
     });
 
+    // dismiss the right-click context menu on any click outside it
+    window.addEventListener('mousedown', (e) => {
+      const menu = this.root.querySelector('#ctx-menu');
+      if (menu && !menu.classList.contains('hidden') && !e.target.closest('#ctx-menu')) menu.classList.add('hidden');
+    });
+
     // build view toggle: edit (parts + ghost) vs result (combined solid)
     this.root.querySelectorAll('[data-view]').forEach((b) =>
       b.addEventListener('click', () => this._setViewMode(b.dataset.view)));
@@ -1403,6 +1490,8 @@ export class App {
       // Save works anywhere, even with a field focused
       if ((e.ctrlKey || e.metaKey) && k === 's') { e.preventDefault(); this._saveProject(); return; }
       if (e.key === 'Escape') {
+        const ctx = this.root.querySelector('#ctx-menu');
+        if (ctx && !ctx.classList.contains('hidden')) { e.preventDefault(); ctx.classList.add('hidden'); return; }
         for (const sel of ['#name-modal', '#proj-modal', '#add-modal']) {
           const m = this.root.querySelector(sel);
           if (m && !m.classList.contains('hidden')) { e.preventDefault(); if (sel === '#name-modal') this._nameCb = null; m.classList.add('hidden'); return; }
@@ -1631,6 +1720,7 @@ export class App {
             <button class="bn-op ${node.op}" data-op="${idx}" title="Toggle solid / hole">${node.op}</button>
             <button class="bn-ic ${node.locked ? 'on' : ''}" data-lock="${idx}" title="Lock position">${node.locked ? '🔒' : '🔓'}</button>
             <button class="bn-ic" data-hide="${idx}" title="${node.hidden ? 'Show' : 'Hide'}">${node.hidden ? '🚫' : '👁'}</button>
+            <button class="bn-ic" data-clone="${idx}" title="Duplicate (Ctrl+D)">⧉</button>
             <button class="bn-ic bn-del" data-del="${idx}" title="Delete">✕</button>
           </div>
         </div>
@@ -1685,6 +1775,9 @@ export class App {
       this._updateCollapseAllLabel();
     }));
     host.querySelectorAll('[data-del]').forEach((el) => el.addEventListener('click', () => this._deleteNode(+el.dataset.del)));
+    host.querySelectorAll('[data-clone]').forEach((el) => el.addEventListener('click', () => {
+      this._selectNode(+el.dataset.clone, false); this._duplicateSelected();
+    }));
     host.querySelectorAll('[data-field]').forEach((el) => el.addEventListener('input', () => {
       const [i, key] = el.dataset.field.split(':');
       const f = nodes[+i].fields.find((x) => x.key === key);
@@ -1870,6 +1963,8 @@ export class App {
             </div>
           </div>
         </div>
+
+        <div id="ctx-menu" class="ctx-menu hidden" role="menu"></div>
 
         <div id="proj-modal" class="modal-overlay center hidden">
           <div class="modal-panel">

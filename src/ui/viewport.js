@@ -65,6 +65,7 @@ export class Viewport {
     this.transformMode = 'translate';
     this._gizmoDragging = false;
     this.onSelect = null;          // (index | -1)
+    this.onContext = null;         // (index | -1, clientX, clientY) — right-click
     this.onShapeMove = null;       // (index, [x,y,z]) — live during drag
     this.onShapeMoveEnd = null;    // (index, [x,y,z])
     this.onTransform = null;       // (index, {pos,rot,scale}) — live during gizmo drag
@@ -253,7 +254,12 @@ export class Viewport {
     window.addEventListener('mousemove', (e) => { if (dragging || shapeDrag) { this._magnetSuppressed = e.altKey; onMove(e.clientX, e.clientY); } });
     window.addEventListener('mouseup', onUp);
     c.addEventListener('wheel', (e) => { e.preventDefault(); zoom(e.deltaY); }, { passive: false });
-    c.addEventListener('contextmenu', (e) => e.preventDefault());
+    c.addEventListener('contextmenu', (e) => {
+      e.preventDefault();
+      if (moved > 4) return; // it was a right-drag (pan), not a click
+      const hit = this._pickShape(e.clientX, e.clientY);
+      if (this.onContext) this.onContext(hit ? hit.object.userData.index : -1, e.clientX, e.clientY);
+    });
 
     // Touch: one finger = drag a shape (or orbit on empty), two = pinch-zoom + pan.
     let pinchDist = 0;

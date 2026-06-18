@@ -224,6 +224,21 @@ input[type=range]::-moz-range-thumb {
 .tools-dock-head { display: flex; align-items: center; justify-content: space-between; cursor: move; touch-action: none; user-select: none; }
 .tools-dock-title { font-family: var(--mono); font-size: 11px; letter-spacing: .14em; text-transform: uppercase; color: var(--ink-dim); }
 .tools-grip { color: var(--ink-dim); opacity: .6; letter-spacing: -1px; margin-right: 2px; }
+
+/* right-click context menu on a part */
+.ctx-menu {
+  position: absolute; z-index: 30; min-width: 150px;
+  background: var(--surface-2); border: 1px solid var(--line); border-radius: 9px;
+  padding: 5px; display: flex; flex-direction: column; gap: 1px;
+  box-shadow: 0 12px 30px rgba(0,0,0,.55);
+}
+.ctx-menu.hidden { display: none; }
+.ctx-menu button {
+  font-family: var(--mono); font-size: 12.5px; text-align: left; color: var(--ink);
+  background: none; border: 0; padding: 8px 12px; border-radius: 6px; cursor: pointer;
+}
+.ctx-menu button:hover { background: var(--surface); color: var(--cyan); }
+.ctx-menu button.ctx-danger:hover { color: var(--red); }
 .tools-dock-body { display: flex; flex-direction: column; gap: 7px; }
 
 /* build pane */
