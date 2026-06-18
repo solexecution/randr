@@ -216,6 +216,7 @@ export class App {
   // --- compile + render loop ------------------------------------------------
 
   recompile(frame = false) {
+    this._syncBuildTools(); // keep the floating tools button in sync with the mode
     const source = this.mode === 'build'
       ? buildTreeToSource(this.buildTree)
       : this.source;
@@ -350,6 +351,20 @@ export class App {
     const sel = new Set(this.selectedNodes);
     this.root.querySelectorAll('.build-node').forEach((r) =>
       r.classList.toggle('sel', sel.has(Number(r.dataset.node))));
+  }
+
+  // The build tools live in a floating dock (bottom-right). Show its button only
+  // in build mode, and collapse the dock when leaving build so it never lingers
+  // over the code view.
+  _syncBuildTools() {
+    const build = this.mode === 'build';
+    const fab = this.root.querySelector('#tools-fab');
+    const dock = this.root.querySelector('#tools-dock');
+    if (fab) fab.classList.toggle('hidden', !build);
+    if (!build) {
+      if (dock) dock.classList.remove('open');
+      if (fab) fab.classList.remove('on');
+    }
   }
 
   // The build tools stay visible so they're always discoverable; their buttons
@@ -1296,6 +1311,20 @@ export class App {
     this.root.querySelectorAll('[data-xform]').forEach((b) =>
       b.addEventListener('click', () => this._setXform(b.dataset.xform)));
 
+    // floating tools dock: the bottom-right button expands/collapses the bars
+    const toolsFab = this.root.querySelector('#tools-fab');
+    const toolsDock = this.root.querySelector('#tools-dock');
+    if (toolsFab && toolsDock) {
+      toolsFab.addEventListener('click', () => {
+        toolsFab.classList.toggle('on', toolsDock.classList.toggle('open'));
+      });
+      const toolsClose = this.root.querySelector('#tools-dock-close');
+      if (toolsClose) toolsClose.addEventListener('click', () => {
+        toolsDock.classList.remove('open');
+        toolsFab.classList.remove('on');
+      });
+    }
+
     // multi-select toggle: a sticky additive mode so a tap (no Shift) adds to
     // the selection — the way to multi-select on a touchscreen.
     const multiBtn = this.root.querySelector('#multi-toggle');
@@ -1736,6 +1765,24 @@ export class App {
 
           <section id="pane-build" class="pane hidden">
             <input type="file" id="stl-file" accept=".stl,model/stl,application/sla" hidden>
+            <p class="hint">Click to select · drag to move — snaps to nearby parts (hold <b>Alt</b> to free) · Shift-click multi-select · select 2+ to <b>align</b> / <b>group</b> · <b>Del</b> · <b>Ctrl+D</b></p>
+            <div class="parts-head">
+              <span class="pane-title">parts</span>
+              <button id="collapse-all" class="mini-btn" title="Collapse or expand all parts">collapse all</button>
+            </div>
+            <div id="build-list" class="build-list"></div>
+          </section>
+        </aside>
+
+        <button id="tools-fab" class="tools-fab hidden" title="Build tools" aria-label="Build tools">
+          <span class="tf-ico">⛭</span><span class="tf-label">Tools</span>
+        </button>
+        <div id="tools-dock" class="tools-dock" role="dialog" aria-label="Build tools">
+          <div class="tools-dock-head">
+            <span class="tools-dock-title">Tools</span>
+            <button id="tools-dock-close" class="modal-x" title="Collapse" aria-label="Collapse tools">✕</button>
+          </div>
+          <div class="tools-dock-body">
             <div class="xform" id="xform">
               <button data-xform="translate" class="on" title="Move (W)">↔ move</button>
               <button data-xform="rotate" title="Rotate (E)">⟳ turn</button>
@@ -1796,14 +1843,8 @@ export class App {
               <button data-gmode="subtract" title="Subtract — first part minus the rest">∖</button>
               <button data-gmode="intersect" title="Keep only the overlap (intersection)">∩</button>
             </div>
-            <p class="hint">Click to select · drag to move — snaps to nearby parts (hold <b>Alt</b> to free) · Shift-click multi-select · select 2+ to <b>align</b> / <b>group</b> · <b>Del</b> · <b>Ctrl+D</b></p>
-            <div class="parts-head">
-              <span class="pane-title">parts</span>
-              <button id="collapse-all" class="mini-btn" title="Collapse or expand all parts">collapse all</button>
-            </div>
-            <div id="build-list" class="build-list"></div>
-          </section>
-        </aside>
+          </div>
+        </div>
 
         <div id="proj-modal" class="modal-overlay center hidden">
           <div class="modal-panel">
