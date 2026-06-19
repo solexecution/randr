@@ -16,7 +16,7 @@ const PRIMS = new Set([
   'box', 'cube', 'cylinder', 'sphere', 'cone', 'pyramid', 'torus', 'wedge',
   'dome', 'slot', 'star', 'roundedBox', 'roundedCylinder', 'chamferedBox', 'chamferedCylinder',
   'tube', 'prism', 'gear', 'text', 'imported', 'thread', 'bolt', 'nut',
-  'counterbore', 'countersink', 'insertHole', 'nutTrap', 'keyhole', 'extrude',
+  'counterbore', 'countersink', 'insertHole', 'nutTrap', 'keyhole', 'extrude', 'revolve',
 ]);
 
 const MATH = {
@@ -99,16 +99,20 @@ function unwrap(expr, env) {
     const what = expr.type === 'Call' ? `${expr.name}()` : 'this shape';
     throw new ForgeError(`Build mode can't represent ${what} yet`);
   }
-  const kind = expr.name === 'cube' ? 'box' : expr.name === 'extrude' ? 'extrusion' : expr.name;
+  const kind = expr.name === 'cube' ? 'box'
+    : expr.name === 'extrude' ? 'extrusion'
+    : expr.name === 'revolve' ? 'revolution'
+    : expr.name;
   const node = createNode(kind);
   if (srcStart != null) { node.srcStart = srcStart; node.srcEnd = srcEnd; }
   const args = expr.args;
 
-  if (kind === 'extrusion') {
+  if (kind === 'extrusion' || kind === 'revolution') {
     const raw = constEval(args[0], env) || [];
     node.points = raw.map((p) => [r2(p[0]), r2(p[1])]);
-    const hf = node.fields.find((x) => x.key === 'height');
-    if (hf && args[1] !== undefined) hf.value = constEval(args[1], env);
+    const param = kind === 'extrusion' ? 'height' : 'degrees';
+    const pf = node.fields.find((x) => x.key === param);
+    if (pf && args[1] !== undefined) pf.value = constEval(args[1], env);
     node.pos = [r2(pos[0]), r2(pos[1]), r2(pos[2])];
     node.rot = [r2(rot[0]), r2(rot[1]), r2(rot[2])];
     node.scale = [r3(scale[0]), r3(scale[1]), r3(scale[2])];

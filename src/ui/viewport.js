@@ -114,7 +114,7 @@ export class Viewport {
     this.measureLabel = null; // DOM overlay positioned at the segment midpoint
     this._pins = []; // pinned dimension annotations (persist across recompiles)
     this.onMeasure = null;    // (info|null) — { dist, x, y, z } in mm
-    this._sketch = { on: false, pts: [], cursor: null, group: null }; // sketch → extrude
+    this._sketch = { on: false, pts: [], cursor: null, group: null, mode: 'extrude' }; // sketch → extrude/revolve
     this.onSketchComplete = null; // (points:[[x,y],…]) — a closed polygon was drawn
 
     this._setupControls();
@@ -345,6 +345,8 @@ export class Viewport {
 
   sketchUndoPoint() { if (this._sketch.pts.length) { this._sketch.pts.pop(); this._renderSketch(); } }
 
+  setSketchKind(mode) { this._sketch.mode = mode; if (this._sketch.on) this._renderSketch(); } // 'extrude' | 'revolve'
+
   cancelSketch() { this.setSketchMode(false); }
 
   finishSketch() {
@@ -417,6 +419,10 @@ export class Viewport {
     if (!this._sketch.on) return;
     this._sketchMats();
     const g = new THREE.Group();
+    if (this._sketch.mode === 'revolve') { // show the spin axis (x = 0)
+      const ax = new THREE.Line(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(0, -40, 0), new THREE.Vector3(0, 180, 0)]), this._sketchCloseMat);
+      ax.renderOrder = 997; g.add(ax);
+    }
     const pts = this._sketch.pts;
     const v = pts.map((p) => new THREE.Vector3(p[0], p[1], 0));
     const path = v.slice();

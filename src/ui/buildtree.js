@@ -32,6 +32,7 @@ const DEFS = {
   text:       { fields: [['str', 'Text', 'text'], ['size', 12], ['height', 4]] },
   imported:   { fields: [] }, // geometry comes from a registered mesh (node.meshId)
   extrusion:  { fields: [['height', 10]] }, // a drawn 2D polygon (node.points) pulled up
+  revolution: { fields: [['degrees', 360]] }, // a drawn profile (node.points) spun around the axis
   thread:     { fields: [['d', 12], ['pitch', 2.5], ['length', 24]] }, // threaded rod
   bolt:       { fields: [['d', 16], ['pitch', 2.5], ['length', 20], ['headAF', 24], ['headH', 10]] },
   nut:        { fields: [['d', 16], ['pitch', 2.5], ['thickness', 12], ['af', 24]] },
@@ -66,6 +67,7 @@ function baseHalfHeight(kind, get) {
     case 'text':       return 0; // built base-on-plate, lying flat
     case 'imported':   return 0; // STL centred on X/Y, base on the plate
     case 'extrusion':  return get('height') / 2; // extrude is centred — lift base to plate
+    case 'revolution': return 0; // revolve yields a Z-axis solid already on the plate
     case 'thread':     return 0; // threaded rod, base on the plate
     case 'bolt':       return 0; // built base-on-plate
     case 'nut':        return 0; // built base-on-plate
@@ -273,6 +275,7 @@ function baseShapeCall(node) {
     case 'text':       return `text("${String(f('str')).replace(/\\/g, '\\\\').replace(/"/g, '\\"')}", ${f('size')}, ${f('height')})`;
     case 'imported':   return `imported("${node.meshId || ''}")`;
     case 'extrusion':  return `extrude([${(node.points || []).map(([x, y]) => `[${x}, ${y}]`).join(', ')}], ${f('height')})`;
+    case 'revolution': return `revolve([${(node.points || []).map(([x, y]) => `[${x}, ${y}]`).join(', ')}], ${f('degrees')})`;
     case 'thread':     return `thread(${f('length')}, ${f('pitch')}, ${f('d')})`;
     case 'bolt':       return `bolt(${f('d')}, ${f('pitch')}, ${f('length')}, ${f('headAF')}, ${f('headH')})`;
     case 'nut':        return `nut(${f('d')}, ${f('pitch')}, ${f('thickness')}, ${f('af')})`;

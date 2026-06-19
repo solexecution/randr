@@ -7,7 +7,7 @@
 // sees one input format. The build pane is a structured editor that emits
 // source; a touch-built model can be opened in the code pane and vice versa.
 
-import { loadKernel, inspect, box, cylinder, sphere, cone, pyramid, torus, wedge, dome, slot, star, roundedBox, roundedCylinder, chamferedBox, chamferedCylinder, tube, prism, gear, counterbore, countersink, insertHole, nutTrap, keyhole, text, thread, bolt, nut, extrude, meshSolid, importSTL, importOBJ, import3MF, registerSolid, imported, solidMesh, setCurveQuality } from '../kernel/manifold.js';
+import { loadKernel, inspect, box, cylinder, sphere, cone, pyramid, torus, wedge, dome, slot, star, roundedBox, roundedCylinder, chamferedBox, chamferedCylinder, tube, prism, gear, counterbore, countersink, insertHole, nutTrap, keyhole, text, thread, bolt, nut, extrude, revolve, meshSolid, importSTL, importOBJ, import3MF, registerSolid, imported, solidMesh, setCurveQuality } from '../kernel/manifold.js';
 import { manifoldToGeometry } from '../kernel/mesh.js';
 import { compile } from '../lang/compile.js';
 import { exportSTL, exportOBJ, export3MF, export3MFColored, triggerDownload } from '../kernel/export.js';
@@ -74,6 +74,39 @@ function mdToHtml(md) {
 
 // Build one shape's geometry (centered, kernel-accurate) for the editable
 // build-mode view. The manifold is freed immediately after meshing.
+// Round the corners of a closed polygon by radius r (tessellated arcs), so a
+// drawn sketch can have curved/organic edges. Clamps r per-corner to the
+// shorter adjoining edge; collinear corners pass through unchanged.
+function roundCorners(pts, r, seg = 6) {
+  if (!(r > 0) || pts.length < 3) return pts;
+  const n = pts.length, out = [];
+  for (let i = 0; i < n; i++) {
+    const cur = pts[i], prev = pts[(i - 1 + n) % n], next = pts[(i + 1) % n];
+    const v1 = [prev[0] - cur[0], prev[1] - cur[1]];
+    const v2 = [next[0] - cur[0], next[1] - cur[1]];
+    const l1 = Math.hypot(v1[0], v1[1]), l2 = Math.hypot(v2[0], v2[1]);
+    if (l1 < 1e-6 || l2 < 1e-6) { out.push(cur); continue; }
+    const u1 = [v1[0] / l1, v1[1] / l1], u2 = [v2[0] / l2, v2[1] / l2];
+    const ang = Math.acos(Math.max(-1, Math.min(1, u1[0] * u2[0] + u1[1] * u2[1])));
+    if (ang < 1e-3 || Math.PI - ang < 1e-3) { out.push(cur); continue; } // straight
+    const t = Math.min(r / Math.tan(ang / 2), Math.min(l1, l2) / 2);
+    const rr = t * Math.tan(ang / 2);
+    const bis = [u1[0] + u2[0], u1[1] + u2[1]];
+    const bl = Math.hypot(bis[0], bis[1]);
+    if (bl < 1e-6) { out.push(cur); continue; }
+    const c = [cur[0] + (bis[0] / bl) * (rr / Math.sin(ang / 2)), cur[1] + (bis[1] / bl) * (rr / Math.sin(ang / 2))];
+    const p1 = [cur[0] + u1[0] * t, cur[1] + u1[1] * t];
+    const p2 = [cur[0] + u2[0] * t, cur[1] + u2[1] * t];
+    let a1 = Math.atan2(p1[1] - c[1], p1[0] - c[0]);
+    const a2 = Math.atan2(p2[1] - c[1], p2[0] - c[0]);
+    let d = a2 - a1;
+    while (d > Math.PI) d -= 2 * Math.PI;
+    while (d < -Math.PI) d += 2 * Math.PI;
+    for (let k = 0; k <= seg; k++) { const a = a1 + d * (k / seg); out.push([Math.round((c[0] + rr * Math.cos(a)) * 100) / 100, Math.round((c[1] + rr * Math.sin(a)) * 100) / 100]); }
+  }
+  return out;
+}
+
 function nodeToGeometry(node) {
   const f = (k) => effField(node, k);
   let m;
@@ -104,6 +137,7 @@ function nodeToGeometry(node) {
       case 'text':       m = text(f('str'), f('size'), f('height')); break;
       case 'imported':   m = imported(node.meshId || ''); break;
       case 'extrusion':  { const pts = node.points || []; if (pts.length < 3) return null; m = extrude(pts, f('height')); break; }
+      case 'revolution': { const pts = node.points || []; if (pts.length < 3) return null; m = revolve(pts, f('degrees')); break; }
       case 'thread':     m = thread(f('length'), f('pitch'), f('d'), 0.61 * f('pitch')); break;
       case 'bolt':       m = bolt(f('d'), f('pitch'), f('length'), f('headAF'), f('headH')); break;
       case 'nut':        m = nut(f('d'), f('pitch'), f('thickness'), f('af')); break;
@@ -232,6 +266,7 @@ export class App {
     this.root = root;
     this.mode = 'code';            // 'code' | 'build'
     this.tier = 'maker';           // experience level (set for real by _initTier)
+    this._sketchMode = 'extrude';  // sketch tool: 'extrude' | 'revolve'
     this.source = STARTER;
     this.overrides = {};
     this.params = [];
@@ -1083,7 +1118,7 @@ export class App {
     const SHAPES = ['box', 'cylinder', 'sphere', 'cone', 'pyramid', 'prism', 'gear', 'wedge', 'torus', 'dome', 'slot', 'star', 'roundedBox', 'roundedCylinder', 'chamferedBox', 'chamferedCylinder', 'tube', 'text', 'bolt', 'nut', 'thread', 'counterbore', 'countersink', 'insertHole', 'nutTrap', 'keyhole'];
     SHAPES.forEach((k) => add(`Add ${k}`, 'shape', 'Add', () => A._addShape(k)));
     Object.keys(TEMPLATES).forEach((k) => add(`Insert ${k}`, 'ready-made', 'Add', () => A._loadTemplate(k)));
-    add('Draw a sketch (extrude)', 'polygon → 3D', 'Add', () => A._startSketch());
+    add('Draw a sketch (extrude / revolve)', 'polygon → 3D', 'Add', () => A._startSketch());
     add('Fit to view', 'F', 'View', () => A.viewport.fitView());
     add('Top view', '', 'View', () => A.viewport.setView('top'));
     add('Front view', '', 'View', () => A.viewport.setView('front'));
@@ -1174,9 +1209,21 @@ export class App {
     if (this.mode !== 'build') this._switchMode('build');
     if (this.viewMode !== 'edit') this._setViewMode('edit');
     this._closeAddModal();
+    this._setSketchMode('extrude');
     this.viewport.setSketchMode(true);
     this.root.querySelector('#sketch-bar')?.classList.remove('hidden');
     this._toast('Draw a shape — tap points on the plate, tap the first dot (or Finish) to close');
+  }
+
+  _setSketchMode(mode) {
+    this._sketchMode = mode;
+    this.viewport.setSketchKind?.(mode);
+    this.root.querySelectorAll('#sketch-modes [data-smode]').forEach((b) => b.classList.toggle('on', b.dataset.smode === mode));
+    const hint = this.root.querySelector('#sketch-hint');
+    if (hint) hint.textContent = mode === 'revolve'
+      ? 'draw a profile beside the axis — it spins into a solid'
+      : 'tap points · tap the first dot to close';
+    this.root.querySelector('#sketch-h-lab')?.classList.toggle('hidden', mode === 'revolve');
   }
 
   _finishSketchUI() {
@@ -1190,20 +1237,36 @@ export class App {
     this.root.querySelector('#sketch-bar')?.classList.add('hidden');
   }
 
-  // The viewport finished a closed polygon: turn it into an editable extrusion.
-  _onSketchComplete(pts) {
-    const node = this.buildTree.add('extrusion');
-    if (!node) return;
-    node.points = pts;
-    const h = Math.max(0.4, +this.root.querySelector('#sketch-h')?.value || 10);
-    const hf = node.fields.find((f) => f.key === 'height'); if (hf) hf.value = h;
-    node.pos = [0, 0, h / 2]; // extrude is centred — seat the base on the plate
+  // The viewport finished a closed polygon: turn it into an editable part —
+  // extruded, or revolved into a lathe solid. Optional corner rounding curves
+  // the profile (baked into the points).
+  _onSketchComplete(rawPts) {
+    const round = Math.max(0, +this.root.querySelector('#sketch-round')?.value || 0);
+    const pts = roundCorners(rawPts, round);
+    if (this._sketchMode === 'revolve') {
+      const node = this.buildTree.add('revolution');
+      if (!node) return;
+      node.points = pts;
+      node.pos = [0, 0, 0]; // revolve yields a Z-axis solid already on the plate
+      this._afterSketchNode('Revolved into a lathe solid ✓ — edit °, scale, or drag it');
+    } else {
+      const node = this.buildTree.add('extrusion');
+      if (!node) return;
+      node.points = pts;
+      const h = Math.max(0.4, +this.root.querySelector('#sketch-h')?.value || 10);
+      const hf = node.fields.find((f) => f.key === 'height'); if (hf) hf.value = h;
+      node.pos = [0, 0, h / 2]; // extrude is centred — seat the base on the plate
+      this._afterSketchNode('Sketch extruded ✓ — set the height, or drag it like any part');
+    }
+  }
+
+  _afterSketchNode(msg) {
     this.root.querySelector('#sketch-bar')?.classList.add('hidden');
     this._renderBuildTree();
     this._selectNode(this.buildTree.nodes.length - 1, false);
     this.recompile();
     this._pushHistory();
-    this._toast('Sketch extruded ✓ — set the height, or drag it like any part');
+    this._toast(msg);
   }
 
   _loadTemplate(key) {
@@ -1802,11 +1865,13 @@ export class App {
       });
     }
 
-    // sketch → extrude
+    // sketch → extrude / revolve
     $('#add-sketch')?.addEventListener('click', () => this._startSketch());
     $('#sketch-finish')?.addEventListener('click', () => this._finishSketchUI());
     $('#sketch-cancel')?.addEventListener('click', () => this._cancelSketchUI());
     $('#sketch-undo')?.addEventListener('click', () => this.viewport.sketchUndoPoint());
+    this.root.querySelectorAll('#sketch-modes [data-smode]').forEach((b) =>
+      b.addEventListener('click', () => this._setSketchMode(b.dataset.smode)));
 
     // command palette (Ctrl+K, or the ⌕ button)
     $('#cmd-open')?.addEventListener('click', () => this._openCmd());
@@ -2414,6 +2479,8 @@ export class App {
             ? `<span class="bn-type bn-imported" title="Imported mesh">⬇ ${esc(node.meshName || 'mesh')}</span>`
             : node.kind === 'extrusion'
             ? `<span class="bn-type bn-imported" title="Extruded sketch — ${(node.points || []).length} points">✎ sketch (${(node.points || []).length} pts)</span>`
+            : node.kind === 'revolution'
+            ? `<span class="bn-type bn-imported" title="Revolved sketch — ${(node.points || []).length} points">⟳ lathe (${(node.points || []).length} pts)</span>`
             : `<select class="bn-type" data-type="${idx}" title="Shape type">
             ${KINDS.map((k) => `<option value="${k}" ${k === node.kind ? 'selected' : ''}>${KIND_LABEL[k] || k}</option>`).join('')}
           </select>`}
@@ -2736,10 +2803,15 @@ export class App {
         </div>
 
         <div id="sketch-bar" class="sketch-bar hidden">
-          <span class="sketch-hint">✎ tap points · tap the first dot to close</span>
-          <label class="sketch-h">height<input type="number" id="sketch-h" value="10" min="0.4" step="1"></label>
+          <div class="sketch-modes" id="sketch-modes">
+            <button data-smode="extrude" class="on" title="Pull the outline straight up">▤ extrude</button>
+            <button data-smode="revolve" title="Spin the profile around the axis (vases, knobs)">⟳ revolve</button>
+          </div>
+          <span class="sketch-hint" id="sketch-hint">tap points · tap the first dot to close</span>
+          <label class="sketch-h" id="sketch-h-lab">height<input type="number" id="sketch-h" value="10" min="0.4" step="1"></label>
+          <label class="sketch-h" title="Round the corners (0 = sharp)">round<input type="number" id="sketch-round" value="0" min="0" step="0.5"></label>
           <button id="sketch-undo" title="Remove the last point">↶ point</button>
-          <button id="sketch-finish" class="sketch-go" title="Close the shape and extrude it">Finish ✓</button>
+          <button id="sketch-finish" class="sketch-go" title="Close the shape and build it">Finish ✓</button>
           <button id="sketch-cancel" title="Discard">Cancel</button>
         </div>
 
