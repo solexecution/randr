@@ -586,7 +586,10 @@ input[type=range]::-moz-range-thumb {
 @media (max-width: 720px) {
   .panel { width: 290px; }
   .brand em { display: none; }
-  .viewtools .icon-btn:nth-child(n+4) { display: none; } /* keep fit+top, drop extras */
+  /* Don't hide tools on a tablet (RandR's main target) — make the strip
+     horizontally scrollable so every tool stays reachable by swiping. */
+  .viewtools { max-width: 58vw; overflow-x: auto; overflow-y: hidden; }
+  .viewtools::-webkit-scrollbar { height: 0; }
 }
 
 @media (prefers-reduced-motion: reduce) {
