@@ -828,6 +828,16 @@ export class App {
       this._ctxAction(b.dataset.act, i);
     }));
 
+    // Submenus expand on tap (touch has no hover, so hover-only needed a priming
+    // tap). Toggle .open, one open at a time; taps on an actual item fall through.
+    menu.querySelectorAll('.ctx-has-sub').forEach((el) => el.addEventListener('click', (e) => {
+      if (e.target.closest('button[data-act]')) return; // a submenu item — let it run
+      e.stopPropagation();
+      const open = el.classList.contains('open');
+      menu.querySelectorAll('.ctx-has-sub.open').forEach((o) => { if (o !== el) o.classList.remove('open'); });
+      el.classList.toggle('open', !open);
+    }));
+
     menu.classList.remove('hidden', 'ctx-left');
     const mw = menu.offsetWidth || 180, mh = menu.offsetHeight || 320;
     menu.style.left = `${Math.min(x, window.innerWidth - mw - 8)}px`;

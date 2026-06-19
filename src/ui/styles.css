@@ -302,7 +302,10 @@ input[type=range]::-moz-range-thumb {
   background: var(--surface-2); border: 1px solid var(--line); border-radius: 9px;
   padding: 5px; flex-direction: column; gap: 1px; box-shadow: 0 12px 30px rgba(0,0,0,.55);
 }
-.ctx-has-sub:hover > .ctx-sub { display: flex; }
+.ctx-has-sub:hover > .ctx-sub,
+.ctx-has-sub.open > .ctx-sub { display: flex; } /* tap-to-open for touch (no hover) */
+.ctx-arr { transition: transform .12s; }
+.ctx-has-sub.open > .ctx-arr { transform: rotate(90deg); }
 .ctx-menu.ctx-left .ctx-sub { left: auto; right: 100%; }
 .tools-dock-body { display: flex; flex-direction: column; gap: 7px; }
 
