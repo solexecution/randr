@@ -205,6 +205,7 @@ export class App {
     this.overrides = {};
     this.params = [];
     this.currentModel = null;
+    this.printRot = [0, 0, 0]; // print orientation (deg) wrapped around the model at compile
     this.buildTree = new BuildTree();
     this.selectedNode = -1;
     this.selectedNodes = [];
@@ -245,9 +246,15 @@ export class App {
   recompile(frame = false) {
     if (this._layerMode) this._exitLayers(); // any model change leaves the slice preview
     this._syncBuildTools(); // keep the floating tools button in sync with the mode
-    const source = this.mode === 'build'
+    let source = this.mode === 'build'
       ? buildTreeToSource(this.buildTree)
       : this.source;
+
+    // Print orientation: wrap the whole model in a rotate(). No-op at [0,0,0].
+    const pr = this.printRot;
+    if (pr && (pr[0] || pr[1] || pr[2]) && source.trim()) {
+      source = `rotate([${pr[0]}, ${pr[1]}, ${pr[2]}]) {\n${source}\n}`;
+    }
 
     const { result, params, error } = compile(source, this.overrides);
 
@@ -875,7 +882,7 @@ export class App {
   // --- undo / redo (snapshot history) --------------------------------------
 
   _snapshot() {
-    return JSON.stringify({ mode: this.mode, source: this.source, nodes: this.buildTree.nodes });
+    return JSON.stringify({ mode: this.mode, source: this.source, nodes: this.buildTree.nodes, printRot: this.printRot });
   }
 
   _pushHistory() {
@@ -896,6 +903,7 @@ export class App {
     this.mode = d.mode;
     this.source = d.source;
     this.buildTree.nodes = d.nodes;
+    this.printRot = d.printRot || [0, 0, 0];
     this.selectedNode = -1;
     this.overrides = {};
     this.root.querySelectorAll('[data-mode]').forEach((t) => t.classList.toggle('active', t.dataset.mode === this.mode));
@@ -1287,6 +1295,79 @@ export class App {
     this._updateSelReadout();
   }
 
+  // Auto-orient for printing: score the 6 axis-aligned face-down orientations by
+  // overhang area (tie-broken by bed contact and height) and apply the best as a
+  // print rotation (wrapped at compile, undoable). Candidates are single-axis, so
+  // the score is independent of Euler order.
+  _autoOrient() {
+    const src = this.mode === 'build' ? buildTreeToSource(this.buildTree) : this.source;
+    if (!src || !src.trim()) { this._toast('Nothing to orient'); return; }
+    const base = compile(src, this.overrides).result;
+    if (!base) { this._toast('Nothing to orient'); return; }
+    const mesh = base.getMesh();
+    try { base.delete(); } catch { /* freed */ }
+
+    const D = Math.PI / 180;
+    const rot = (p, rx, ry, rz) => {
+      let [x, y, z] = p, c, s, t;
+      c = Math.cos(rx * D); s = Math.sin(rx * D); t = y; y = c * t - s * z; z = s * t + c * z;
+      c = Math.cos(ry * D); s = Math.sin(ry * D); t = x; x = c * t + s * z; z = -s * t + c * z;
+      c = Math.cos(rz * D); s = Math.sin(rz * D); t = x; x = c * t - s * y; y = s * t + c * y;
+      return [x, y, z];
+    };
+    const vp = mesh.vertProperties, tv = mesh.triVerts, np = mesh.numProp;
+    const nVert = vp.length / np;
+    const metrics = (R) => {
+      // pass 1: rotate the verts, find the bed level (min Z)
+      const rv = new Array(nVert);
+      let minZ = Infinity, maxZ = -Infinity;
+      for (let k = 0; k < nVert; k++) {
+        const o = k * np;
+        const p = rot([vp[o], vp[o + 1], vp[o + 2]], R[0], R[1], R[2]);
+        rv[k] = p;
+        if (p[2] < minZ) minZ = p[2];
+        if (p[2] > maxZ) maxZ = p[2];
+      }
+      // pass 2: a downward face is overhang only if it's ELEVATED above the bed;
+      // downward faces sitting on the plate are bed contact, not overhang.
+      const bedEps = 0.5;
+      let overhang = 0, bed = 0;
+      for (let i = 0; i < tv.length; i += 3) {
+        const p0 = rv[tv[i]], p1 = rv[tv[i + 1]], p2 = rv[tv[i + 2]];
+        const ux = p1[0] - p0[0], uy = p1[1] - p0[1], uz = p1[2] - p0[2];
+        const vx = p2[0] - p0[0], vy = p2[1] - p0[1], vz = p2[2] - p0[2];
+        const nx = uy * vz - uz * vy, ny = uz * vx - ux * vz, nz = ux * vy - uy * vx;
+        const len = Math.hypot(nx, ny, nz) || 1;
+        const area = len / 2, down = -nz / len;
+        const elevated = Math.min(p0[2], p1[2], p2[2]) > minZ + bedEps;
+        if (!elevated && down > 0.985) bed += area;            // resting on the plate
+        else if (elevated && down > 0.7) overhang += area;     // steep floating overhang
+        else if (elevated && down > 0.5) overhang += area * 0.4;
+      }
+      return { overhang, bed, height: maxZ - minZ };
+    };
+
+    const CANDIDATES = [[0, 0, 0], [90, 0, 0], [-90, 0, 0], [180, 0, 0], [0, 90, 0], [0, -90, 0]];
+    let best = null, bestScore = Infinity, baseOverhang = 0;
+    for (const R of CANDIDATES) {
+      const m = metrics(R);
+      if (!R[0] && !R[1] && !R[2]) baseOverhang = m.overhang;
+      const score = m.overhang - m.bed * 0.1 + m.height * 0.02;
+      if (score < bestScore - 1e-6) { bestScore = score; best = { R, m }; }
+    }
+    if (!best) return;
+
+    this.printRot = best.R.slice();
+    this.recompile();
+    this._pushHistory();
+    if (this.mode === 'build' && this.viewMode !== 'result') this._setViewMode('result');
+    if (!best.R[0] && !best.R[1] && !best.R[2]) this._toast('Already well-oriented for printing');
+    else {
+      const cut = baseOverhang > 0 ? Math.max(0, Math.round((1 - best.m.overhang / baseOverhang) * 100)) : 0;
+      this._toast(`Auto-oriented · overhang ↓ ${cut}%`);
+    }
+  }
+
   // Build the 3MF blob. In build mode with several distinctly-coloured parts we
   // emit a multi-object 3MF (one base material per part) so a slicer can assign
   // a filament each; otherwise a plain single-mesh 3MF of the merged model.
@@ -1634,6 +1715,9 @@ export class App {
       const on = this.viewport.setOverhangView(this.overhangMode);
       ohBtn.classList.toggle('on', on);
     });
+
+    const orientBtn = this.root.querySelector('#v-orient');
+    if (orientBtn) orientBtn.addEventListener('click', () => this._autoOrient());
 
     // build view toggle: edit (parts + ghost) vs result (combined solid)
     this.root.querySelectorAll('[data-view]').forEach((b) =>
@@ -2098,6 +2182,7 @@ export class App {
             <button class="icon-btn on" id="v-snap" title="Snap to 1 mm / 15°">⌗</button>
             <button class="icon-btn" id="v-measure" title="Measure distance — click two points">📏</button>
             <button class="icon-btn" id="v-overhang" title="Overhang check — red faces need support">◣</button>
+            <button class="icon-btn" id="v-orient" title="Auto-orient for printing (least support)">⤓</button>
             <select class="quality-sel" id="v-quality" title="Curve smoothness for round shapes (cylinders, spheres…)">
               <option value="24">◍ Draft</option>
               <option value="48">◍ Standard</option>
