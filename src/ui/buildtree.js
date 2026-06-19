@@ -82,6 +82,7 @@ export function createNode(kind) {
     locked: false,
     hidden: false,
     clearance: 0, // fit clearance (mm): holes grow / solids shrink for press-fits
+    hollow: 0, // wall thickness (mm): >0 turns the solid into a shell
     group: null, // group id; members combine (and scope their holes) together
     groupMode: 'union', // how a group combines: union | subtract | intersect
     collapsed: false, // UI: part card folded to just its header
@@ -171,7 +172,47 @@ export function effField(node, key) {
   return Math.max(0.05, raw + signed);
 }
 
+// Shell config: which dims shrink to form the inner void. byT = radius-like
+// (one wall thickness in); by2T = full-extent (a wall on each side). Only shapes
+// that build centred at the origin, so the inset solid stays concentric for a
+// uniform-wall closed shell.
+const SHELL = {
+  box:          { by2T: ['x', 'y', 'z'] },
+  roundedBox:   { by2T: ['x', 'y', 'z'] },
+  chamferedBox: { by2T: ['x', 'y', 'z'] },
+  cylinder:     { byT: ['r'], by2T: ['h'] },
+  cone:         { byT: ['r1', 'r2'], by2T: ['h'] },
+  prism:        { byT: ['r'], by2T: ['h'] },
+  pyramid:      { byT: ['r'], by2T: ['h'] },
+  sphere:       { byT: ['r'] },
+};
+
+export function isShellable(kind) { return !!SHELL[kind]; }
+
+// Emit a part's geometry call. When the node has a wall thickness, subtract an
+// inset copy of the same shape to leave a hollow shell (closed — fine for FDM,
+// no drain hole needed); bails back to a solid if the wall would consume it.
 function shapeCall(node) {
+  const outer = baseShapeCall(node);
+  const t = node.hollow || 0;
+  const cfg = SHELL[node.kind];
+  if (t <= 0 || !cfg || !outer) return outer;
+  const inner = { ...node, hollow: 0, clearance: 0, fields: node.fields.map((x) => ({ ...x })) };
+  let bail = false;
+  const reduce = (keys, amt) => {
+    for (const k of keys || []) {
+      const f = inner.fields.find((x) => x.key === k);
+      if (f) { f.value -= amt; if (f.value < 0.4) bail = true; }
+    }
+  };
+  reduce(cfg.byT, t);
+  reduce(cfg.by2T, 2 * t);
+  if (bail) return outer;
+  const innerCall = baseShapeCall(inner);
+  return innerCall ? `difference() { ${outer}; ${innerCall}; }` : outer;
+}
+
+function baseShapeCall(node) {
   const f = (k) => effField(node, k);
   switch (node.kind) {
     case 'box':        return `box(${f('x')}, ${f('y')}, ${f('z')})`;

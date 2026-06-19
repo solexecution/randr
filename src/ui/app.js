@@ -12,7 +12,7 @@ import { manifoldToGeometry } from '../kernel/mesh.js';
 import { compile } from '../lang/compile.js';
 import { exportSTL, exportOBJ, export3MF, export3MFColored, triggerDownload } from '../kernel/export.js';
 import { Viewport, BUILD_VOLUME } from './viewport.js';
-import { buildTreeToSource, buildColoredParts, effField, supportsClearance, isFastener, applyMetricSize, currentMetricSize, METRIC_SIZES, BuildTree, setNodeKind } from './buildtree.js';
+import { buildTreeToSource, buildColoredParts, effField, supportsClearance, isShellable, isFastener, applyMetricSize, currentMetricSize, METRIC_SIZES, BuildTree, setNodeKind } from './buildtree.js';
 import { sourceToNodes } from './importBuild.js';
 import { RECIPES } from './recipes.js';
 import gcodeHelp from '../help/gcode.md?raw';
@@ -1973,9 +1973,10 @@ export class App {
           <label data-unit="°">ry<input type="number" step="15" value="${node.rot[1]}" data-rot="${idx}:1"></label>
           <label data-unit="°">rz<input type="number" step="15" value="${node.rot[2]}" data-rot="${idx}:2"></label>
         </div>
-        ${supportsClearance(node.kind) ? `<div class="bn-clear">
-          <label>fit clearance<input type="number" step="0.05" value="${node.clearance || 0}" data-clear="${idx}"></label>
-          <span class="bn-clear-hint">mm · + looser, for press-fits</span>
+        ${(supportsClearance(node.kind) || isShellable(node.kind)) ? `<div class="bn-clear">
+          ${supportsClearance(node.kind) ? `<label>fit clearance<input type="number" step="0.05" value="${node.clearance || 0}" data-clear="${idx}"></label>` : ''}
+          ${isShellable(node.kind) ? `<label>wall (hollow)<input type="number" step="0.2" value="${node.hollow || 0}" data-hollow="${idx}"></label>` : ''}
+          <span class="bn-clear-hint">mm · press-fit / hollow shell</span>
         </div>` : ''}`;
       row.addEventListener('mousedown', (e) => {
         if (e.target.closest('input, button, select')) return;
@@ -2036,6 +2037,9 @@ export class App {
     }));
     host.querySelectorAll('[data-clear]').forEach((el) => el.addEventListener('input', () => {
       nodes[+el.dataset.clear].clearance = parseFloat(el.value) || 0; this._scheduleRecompile();
+    }));
+    host.querySelectorAll('[data-hollow]').forEach((el) => el.addEventListener('input', () => {
+      nodes[+el.dataset.hollow].hollow = Math.max(0, parseFloat(el.value) || 0); this._scheduleRecompile();
     }));
     host.querySelectorAll('[data-size]').forEach((el) => el.addEventListener('change', () => {
       if (!el.value) return;
