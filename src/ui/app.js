@@ -206,6 +206,7 @@ export class App {
     this.params = [];
     this.currentModel = null;
     this.printRot = [0, 0, 0]; // print orientation (deg) wrapped around the model at compile
+    this.printScale = 1; // uniform scale-to-fit wrapped around the model at compile (1 = none)
     this.buildTree = new BuildTree();
     this.selectedNode = -1;
     this.selectedNodes = [];
@@ -250,10 +251,14 @@ export class App {
       ? buildTreeToSource(this.buildTree)
       : this.source;
 
-    // Print orientation: wrap the whole model in a rotate(). No-op at [0,0,0].
+    // Print orientation + scale-to-fit: wrap the whole model. No-op at defaults.
     const pr = this.printRot;
     if (pr && (pr[0] || pr[1] || pr[2]) && source.trim()) {
       source = `rotate([${pr[0]}, ${pr[1]}, ${pr[2]}]) {\n${source}\n}`;
+    }
+    const ps = this.printScale;
+    if (ps && ps !== 1 && source.trim()) {
+      source = `scale([${ps}, ${ps}, ${ps}]) {\n${source}\n}`;
     }
 
     const { result, params, error } = compile(source, this.overrides);
@@ -882,7 +887,7 @@ export class App {
   // --- undo / redo (snapshot history) --------------------------------------
 
   _snapshot() {
-    return JSON.stringify({ mode: this.mode, source: this.source, nodes: this.buildTree.nodes, printRot: this.printRot });
+    return JSON.stringify({ mode: this.mode, source: this.source, nodes: this.buildTree.nodes, printRot: this.printRot, printScale: this.printScale });
   }
 
   _pushHistory() {
@@ -904,6 +909,7 @@ export class App {
     this.source = d.source;
     this.buildTree.nodes = d.nodes;
     this.printRot = d.printRot || [0, 0, 0];
+    this.printScale = d.printScale || 1;
     this.selectedNode = -1;
     this.overrides = {};
     this.root.querySelectorAll('[data-mode]').forEach((t) => t.classList.toggle('active', t.dataset.mode === this.mode));
@@ -1368,6 +1374,31 @@ export class App {
     }
   }
 
+  // Scale the whole model down uniformly so it fits the build plate (2% margin),
+  // applied as a print scale wrapped at compile (undoable). Accounts for the
+  // current print orientation. No-op (resets to 100%) if it already fits.
+  _scaleToFit() {
+    let src = this.mode === 'build' ? buildTreeToSource(this.buildTree) : this.source;
+    const pr = this.printRot;
+    if (pr && (pr[0] || pr[1] || pr[2]) && src.trim()) src = `rotate([${pr[0]}, ${pr[1]}, ${pr[2]}]) {\n${src}\n}`;
+    const base = src.trim() ? compile(src, this.overrides).result : null;
+    if (!base) { this._toast('Nothing to scale'); return; }
+    const bb = base.boundingBox();
+    try { base.delete(); } catch { /* freed */ }
+    const maxDim = Math.max(bb.max[0] - bb.min[0], bb.max[1] - bb.min[1], bb.max[2] - bb.min[2]);
+    const limit = BUILD_VOLUME.x;
+    if (maxDim <= limit) {
+      if (this.printScale !== 1) { this.printScale = 1; this.recompile(); this._pushHistory(); }
+      this._toast('Already fits the build plate');
+      return;
+    }
+    this.printScale = +((limit / maxDim) * 0.98).toFixed(4);
+    this.recompile();
+    this._pushHistory();
+    if (this.mode === 'build' && this.viewMode !== 'result') this._setViewMode('result');
+    this._toast(`Scaled to ${Math.round(this.printScale * 100)}% to fit the plate`);
+  }
+
   // Build the 3MF blob. In build mode with several distinctly-coloured parts we
   // emit a multi-object 3MF (one base material per part) so a slicer can assign
   // a filament each; otherwise a plain single-mesh 3MF of the merged model.
@@ -1725,6 +1756,9 @@ export class App {
 
     const orientBtn = this.root.querySelector('#v-orient');
     if (orientBtn) orientBtn.addEventListener('click', () => this._autoOrient());
+
+    const fitBtn = this.root.querySelector('#v-fit-plate');
+    if (fitBtn) fitBtn.addEventListener('click', () => this._scaleToFit());
 
     // build view toggle: edit (parts + ghost) vs result (combined solid)
     this.root.querySelectorAll('[data-view]').forEach((b) =>
@@ -2203,6 +2237,7 @@ export class App {
             <button class="icon-btn" id="v-measure" title="Measure distance — click two points">📏</button>
             <button class="icon-btn" id="v-overhang" title="Overhang check — red faces need support">◣</button>
             <button class="icon-btn" id="v-orient" title="Auto-orient for printing (least support)">⤓</button>
+            <button class="icon-btn" id="v-fit-plate" title="Scale to fit the build plate">⤡</button>
             <select class="quality-sel" id="v-quality" title="Curve smoothness for round shapes (cylinders, spheres…)">
               <option value="24">◍ Draft</option>
               <option value="48">◍ Standard</option>
