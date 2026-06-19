@@ -1068,6 +1068,103 @@ export class App {
     }
   }
 
+  // --- command palette (Ctrl+K) ---------------------------------------------
+  // A searchable index of every tool/op, built fresh each open so it reflects
+  // current state. Reuses the existing handlers (and a few button .click()s) so
+  // there's one source of truth for each action.
+  _commands() {
+    const A = this;
+    const c = [];
+    const add = (label, hint, group, run) => c.push({ label, hint, group, run });
+    const clickBtn = (sel) => { const b = A.root.querySelector(sel); if (b) b.click(); };
+    const SHAPES = ['box', 'cylinder', 'sphere', 'cone', 'pyramid', 'prism', 'gear', 'wedge', 'torus', 'dome', 'slot', 'star', 'roundedBox', 'roundedCylinder', 'chamferedBox', 'chamferedCylinder', 'tube', 'text', 'bolt', 'nut', 'thread', 'counterbore', 'countersink', 'insertHole', 'nutTrap', 'keyhole'];
+    SHAPES.forEach((k) => add(`Add ${k}`, 'shape', 'Add', () => A._addShape(k)));
+    Object.keys(TEMPLATES).forEach((k) => add(`Insert ${k}`, 'ready-made', 'Add', () => A._loadTemplate(k)));
+    add('Fit to view', 'F', 'View', () => A.viewport.fitView());
+    add('Top view', '', 'View', () => A.viewport.setView('top'));
+    add('Front view', '', 'View', () => A.viewport.setView('front'));
+    add('Toggle grid', 'G', 'View', () => clickBtn('#v-grid'));
+    add('Toggle wireframe', '', 'View', () => clickBtn('#v-wire'));
+    add('Auto-orient for printing', 'least support', 'Prep', () => A._autoOrient());
+    add('Scale to fit the plate', '', 'Prep', () => A._scaleToFit());
+    add('Cut in half', 'two glue-able pieces', 'Prep', () => clickBtn('#v-cut'));
+    add('Overhang check', 'red = needs support', 'Prep', () => clickBtn('#v-overhang'));
+    add('Measure distance', 'click two points', 'Tools', () => clickBtn('#v-measure'));
+    add('Undo', 'Ctrl+Z', 'Edit', () => A._undo());
+    add('Redo', 'Ctrl+Y', 'Edit', () => A._redo());
+    add('Group selection', 'Ctrl+G', 'Edit', () => A._group());
+    add('Ungroup', '', 'Edit', () => A._ungroup());
+    add('Export STL', 'for slicing', 'Export', () => { if (A.currentModel) triggerDownload(exportSTL(A.currentModel), 'part.stl'); });
+    add('Export 3MF', 'units + colour', 'Export', () => { if (A.currentModel) triggerDownload(A._build3MF(), 'part.3mf'); });
+    add('Export OBJ', 'mesh', 'Export', () => { if (A.currentModel) triggerDownload(exportOBJ(A.currentModel), 'part.obj'); });
+    [['Draft', 24], ['Standard', 48], ['Smooth', 64], ['Ultra', 128]].forEach(([n, v]) =>
+      add(`Quality: ${n}`, 'curve smoothness', 'Quality', () => { A.curveQuality = v; setCurveQuality(v); const sel = A.root.querySelector('#v-quality'); if (sel) sel.value = String(v); A.recompile(); }));
+    add('New project', '', 'Project', () => A._newProject());
+    add('Save project', 'Ctrl+S', 'Project', () => A._saveProject());
+    add('Save project as…', '', 'Project', () => A._promptName('Save project as', A.project ? A.project.name : '', (n) => A._doSaveAs(n)));
+    add('Open / manage projects…', '', 'Project', () => { A._renderProjectList(); A._openModal('#proj-modal'); });
+    add('Switch to Simple level', 'pick & size', 'Level', () => A._setTier('simple'));
+    add('Switch to Maker level', 'build from parts', 'Level', () => A._setTier('maker'));
+    add('Switch to Pro level', 'every tool', 'Level', () => A._setTier('pro'));
+    return c;
+  }
+
+  _openCmd() {
+    if (this.tier === 'simple') return; // a power tool — Maker / Pro only
+    this._cmdAll = this._commands();
+    this._openModal('#cmd-modal');
+    const input = this.root.querySelector('#cmd-input');
+    input.value = '';
+    this._renderCmd('');
+    setTimeout(() => { input.focus(); }, 20);
+  }
+
+  _renderCmd(query) {
+    const q = (query || '').trim().toLowerCase();
+    let items = this._cmdAll || [];
+    if (q) {
+      items = items
+        .map((cmd) => {
+          const l = cmd.label.toLowerCase();
+          let score = -1;
+          if (l.startsWith(q)) score = 0;
+          else if (l.includes(q)) score = 1;
+          else if (`${cmd.group} ${cmd.hint || ''}`.toLowerCase().includes(q)) score = 2;
+          return { cmd, score };
+        })
+        .filter((x) => x.score >= 0)
+        .sort((a, b) => a.score - b.score)
+        .map((x) => x.cmd);
+    }
+    items = items.slice(0, 40);
+    this._cmdShown = items;
+    this._cmdActive = 0;
+    const list = this.root.querySelector('#cmd-list');
+    const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;');
+    if (!items.length) { list.innerHTML = '<div class="cmd-empty">No matching command</div>'; return; }
+    list.innerHTML = items.map((cmd, i) => `
+      <div class="cmd-item${i === 0 ? ' active' : ''}" data-i="${i}" role="option">
+        <span class="cmd-grp">${esc(cmd.group)}</span>
+        <span class="cmd-label">${esc(cmd.label)}</span>
+        ${cmd.hint ? `<span class="cmd-hint">${esc(cmd.hint)}</span>` : ''}
+      </div>`).join('');
+  }
+
+  _cmdMove(d) {
+    if (!this._cmdShown || !this._cmdShown.length) return;
+    this._cmdActive = (this._cmdActive + d + this._cmdShown.length) % this._cmdShown.length;
+    const list = this.root.querySelector('#cmd-list');
+    list.querySelectorAll('.cmd-item').forEach((el, i) => el.classList.toggle('active', i === this._cmdActive));
+    list.querySelector('.cmd-item.active')?.scrollIntoView({ block: 'nearest' });
+  }
+
+  _runCmd(i) {
+    const idx = i != null ? i : this._cmdActive;
+    const cmd = this._cmdShown && this._cmdShown[idx];
+    this._closeModal('#cmd-modal');
+    if (cmd) { try { cmd.run(); } catch { this._toast('Could not run that command'); } }
+  }
+
   _loadTemplate(key) {
     const src = TEMPLATES[key];
     if (!src) return;
@@ -1664,6 +1761,25 @@ export class App {
       });
     }
 
+    // command palette (Ctrl+K, or the ⌕ button)
+    $('#cmd-open')?.addEventListener('click', () => this._openCmd());
+    const cmdModal = $('#cmd-modal');
+    const cmdInput = $('#cmd-input');
+    if (cmdModal && cmdInput) {
+      cmdInput.addEventListener('input', () => this._renderCmd(cmdInput.value));
+      cmdInput.addEventListener('keydown', (e) => {
+        if (e.key === 'ArrowDown') { e.preventDefault(); this._cmdMove(1); }
+        else if (e.key === 'ArrowUp') { e.preventDefault(); this._cmdMove(-1); }
+        else if (e.key === 'Enter') { e.preventDefault(); this._runCmd(); }
+      });
+      cmdModal.addEventListener('mousedown', (e) => { if (e.target === cmdModal) this._closeModal('#cmd-modal'); });
+      // mousedown (not click) so it beats the input losing focus
+      $('#cmd-list').addEventListener('mousedown', (e) => {
+        const it = e.target.closest('.cmd-item');
+        if (it) { e.preventDefault(); this._runCmd(+it.dataset.i); }
+      });
+    }
+
     // collapsible panel
     $('#panel-toggle').addEventListener('click', () => this._setPanel());
 
@@ -1939,12 +2055,13 @@ export class App {
       const k = e.key.toLowerCase();
       // Save works anywhere, even with a field focused
       if ((e.ctrlKey || e.metaKey) && k === 's') { e.preventDefault(); this._saveProject(); return; }
+      if ((e.ctrlKey || e.metaKey) && k === 'k') { e.preventDefault(); this._openCmd(); return; }
       if (e.key === 'Escape') {
         const ctx = this.root.querySelector('#ctx-menu');
         if (ctx && !ctx.classList.contains('hidden')) { e.preventDefault(); ctx.classList.add('hidden'); return; }
         const tm = this.root.querySelector('#tier-modal');
         if (tm && !tm.classList.contains('hidden')) { e.preventDefault(); this._setTier('maker'); tm.classList.add('hidden'); return; }
-        for (const sel of ['#name-modal', '#proj-modal', '#add-modal', '#help-modal']) {
+        for (const sel of ['#cmd-modal', '#name-modal', '#proj-modal', '#add-modal', '#help-modal']) {
           const m = this.root.querySelector(sel);
           if (m && !m.classList.contains('hidden')) { e.preventDefault(); if (sel === '#name-modal') this._nameCb = null; m.classList.add('hidden'); return; }
         }
@@ -2409,6 +2526,7 @@ export class App {
           <button class="icon-btn add-btn" id="add-open" title="Add a shape, part, or ready-made object">+</button>
           <div class="spacer"></div>
           <div class="viewtools">
+            <button class="icon-btn" id="cmd-open" title="Find a command (Ctrl+K)">⌕</button>
             <button class="icon-btn" id="v-undo" title="Undo (Ctrl+Z)">↶</button>
             <button class="icon-btn" id="v-redo" title="Redo (Ctrl+Y)">↷</button>
             <span class="tb-sep"></span>
@@ -2601,6 +2719,14 @@ export class App {
               <input type="text" id="name-input" class="name-input" placeholder="Project name" spellcheck="false" maxlength="60">
               <div class="name-actions"><button id="name-ok" class="add-open-btn">Save</button></div>
             </div>
+          </div>
+        </div>
+
+        <div id="cmd-modal" class="modal-overlay center hidden">
+          <div class="modal-panel cmd-panel" role="dialog" aria-label="Command palette">
+            <input id="cmd-input" class="cmd-input" type="text" spellcheck="false" autocomplete="off"
+                   placeholder="Type a command…  e.g. add box · export STL · auto-orient · simple">
+            <div id="cmd-list" class="cmd-list" role="listbox"></div>
           </div>
         </div>
 
