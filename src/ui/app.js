@@ -10,9 +10,9 @@
 import { loadKernel, inspect, box, cylinder, sphere, cone, pyramid, torus, wedge, dome, slot, star, roundedBox, roundedCylinder, chamferedBox, chamferedCylinder, tube, prism, text, thread, bolt, nut, meshSolid, importSTL, registerSolid, imported, solidMesh, setCurveQuality } from '../kernel/manifold.js';
 import { manifoldToGeometry } from '../kernel/mesh.js';
 import { compile } from '../lang/compile.js';
-import { exportSTL, exportOBJ, export3MF, triggerDownload } from '../kernel/export.js';
+import { exportSTL, exportOBJ, export3MF, export3MFColored, triggerDownload } from '../kernel/export.js';
 import { Viewport, BUILD_VOLUME } from './viewport.js';
-import { buildTreeToSource, BuildTree, setNodeKind } from './buildtree.js';
+import { buildTreeToSource, buildColoredParts, BuildTree, setNodeKind } from './buildtree.js';
 import { sourceToNodes } from './importBuild.js';
 import { RECIPES } from './recipes.js';
 import gcodeHelp from '../help/gcode.md?raw';
@@ -230,8 +230,8 @@ export class App {
     this.viewport.onShapeMoveEnd = (i, pos) => this._onShapeMoveEnd(i, pos);
     this.viewport.onTransform = (i, t) => this._onTransform(i, t);
     this.viewport.onTransformEnd = (i) => this._onTransformEnd(i);
-    window.__forgeExport = { exportSTL, export3MF, exportOBJ }; // scripting/test hook
-    window.__dbg = { src: () => buildTreeToSource(this.buildTree), compile, meshSolid, importSTL, registerSolid }; // debug
+    window.__forgeExport = { exportSTL, export3MF, export3MFColored, exportOBJ, build3MF: () => this._build3MF() }; // scripting/test hook
+    window.__dbg = { src: () => buildTreeToSource(this.buildTree), compile, meshSolid, importSTL, registerSolid, coloredParts: () => buildColoredParts(this.buildTree) }; // debug
     window.__recipes = RECIPES; // simple-mode makes (test hook)
     this._bindEvents();
     this.recompile(true);
@@ -1287,6 +1287,20 @@ export class App {
     this._updateSelReadout();
   }
 
+  // Build the 3MF blob. In build mode with several distinctly-coloured parts we
+  // emit a multi-object 3MF (one base material per part) so a slicer can assign
+  // a filament each; otherwise a plain single-mesh 3MF of the merged model.
+  _build3MF() {
+    if (this.mode === 'build') {
+      const parts = buildColoredParts(this.buildTree)
+        .map((p) => ({ manifold: compile(p.source, {}).result, color: p.color }))
+        .filter((p) => p.manifold);
+      const distinct = new Set(parts.map((p) => p.color));
+      if (parts.length > 1 && distinct.size > 1) return export3MFColored(parts);
+    }
+    return export3MF(this.currentModel);
+  }
+
   // --- HUD + status ---------------------------------------------------------
 
   _updateHUD(info) {
@@ -1427,7 +1441,7 @@ export class App {
     $('#export-btn').addEventListener('click', (e) => { e.stopPropagation(); menu.classList.toggle('open'); });
     const out = (fn, name) => { if (this.currentModel) triggerDownload(fn(this.currentModel), name); menu.classList.remove('open'); };
     $('#btn-stl').addEventListener('click', () => out(exportSTL, 'part.stl'));
-    $('#btn-3mf').addEventListener('click', () => out(export3MF, 'part.3mf'));
+    $('#btn-3mf').addEventListener('click', () => { if (this.currentModel) triggerDownload(this._build3MF(), 'part.3mf'); menu.classList.remove('open'); });
     $('#btn-obj').addEventListener('click', () => out(exportOBJ, 'part.obj'));
     document.addEventListener('click', () => menu.classList.remove('open'));
 

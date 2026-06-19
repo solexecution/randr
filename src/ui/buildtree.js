@@ -195,3 +195,34 @@ export function buildTreeToSource(tree) {
   const holeBlock = topHoles.map((h) => '    ' + h).join('\n');
   return `difference() {\n  union() {\n${solidBlock.replace(/^/gm, '  ')}\n  }\n${holeBlock}\n}\n`;
 }
+
+// For multi-colour export: each top-level coloured unit (a loose solid, or a
+// group) as its own compile source with the top-level holes subtracted, paired
+// with its colour. Mirrors buildTreeToSource's boolean semantics so each part
+// is the same geometry it contributes to the merged model. Groups export as one
+// object using their first solid's colour. Returns [{ source, color }].
+export function buildColoredParts(tree) {
+  const visible = tree.nodes.filter((n) => !n.hidden);
+  const loose = visible.filter((n) => n.group == null);
+  const groups = new Map();
+  for (const n of visible) {
+    if (n.group == null) continue;
+    if (!groups.has(n.group)) groups.set(n.group, []);
+    groups.get(n.group).push(n);
+  }
+  const topHoles = loose.filter((n) => n.op === 'hole').map(placedCall).filter(Boolean);
+  const cut = (body) => (topHoles.length ? `difference() { ${body} ${topHoles.join(' ')} }` : body);
+
+  const parts = [];
+  for (const n of loose.filter((n) => n.op !== 'hole')) {
+    const s = placedCall(n);
+    if (s) parts.push({ source: cut(s), color: n.color });
+  }
+  for (const nodes of groups.values()) {
+    const body = groupBlock(nodes);
+    if (!body) continue;
+    const firstSolid = nodes.find((n) => n.op !== 'hole');
+    parts.push({ source: cut(body), color: firstSolid ? firstSolid.color : 0xcccccc });
+  }
+  return parts;
+}

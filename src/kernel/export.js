@@ -66,44 +66,71 @@ export function exportOBJ(manifold) {
   return new Blob([lines.join('\n')], { type: 'model/obj' });
 }
 
-// 3MF is a zip, but a minimal single-mesh 3MF can be written as the core
-// model XML inside a tiny zip. To stay dependency-free we emit the model XML
-// uncompressed in a STORED zip we assemble by hand.
-export function export3MF(manifold) {
+// Turn a vertex/triangle list into the <mesh> body shared by both 3MF writers.
+function meshXml(manifold) {
   const { verts, tris } = meshArrays(manifold);
-  const vertXml = verts
-    .map((v) => `<vertex x="${v[0]}" y="${v[1]}" z="${v[2]}"/>`)
-    .join('');
-  const triXml = tris
-    .map((t) => `<triangle v1="${t[0]}" v2="${t[1]}" v3="${t[2]}"/>`)
-    .join('');
-  const model =
-    `<?xml version="1.0" encoding="UTF-8"?>` +
-    `<model unit="millimeter" xml:lang="en-US" ` +
-    `xmlns="http://schemas.microsoft.com/3dmanufacturing/core/2015/02">` +
-    `<resources><object id="1" type="model"><mesh>` +
-    `<vertices>${vertXml}</vertices><triangles>${triXml}</triangles>` +
-    `</mesh></object></resources>` +
-    `<build><item objectid="1"/></build></model>`;
+  const vertXml = verts.map((v) => `<vertex x="${v[0]}" y="${v[1]}" z="${v[2]}"/>`).join('');
+  const triXml = tris.map((t) => `<triangle v1="${t[0]}" v2="${t[1]}" v3="${t[2]}"/>`).join('');
+  return `<mesh><vertices>${vertXml}</vertices><triangles>${triXml}</triangles></mesh>`;
+}
 
+// 24-bit colour int -> 3MF displaycolor "#RRGGBBAA" (opaque).
+function hexColor(c) {
+  return '#' + ((c >>> 0) & 0xffffff).toString(16).padStart(6, '0') + 'ff';
+}
+
+// Wrap a <model> XML string in the OPC package (content-types + rels) and zip it.
+function pack3MF(model) {
   const contentTypes =
     `<?xml version="1.0" encoding="UTF-8"?>` +
     `<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">` +
     `<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>` +
     `<Default Extension="model" ContentType="application/vnd.ms-package.3dmanufacturing-3dmodel+xml"/>` +
     `</Types>`;
-
   const rels =
     `<?xml version="1.0" encoding="UTF-8"?>` +
     `<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">` +
     `<Relationship Target="/3D/3dmodel.model" Id="rel0" ` +
     `Type="http://schemas.microsoft.com/3dmanufacturing/2013/01/3dmodel"/></Relationships>`;
-
   return zipStore([
     { name: '[Content_Types].xml', data: contentTypes },
     { name: '_rels/.rels', data: rels },
     { name: '3D/3dmodel.model', data: model },
   ]);
+}
+
+// 3MF is a zip, but a minimal single-mesh 3MF can be written as the core
+// model XML inside a tiny zip. To stay dependency-free we emit the model XML
+// uncompressed in a STORED zip we assemble by hand.
+export function export3MF(manifold) {
+  const model =
+    `<?xml version="1.0" encoding="UTF-8"?>` +
+    `<model unit="millimeter" xml:lang="en-US" ` +
+    `xmlns="http://schemas.microsoft.com/3dmanufacturing/core/2015/02">` +
+    `<resources><object id="1" type="model">${meshXml(manifold)}</object></resources>` +
+    `<build><item objectid="1"/></build></model>`;
+  return pack3MF(model);
+}
+
+// Multi-colour 3MF: each part becomes its own <object> tinted by a <base>
+// material (displaycolor), so a slicer can assign a filament per object — the
+// Bambu A1-mini-with-AMS multi-colour workflow. `parts` = [{ manifold, color }].
+export function export3MFColored(parts) {
+  const bases = parts
+    .map((p, i) => `<base name="c${i}" displaycolor="${hexColor(p.color)}"/>`)
+    .join('');
+  // Material resource is id 1; objects take ids 2..N and point at base index i.
+  const objects = parts
+    .map((p, i) => `<object id="${i + 2}" type="model" pid="1" pindex="${i}">${meshXml(p.manifold)}</object>`)
+    .join('');
+  const items = parts.map((p, i) => `<item objectid="${i + 2}"/>`).join('');
+  const model =
+    `<?xml version="1.0" encoding="UTF-8"?>` +
+    `<model unit="millimeter" xml:lang="en-US" ` +
+    `xmlns="http://schemas.microsoft.com/3dmanufacturing/core/2015/02">` +
+    `<resources><basematerials id="1">${bases}</basematerials>${objects}</resources>` +
+    `<build>${items}</build></model>`;
+  return pack3MF(model);
 }
 
 // Minimal STORED (no compression) zip writer. Enough for slicers to read 3MF.
