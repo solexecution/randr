@@ -1779,6 +1779,14 @@ export class App {
       measBtn.addEventListener('dblclick', () => { this.viewport.clearPins(); this._toast('Pinned dimensions cleared'); });
     }
 
+    // print-prep cluster: a 🛠 toggle that reveals overhang/orient/fit/cut, so
+    // the toolbar stays uncluttered (the buttons themselves are unchanged).
+    const prepToggle = this.root.querySelector('#prep-toggle');
+    const prepGrp = this.root.querySelector('#prep-grp');
+    if (prepToggle && prepGrp) prepToggle.addEventListener('click', () => {
+      prepToggle.classList.toggle('on', prepGrp.classList.toggle('open'));
+    });
+
     // overhang analysis: tint downward faces that need support (uses the merged
     // result mesh, so switch a build-mode edit view over to result first)
     const ohBtn = this.root.querySelector('#v-overhang');
@@ -2319,10 +2327,13 @@ export class App {
             <button class="icon-btn" id="v-layers" title="Layer preview — slice into layers">≣</button>
             <button class="icon-btn on" id="v-snap" title="Snap to 1 mm / 15°">⌗</button>
             <button class="icon-btn" id="v-measure" title="Measure distance — click two points">📏</button>
-            <button class="icon-btn" id="v-overhang" title="Overhang check — red faces need support">◣</button>
-            <button class="icon-btn" id="v-orient" title="Auto-orient for printing (least support)">⤓</button>
-            <button class="icon-btn" id="v-fit-plate" title="Scale to fit the build plate">⤡</button>
-            <button class="icon-btn" id="v-cut" title="Cut in half — print as two glue-able pieces">✂</button>
+            <button class="icon-btn" id="prep-toggle" title="Print-prep tools — overhang, orient, fit, cut">🛠</button>
+            <span id="prep-grp">
+              <button class="icon-btn" id="v-overhang" title="Overhang check — red faces need support">◣</button>
+              <button class="icon-btn" id="v-orient" title="Auto-orient for printing (least support)">⤓</button>
+              <button class="icon-btn" id="v-fit-plate" title="Scale to fit the build plate">⤡</button>
+              <button class="icon-btn" id="v-cut" title="Cut in half — print as two glue-able pieces">✂</button>
+            </span>
             <select class="quality-sel" id="v-quality" title="Curve smoothness for round shapes (cylinders, spheres…)">
               <option value="24">◍ Draft</option>
               <option value="48">◍ Standard</option>
