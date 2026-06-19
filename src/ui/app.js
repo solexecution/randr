@@ -1873,6 +1873,14 @@ export class App {
     this.root.querySelectorAll('#sketch-modes [data-smode]').forEach((b) =>
       b.addEventListener('click', () => this._setSketchMode(b.dataset.smode)));
 
+    // view & tools modal (tucks the display / inspect / print-prep buttons away)
+    $('#view-open')?.addEventListener('click', () => this._openModal('#view-modal'));
+    const viewModal = $('#view-modal');
+    if (viewModal) {
+      $('#view-close')?.addEventListener('click', () => this._closeModal('#view-modal'));
+      viewModal.addEventListener('mousedown', (e) => { if (e.target === viewModal) this._closeModal('#view-modal'); });
+    }
+
     // command palette (Ctrl+K, or the ⌕ button)
     $('#cmd-open')?.addEventListener('click', () => this._openCmd());
     const cmdModal = $('#cmd-modal');
@@ -2174,7 +2182,7 @@ export class App {
         if (this.viewport && this.viewport._sketch?.on) { e.preventDefault(); this._cancelSketchUI(); return; }
         const tm = this.root.querySelector('#tier-modal');
         if (tm && !tm.classList.contains('hidden')) { e.preventDefault(); this._setTier('maker'); tm.classList.add('hidden'); return; }
-        for (const sel of ['#cmd-modal', '#name-modal', '#proj-modal', '#add-modal', '#help-modal']) {
+        for (const sel of ['#cmd-modal', '#view-modal', '#name-modal', '#proj-modal', '#add-modal', '#help-modal']) {
           const m = this.root.querySelector(sel);
           if (m && !m.classList.contains('hidden')) { e.preventDefault(); if (sel === '#name-modal') this._nameCb = null; m.classList.add('hidden'); return; }
         }
@@ -2430,13 +2438,18 @@ export class App {
   _duplicateNode(i) {
     const src = this.buildTree.nodes[i];
     if (!src) return;
+    // Clone everything (colour, clearance/hollow/fillet, meshId, sketch points…),
+    // deep-copying the arrays; a duplicate starts ungrouped and expanded.
     const copy = {
-      kind: src.kind,
-      op: src.op,
+      ...src,
       pos: [src.pos[0] + 6, src.pos[1] + 6, src.pos[2]],
       rot: [...(src.rot || [0, 0, 0])],
+      scale: [...(src.scale || [1, 1, 1])],
       fields: src.fields.map((f) => ({ ...f })),
+      group: null,
+      collapsed: false,
     };
+    if (src.points) copy.points = src.points.map((p) => [...p]);
     this.buildTree.nodes.splice(i + 1, 0, copy);
     this.selectedNode = i + 1;
     this._renderBuildTree();
@@ -2646,30 +2659,9 @@ export class App {
             <button class="icon-btn" id="cmd-open" title="Find a command (Ctrl+K)">⌕</button>
             <button class="icon-btn" id="v-undo" title="Undo (Ctrl+Z)">↶</button>
             <button class="icon-btn" id="v-redo" title="Redo (Ctrl+Y)">↷</button>
-            <span class="tb-sep"></span>
             <button class="icon-btn" id="v-fit" title="Fit to view (F)">⤢</button>
-            <button class="icon-btn" id="v-top" title="Top view">⊟</button>
-            <button class="icon-btn" id="v-front" title="Front view">⊡</button>
-            <button class="icon-btn on" id="v-grid" title="Toggle grid (G)">▦</button>
-            <button class="icon-btn" id="v-wire" title="Toggle wireframe">◇</button>
-            <button class="icon-btn" id="v-layers" title="Layer preview — slice into layers">≣</button>
-            <button class="icon-btn on" id="v-snap" title="Snap to 1 mm / 15°">⌗</button>
-            <button class="icon-btn" id="v-measure" title="Measure distance — click two points">📏</button>
-            <button class="icon-btn" id="prep-toggle" title="Print-prep tools — overhang, orient, fit, cut">🛠</button>
-            <span id="prep-grp">
-              <button class="icon-btn" id="v-overhang" title="Overhang check — red faces need support">◣</button>
-              <button class="icon-btn" id="v-orient" title="Auto-orient for printing (least support)">⤓</button>
-              <button class="icon-btn" id="v-fit-plate" title="Scale to fit the build plate">⤡</button>
-              <button class="icon-btn" id="v-cut" title="Cut in half — print as two glue-able pieces">✂</button>
-            </span>
-            <select class="quality-sel" id="v-quality" title="Curve smoothness for round shapes (cylinders, spheres…)">
-              <option value="24">◍ Draft</option>
-              <option value="48">◍ Standard</option>
-              <option value="64" selected>◍ Smooth</option>
-              <option value="128">◍ Ultra</option>
-            </select>
             <span class="tb-sep"></span>
-            <button class="icon-btn" id="help-btn" title="Learn G-code">?</button>
+            <button class="icon-btn" id="view-open" title="View, display &amp; print-prep tools">⊞</button>
           </div>
           <div class="menu" id="proj-menu">
             <button class="exp" id="proj-btn">🗂 <span id="proj-name">Untitled</span> ▾</button>
@@ -2848,6 +2840,47 @@ export class App {
             <div class="modal-body">
               <input type="text" id="name-input" class="name-input" placeholder="Project name" spellcheck="false" maxlength="60">
               <div class="name-actions"><button id="name-ok" class="add-open-btn">Save</button></div>
+            </div>
+          </div>
+        </div>
+
+        <div id="view-modal" class="modal-overlay center hidden">
+          <div class="modal-panel view-panel" role="dialog" aria-label="View and tools">
+            <div class="modal-head">
+              <span class="modal-title">View &amp; tools</span>
+              <button class="modal-x" id="view-close" title="Close (Esc)">✕</button>
+            </div>
+            <div class="modal-body view-body">
+              <section class="vcat"><h4>Views</h4><div class="vgrid">
+                <button class="vbtn" id="v-top"><span class="vico">⊟</span>Top</button>
+                <button class="vbtn" id="v-front"><span class="vico">⊡</span>Front</button>
+              </div></section>
+              <section class="vcat"><h4>Display</h4><div class="vgrid">
+                <button class="vbtn on" id="v-grid"><span class="vico">▦</span>Grid</button>
+                <button class="vbtn" id="v-wire"><span class="vico">◇</span>Wireframe</button>
+                <button class="vbtn on" id="v-snap"><span class="vico">⌗</span>Snap 1mm</button>
+              </div>
+              <label class="vquality">Curve smoothness
+                <select class="quality-sel" id="v-quality" title="Smoothness for round shapes">
+                  <option value="24">◍ Draft</option>
+                  <option value="48">◍ Standard</option>
+                  <option value="64" selected>◍ Smooth</option>
+                  <option value="128">◍ Ultra</option>
+                </select>
+              </label></section>
+              <section class="vcat" data-vcat="inspect"><h4>Inspect</h4><div class="vgrid">
+                <button class="vbtn" id="v-measure"><span class="vico">📏</span>Measure</button>
+                <button class="vbtn" id="v-layers"><span class="vico">≣</span>Layers</button>
+              </div></section>
+              <section class="vcat" data-vcat="prep"><h4>Print prep</h4><div class="vgrid">
+                <button class="vbtn" id="v-overhang"><span class="vico">◣</span>Overhang</button>
+                <button class="vbtn" id="v-orient"><span class="vico">⤓</span>Auto-orient</button>
+                <button class="vbtn" id="v-fit-plate"><span class="vico">⤡</span>Fit plate</button>
+                <button class="vbtn" id="v-cut"><span class="vico">✂</span>Cut in half</button>
+              </div></section>
+              <section class="vcat" data-vcat="help"><h4>Learn</h4><div class="vgrid">
+                <button class="vbtn" id="help-btn"><span class="vico">?</span>Code help</button>
+              </div></section>
             </div>
           </div>
         </div>
