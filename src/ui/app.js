@@ -224,10 +224,13 @@ union() {
 `,
 };
 
+const TIER_KEY = 'randr.tier'; // saved experience level: 'simple' | 'maker' | 'pro'
+
 export class App {
   constructor(root) {
     this.root = root;
     this.mode = 'code';            // 'code' | 'build'
+    this.tier = 'maker';           // experience level (set for real by _initTier)
     this.source = STARTER;
     this.overrides = {};
     this.params = [];
@@ -267,6 +270,7 @@ export class App {
     this.recompile(true);
     this._pushHistory();
     this._initProjects(); // restore last project (or adopt the starter as the first)
+    this._initTier();     // apply the saved experience level, or show the first-run chooser
     this.root.querySelector('#boot').classList.add('gone');
   }
 
@@ -1002,6 +1006,68 @@ export class App {
     this._pushHistory();
   }
 
+  // --- experience level (Simple / Maker / Pro) ------------------------------
+  // Progressive disclosure: one class on the root shows/hides tools per tier.
+  // Pro = the full app; Maker hides only the precision tools (measure, layers);
+  // Simple is the clutter-free "pick a thing and size it" mode — no code pane,
+  // no booleans, no coordinate fields.
+  _initTier() {
+    let saved = null;
+    try { saved = localStorage.getItem(TIER_KEY); } catch { /* private mode */ }
+    if (saved === 'simple' || saved === 'maker' || saved === 'pro') {
+      this._setTier(saved);
+    } else {
+      this._setTier('maker', { persist: false }); // sane default behind the chooser
+      this._openModal('#tier-modal');             // first run — let them pick
+    }
+  }
+
+  _setTier(tier, { persist = true } = {}) {
+    if (tier !== 'simple' && tier !== 'maker' && tier !== 'pro') tier = 'maker';
+    // Simple hides the code editor — move to the visual builder first, but never
+    // strand a code-only design we can't represent as parts.
+    if (tier === 'simple' && this.mode === 'code') {
+      let convertible = true;
+      try { sourceToNodes(this.source); } catch { convertible = false; }
+      if (convertible) this._switchMode('build');
+      else { tier = 'maker'; this._toast('This design is code-only — opened in Maker so you can keep editing it.'); }
+    }
+    this.tier = tier;
+    this.root.classList.remove('tier-simple', 'tier-maker', 'tier-pro');
+    this.root.classList.add('tier-' + tier);
+    this.root.querySelectorAll('#tier-switch [data-tier]').forEach((b) =>
+      b.classList.toggle('on', b.dataset.tier === tier));
+    this._resetViewsForTier(tier);
+    if (tier === 'simple' && this.viewport && !this.viewport.snap) {
+      this.viewport.setSnap(true);
+      this.root.querySelector('#v-snap')?.classList.add('on');
+    }
+    if (persist) { try { localStorage.setItem(TIER_KEY, tier); } catch { /* quota */ } }
+  }
+
+  // Turn off any view mode whose toggle the new tier hides, so nothing gets
+  // stuck on with no control to switch it back off.
+  _resetViewsForTier(tier) {
+    if (!this.viewport) return;
+    if (tier !== 'pro') { // measure + layer preview are Pro-only
+      if (this.measureMode) {
+        this.measureMode = false;
+        this.viewport.setMeasureMode(false);
+        this.root.querySelector('#v-measure')?.classList.remove('on');
+      }
+      if (this._layerMode) this._exitLayers();
+    }
+    if (tier === 'simple') { // Simple also hides the print-prep cluster
+      if (this.overhangMode) {
+        this.overhangMode = false;
+        this.viewport.setOverhangView(false);
+        this.root.querySelector('#v-overhang')?.classList.remove('on');
+      }
+      this.root.querySelector('#prep-grp')?.classList.remove('open');
+      this.root.querySelector('#prep-toggle')?.classList.remove('on');
+    }
+  }
+
   _loadTemplate(key) {
     const src = TEMPLATES[key];
     if (!src) return;
@@ -1585,6 +1651,19 @@ export class App {
       tab.addEventListener('click', () => this._switchMode(tab.dataset.mode));
     });
 
+    // experience level (Simple / Maker / Pro) — progressive disclosure
+    this.root.querySelectorAll('#tier-switch [data-tier]').forEach((b) =>
+      b.addEventListener('click', () => this._setTier(b.dataset.tier)));
+    // first-run level chooser: a card picks + saves; backdrop = Maker (sensible default)
+    const tierModal = $('#tier-modal');
+    if (tierModal) {
+      tierModal.querySelectorAll('[data-tier]').forEach((b) =>
+        b.addEventListener('click', () => { this._setTier(b.dataset.tier); this._closeModal('#tier-modal'); }));
+      tierModal.addEventListener('mousedown', (e) => {
+        if (e.target === tierModal) { this._setTier('maker'); this._closeModal('#tier-modal'); }
+      });
+    }
+
     // collapsible panel
     $('#panel-toggle').addEventListener('click', () => this._setPanel());
 
@@ -1863,6 +1942,8 @@ export class App {
       if (e.key === 'Escape') {
         const ctx = this.root.querySelector('#ctx-menu');
         if (ctx && !ctx.classList.contains('hidden')) { e.preventDefault(); ctx.classList.add('hidden'); return; }
+        const tm = this.root.querySelector('#tier-modal');
+        if (tm && !tm.classList.contains('hidden')) { e.preventDefault(); this._setTier('maker'); tm.classList.add('hidden'); return; }
         for (const sel of ['#name-modal', '#proj-modal', '#add-modal', '#help-modal']) {
           const m = this.root.querySelector(sel);
           if (m && !m.classList.contains('hidden')) { e.preventDefault(); if (sel === '#name-modal') this._nameCb = null; m.classList.add('hidden'); return; }
@@ -2320,6 +2401,11 @@ export class App {
             <button data-mode="code" class="active">code</button>
             <button data-mode="build">build</button>
           </div>
+          <div class="tier-switch" id="tier-switch" role="group" aria-label="Experience level">
+            <button data-tier="simple" title="Simple — pick a thing and size it">Simple</button>
+            <button data-tier="maker" title="Maker — build from parts, plus code">Maker</button>
+            <button data-tier="pro" title="Pro — every tool: measure, layers, full control">Pro</button>
+          </div>
           <button class="icon-btn add-btn" id="add-open" title="Add a shape, part, or ready-made object">+</button>
           <div class="spacer"></div>
           <div class="viewtools">
@@ -2518,6 +2604,34 @@ export class App {
           </div>
         </div>
 
+        <div id="tier-modal" class="modal-overlay center hidden">
+          <div class="modal-panel tier-panel" role="dialog" aria-label="Choose your level">
+            <div class="modal-head">
+              <span class="modal-title">Welcome to RandR — pick how you want to work</span>
+            </div>
+            <div class="modal-body">
+              <p class="tier-sub">Not sure? Start with <b>Simple</b>. You can switch anytime from the bar up top.</p>
+              <div class="tier-cards">
+                <button class="tier-card" data-tier="simple">
+                  <span class="tier-emoji">🟢</span>
+                  <span class="tier-name">Simple</span>
+                  <span class="tier-desc">Pick a thing, set the size, print. No clutter, nothing to break.</span>
+                </button>
+                <button class="tier-card" data-tier="maker">
+                  <span class="tier-emoji">🔵</span>
+                  <span class="tier-name">Maker</span>
+                  <span class="tier-desc">Build from parts — combine, align, fit, hollow. Code pane too.</span>
+                </button>
+                <button class="tier-card" data-tier="pro">
+                  <span class="tier-emoji">🟣</span>
+                  <span class="tier-name">Pro</span>
+                  <span class="tier-desc">Everything, plus measure, layer preview and the precision tools.</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
         <div id="add-modal" class="modal-overlay hidden">
           <div class="modal-panel" role="dialog" aria-label="Add to scene">
             <div class="modal-head">
@@ -2525,7 +2639,7 @@ export class App {
               <button class="modal-x" id="add-close" title="Close (Esc)">✕</button>
             </div>
             <div class="modal-body">
-              <section class="cat">
+              <section class="cat" data-cat="basic">
                 <h4>Basic shapes</h4>
                 <div class="cat-grid">
                   <button data-add="box">□ box</button>
@@ -2542,7 +2656,7 @@ export class App {
                   <button data-add="star">★ star</button>
                 </div>
               </section>
-              <section class="cat">
+              <section class="cat" data-cat="rounded">
                 <h4>Rounded &amp; chamfered</h4>
                 <div class="cat-grid">
                   <button data-add="roundedBox">▢ round box</button>
@@ -2552,14 +2666,14 @@ export class App {
                   <button data-add="tube">◎ tube</button>
                 </div>
               </section>
-              <section class="cat">
+              <section class="cat" data-cat="text">
                 <h4>Text</h4>
                 <div class="cat-grid">
                   <button data-add="text">T text</button>
                   <button id="engrave-text">✎ on a face…</button>
                 </div>
               </section>
-              <section class="cat">
+              <section class="cat" data-cat="fasteners">
                 <h4>Fasteners</h4>
                 <div class="cat-grid">
                   <button data-add="bolt">🔩 bolt</button>
@@ -2572,7 +2686,7 @@ export class App {
                   <button data-add="keyhole" title="Keyhole slot — hang the print on a screw">🔑 keyhole</button>
                 </div>
               </section>
-              <section class="cat">
+              <section class="cat" data-cat="ready">
                 <h4>Ready-made · adjustable</h4>
                 <div class="cat-grid">
                   <button data-tpl="soap dish">Soap dish</button>
@@ -2586,7 +2700,7 @@ export class App {
                   <button data-tpl="fit test">Fit test 📏</button>
                 </div>
               </section>
-              <section class="cat">
+              <section class="cat" data-cat="import">
                 <h4>Import</h4>
                 <div class="cat-grid">
                   <button id="modal-import">⬇ STL / OBJ / 3MF…</button>

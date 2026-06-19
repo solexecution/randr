@@ -599,3 +599,105 @@ input[type=range]::-moz-range-thumb {
 }
 
 :focus-visible { outline: 2px solid var(--cyan); outline-offset: 2px; }
+
+/* ===== experience levels (Simple / Maker / Pro) ============================
+   Progressive disclosure via .tier-simple / .tier-maker / .tier-pro on #root.
+   Pro shows everything (no rules here). Maker hides only the precision tools.
+   Simple is the clutter-free "pick a thing and size it" mode: no code pane,
+   no booleans, no coordinate fields. */
+
+/* the topbar level switcher */
+.tier-switch {
+  display: flex; gap: 2px; background: rgba(22,25,29,.7);
+  padding: 3px; border-radius: 8px; border: 1px solid var(--line); flex-shrink: 0;
+}
+.tier-switch button {
+  font-family: var(--mono); font-size: 10px; letter-spacing: .04em;
+  color: var(--ink-dim); background: none; border: 0; border-radius: 6px;
+  padding: 5px 9px; cursor: pointer; transition: .12s; white-space: nowrap;
+}
+.tier-switch button:hover { color: var(--ink); }
+.tier-switch button.on { background: var(--surface-2); color: var(--cyan); }
+
+/* first-run chooser cards */
+.tier-panel { width: 560px; }
+.tier-sub { font-size: 12.5px; color: var(--ink-dim); margin: 4px 2px 13px; line-height: 1.5; }
+.tier-sub b { color: var(--ink); }
+.tier-cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+.tier-card {
+  display: flex; flex-direction: column; gap: 6px; text-align: left;
+  background: var(--surface-2); border: 1px solid var(--line); border-radius: 10px;
+  padding: 14px 13px; cursor: pointer; transition: .14s;
+}
+.tier-card:hover { border-color: var(--cyan); transform: translateY(-2px); }
+.tier-emoji { font-size: 22px; }
+.tier-name { font-family: var(--mono); font-size: 13px; letter-spacing: .06em; color: var(--ink); }
+.tier-card:hover .tier-name { color: var(--cyan); }
+.tier-desc { font-size: 11.5px; color: var(--ink-dim); line-height: 1.45; }
+
+/* MAKER + SIMPLE — measure + layer preview are Pro-only precision tools */
+.tier-simple #v-measure, .tier-maker #v-measure,
+.tier-simple #v-layers,  .tier-maker #v-layers { display: none; }
+
+/* ---------- SIMPLE: hide everything but pick & size ---------- */
+/* topbar: no code, no advanced view tools, no template/OBJ extras */
+.tier-simple .tabs,
+.tier-simple #v-wire,
+.tier-simple #v-snap,
+.tier-simple #prep-toggle,
+.tier-simple #prep-grp,
+.tier-simple #v-quality,
+.tier-simple #help-btn,
+.tier-simple #tpl-menu,
+.tier-simple #btn-obj { display: none; }
+
+/* tools dock: keep move/turn/size, drop the power bars */
+.tier-simple #viewbar,
+.tier-simple #wpbar,
+.tier-simple #opsbar,
+.tier-simple #arraybar,
+.tier-simple #alignbar,
+.tier-simple #groupbar,
+.tier-simple #multi-toggle { display: none !important; }
+
+/* readout: keep size, fits-on-plate and plastic-used; drop the technical rows */
+.tier-simple #hud-sel-row,
+.tier-simple .hud-row:has(#hud-vol),
+.tier-simple .hud-row:has(#hud-tris),
+.tier-simple .hud-row:has(#hud-watertight) { display: none; }
+
+/* build pane: drop the power-user hint + collapse-all */
+.tier-simple #pane-build .hint,
+.tier-simple #collapse-all { display: none; }
+
+/* part cards: shape + colour + size + duplicate/delete only */
+.tier-simple .bn-collapse,
+.tier-simple .bn-grp,
+.tier-simple .bn-op,
+.tier-simple .bn-toolbar [data-lock],
+.tier-simple .bn-toolbar [data-hide],
+.tier-simple .bn-xyz,
+.tier-simple .bn-size,
+.tier-simple .bn-clear { display: none !important; }
+.tier-simple .bn-toolbar { justify-content: flex-end; margin-bottom: 4px; }
+.tier-simple .bn-fields { grid-template-columns: repeat(3, 1fr); gap: 8px; max-width: none; }
+.tier-simple .bn-fields label { font-size: 10px; }
+.tier-simple .bn-fields input { font-size: 14px; padding: 7px 8px; }
+.tier-simple .build-node { padding: 9px 10px; }
+
+/* the Add gallery becomes a friendly "make" picker: ready-mades first, big
+   tiles, advanced groups hidden */
+.tier-simple #add-modal .modal-body { display: flex; flex-direction: column; }
+.tier-simple #add-modal [data-cat="ready"] { order: 1; }
+.tier-simple #add-modal [data-cat="basic"] { order: 2; }
+.tier-simple #add-modal [data-cat="text"]  { order: 3; }
+.tier-simple #add-modal [data-cat="rounded"],
+.tier-simple #add-modal [data-cat="fasteners"],
+.tier-simple #add-modal [data-cat="import"] { display: none; }
+.tier-simple #add-modal .cat-grid { grid-template-columns: repeat(auto-fill, minmax(118px, 1fr)); gap: 8px; }
+.tier-simple #add-modal .cat-grid button { font-size: 13px; padding: 12px 11px; text-align: center; white-space: normal; }
+
+@media (max-width: 720px) {
+  .tier-switch button { padding: 5px 6px; font-size: 9px; }
+  .tier-cards { grid-template-columns: 1fr; }
+}
