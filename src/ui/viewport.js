@@ -57,6 +57,33 @@ export class Viewport {
     this.material = new THREE.MeshStandardMaterial({
       color: COLORS.model, metalness: 0.1, roughness: 0.55, flatShading: false,
     });
+    // Overhang-analysis variant of the model material: same PBR lighting, but
+    // faces whose normal points steeply downward (would need support to print)
+    // are tinted amber -> red. The threshold is ~45deg from vertical.
+    this.overhangMaterial = new THREE.MeshStandardMaterial({
+      color: COLORS.model, metalness: 0.1, roughness: 0.55, flatShading: false,
+    });
+    this.overhangMaterial.onBeforeCompile = (shader) => {
+      shader.vertexShader = shader.vertexShader
+        .replace('#include <common>', '#include <common>\nvarying vec3 vOHNormal;')
+        .replace('#include <beginnormal_vertex>',
+          '#include <beginnormal_vertex>\nvOHNormal = normalize(mat3(modelMatrix) * objectNormal);');
+      shader.fragmentShader = shader.fragmentShader
+        .replace('#include <common>', '#include <common>\nvarying vec3 vOHNormal;')
+        // tint the base colour by overhang severity
+        .replace('vec4 diffuseColor = vec4( diffuse, opacity );',
+          'float ohDown = -normalize(vOHNormal).y;\n' +
+          '  vec3 ohCol = diffuse;\n' +
+          '  if (ohDown > 0.7) ohCol = vec3(0.94, 0.33, 0.31);\n' +
+          '  else if (ohDown > 0.34) ohCol = mix(diffuse, vec3(1.0, 0.72, 0.30), (ohDown - 0.34) / 0.36);\n' +
+          '  vec4 diffuseColor = vec4( ohCol, opacity );')
+        // and make overhangs glow so they read even when the face is in shadow
+        .replace('#include <emissivemap_fragment>',
+          '#include <emissivemap_fragment>\n' +
+          '  if (ohDown > 0.7) totalEmissiveRadiance += vec3(0.50, 0.10, 0.09);\n' +
+          '  else if (ohDown > 0.34) totalEmissiveRadiance += vec3(0.48, 0.30, 0.05) * ((ohDown - 0.34) / 0.36);');
+    };
+    this.overhangView = false;
     this.edgeMaterial = new THREE.LineBasicMaterial({ color: COLORS.edge });
 
     // --- edit-mode state ---
@@ -676,7 +703,7 @@ export class Viewport {
 
     const geom = manifoldToGeometry(manifold);
     geom.rotateX(-Math.PI / 2); // Manifold Z-up -> scene Y-up
-    const mesh = new THREE.Mesh(geom, this.material);
+    const mesh = new THREE.Mesh(geom, this.overhangView ? this.overhangMaterial : this.material);
     this.modelGroup.add(mesh);
 
     if (showEdges) {
@@ -922,6 +949,15 @@ export class Viewport {
     this.plate.visible = v;
     if (this.buildVolume) this.buildVolume.visible = v;
     return v;
+  }
+
+  // Overhang analysis: recolour the result mesh so steep downward faces (which
+  // need support) show amber -> red. Operates on the merged model mesh.
+  setOverhangView(on) {
+    this.overhangView = !!on;
+    const m = this.overhangView ? this.overhangMaterial : this.material;
+    for (const c of this.modelGroup.children) if (c.isMesh) c.material = m;
+    return this.overhangView;
   }
 
   toggleWireframe() {

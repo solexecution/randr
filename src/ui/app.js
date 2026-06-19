@@ -1625,6 +1625,16 @@ export class App {
       measBtn.classList.toggle('on', this.measureMode);
     });
 
+    // overhang analysis: tint downward faces that need support (uses the merged
+    // result mesh, so switch a build-mode edit view over to result first)
+    const ohBtn = this.root.querySelector('#v-overhang');
+    if (ohBtn) ohBtn.addEventListener('click', () => {
+      this.overhangMode = !this.overhangMode;
+      if (this.overhangMode && this.mode === 'build' && this.viewMode !== 'result') this._setViewMode('result');
+      const on = this.viewport.setOverhangView(this.overhangMode);
+      ohBtn.classList.toggle('on', on);
+    });
+
     // build view toggle: edit (parts + ghost) vs result (combined solid)
     this.root.querySelectorAll('[data-view]').forEach((b) =>
       b.addEventListener('click', () => this._setViewMode(b.dataset.view)));
@@ -2071,6 +2081,7 @@ export class App {
             <button class="icon-btn" id="v-layers" title="Layer preview — slice into layers">≣</button>
             <button class="icon-btn on" id="v-snap" title="Snap to 1 mm / 15°">⌗</button>
             <button class="icon-btn" id="v-measure" title="Measure distance — click two points">📏</button>
+            <button class="icon-btn" id="v-overhang" title="Overhang check — red faces need support">◣</button>
             <select class="quality-sel" id="v-quality" title="Curve smoothness for round shapes (cylinders, spheres…)">
               <option value="24">◍ Draft</option>
               <option value="48">◍ Standard</option>
