@@ -39,6 +39,15 @@ export function injectKernel(mod) {
   _module = mod;
 }
 
+// Global curve quality — the default segment count for round primitives
+// (cylinder/sphere/cone/torus/…). Higher = smoother but heavier. The UI
+// "smoothness" control sets this; primitives read it through their default
+// argument, so a change applies on the next recompile. `thread` keeps a fixed
+// count (its twist-extrude gets expensive fast).
+let CURVE_SEGMENTS = 64;
+export function setCurveQuality(n) { CURVE_SEGMENTS = Math.max(8, Math.min(256, Math.round(n) || 64)); }
+export function getCurveQuality() { return CURVE_SEGMENTS; }
+
 // --- Primitive constructors -------------------------------------------------
 // All dimensions are millimetres. center=true puts the centroid at the origin,
 // which is what people expect when they drop a shape into the scene.
@@ -47,11 +56,11 @@ export function box(x, y, z, center = true) {
   return kernel().Manifold.cube([x, y, z], center);
 }
 
-export function cylinder(height, radius, segments = 64, center = true) {
+export function cylinder(height, radius, segments = CURVE_SEGMENTS, center = true) {
   return kernel().Manifold.cylinder(height, radius, radius, segments, center);
 }
 
-export function cone(height, rLow, rHigh, segments = 64, center = true) {
+export function cone(height, rLow, rHigh, segments = CURVE_SEGMENTS, center = true) {
   return kernel().Manifold.cylinder(height, rLow, rHigh, segments, center);
 }
 
@@ -62,7 +71,7 @@ export function pyramid(height, radius, segments = 4, center = true) {
 
 // Torus, built by revolving a circular tube. revolve() already yields a flat
 // ring (hole along Z), which sits correctly on the plate.
-export function torus(radius, tube, segments = 64, tubeSeg = 28) {
+export function torus(radius, tube, segments = CURVE_SEGMENTS, tubeSeg = 28) {
   const pts = [];
   for (let i = 0; i < tubeSeg; i++) {
     const a = (i / tubeSeg) * Math.PI * 2;
@@ -85,12 +94,12 @@ export function wedge(w, d, h) {
   return r;
 }
 
-export function sphere(radius, segments = 64) {
+export function sphere(radius, segments = CURVE_SEGMENTS) {
   return kernel().Manifold.sphere(radius, segments);
 }
 
 // Dome / hemisphere: the top half of a sphere, flat base on the plate.
-export function dome(radius, segments = 64) {
+export function dome(radius, segments = CURVE_SEGMENTS) {
   const M = kernel().Manifold;
   const s = M.sphere(radius, segments);
   const cap = M.cube([radius * 2 + 2, radius * 2 + 2, radius], true).translate([0, 0, radius / 2]);
@@ -146,7 +155,7 @@ export function chamferedBox(x, y, z, c) {
 }
 
 // Hollow cylinder (pipe / ring / washer / spacer), centred on the origin.
-export function tube(height, rOuter, rInner, segments = 64) {
+export function tube(height, rOuter, rInner, segments = CURVE_SEGMENTS) {
   const M = kernel().Manifold;
   const ri = Math.max(0.1, Math.min(rInner, rOuter - 0.1));
   const outer = M.cylinder(height, rOuter, rOuter, segments, true);
@@ -193,7 +202,7 @@ export function star(points, outer, inner, height) {
 
 // Cylinder with filleted top + bottom rim, standing on the plate. Built by
 // revolving a rounded-corner profile (reliable — no general edge fillet needed).
-export function roundedCylinder(height, radius, fillet, segments = 64, arcSeg = 8) {
+export function roundedCylinder(height, radius, fillet, segments = CURVE_SEGMENTS, arcSeg = 8) {
   const f = Math.max(0.1, Math.min(fillet, Math.min(radius - 0.1, height / 2 - 0.1)));
   const pts = [[0, 0], [radius - f, 0]];
   for (let i = 1; i <= arcSeg; i++) { const a = -Math.PI / 2 + (i / arcSeg) * (Math.PI / 2); pts.push([(radius - f) + f * Math.cos(a), f + f * Math.sin(a)]); }
@@ -206,7 +215,7 @@ export function roundedCylinder(height, radius, fillet, segments = 64, arcSeg = 
 }
 
 // Cylinder with a 45 degree chamfer on the top + bottom rim (revolve, base on plate).
-export function chamferedCylinder(height, radius, chamfer, segments = 64) {
+export function chamferedCylinder(height, radius, chamfer, segments = CURVE_SEGMENTS) {
   const c = Math.max(0.1, Math.min(chamfer, Math.min(radius - 0.1, height / 2 - 0.1)));
   const pts = [[0, 0], [radius - c, 0], [radius, c], [radius, height - c], [radius - c, height], [0, height]];
   const cs = kernel().CrossSection([pts]);
@@ -448,7 +457,7 @@ export function extrude(points, height, twist = 0, scaleTop = 1, center = true) 
   return solid;
 }
 
-export function revolve(points, degrees = 360, segments = 64) {
+export function revolve(points, degrees = 360, segments = CURVE_SEGMENTS) {
   const cs = kernel().CrossSection([points]);
   const solid = cs.revolve(segments, degrees);
   cs.delete();

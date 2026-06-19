@@ -7,7 +7,7 @@
 // sees one input format. The build pane is a structured editor that emits
 // source; a touch-built model can be opened in the code pane and vice versa.
 
-import { loadKernel, inspect, box, cylinder, sphere, cone, pyramid, torus, wedge, dome, slot, star, roundedBox, roundedCylinder, chamferedBox, chamferedCylinder, tube, prism, text, thread, bolt, nut, meshSolid, importSTL, registerSolid, imported, solidMesh } from '../kernel/manifold.js';
+import { loadKernel, inspect, box, cylinder, sphere, cone, pyramid, torus, wedge, dome, slot, star, roundedBox, roundedCylinder, chamferedBox, chamferedCylinder, tube, prism, text, thread, bolt, nut, meshSolid, importSTL, registerSolid, imported, solidMesh, setCurveQuality } from '../kernel/manifold.js';
 import { manifoldToGeometry } from '../kernel/mesh.js';
 import { compile } from '../lang/compile.js';
 import { exportSTL, exportOBJ, export3MF, triggerDownload } from '../kernel/export.js';
@@ -1589,6 +1589,14 @@ export class App {
       this._updateLayerLabel(i);
     });
 
+    // curve smoothness — global segment count for round primitives
+    const qualitySel = this.root.querySelector('#v-quality');
+    if (qualitySel) qualitySel.addEventListener('change', () => {
+      this.curveQuality = +qualitySel.value;
+      setCurveQuality(this.curveQuality);
+      this.recompile();
+    });
+
     // build view toggle: edit (parts + ghost) vs result (combined solid)
     this.root.querySelectorAll('[data-view]').forEach((b) =>
       b.addEventListener('click', () => this._setViewMode(b.dataset.view)));
@@ -2027,6 +2035,12 @@ export class App {
             <button class="icon-btn" id="v-wire" title="Toggle wireframe">◇</button>
             <button class="icon-btn" id="v-layers" title="Layer preview — slice into layers">≣</button>
             <button class="icon-btn on" id="v-snap" title="Snap to 1 mm / 15°">⌗</button>
+            <select class="quality-sel" id="v-quality" title="Curve smoothness for round shapes (cylinders, spheres…)">
+              <option value="24">◍ Draft</option>
+              <option value="48">◍ Standard</option>
+              <option value="64" selected>◍ Smooth</option>
+              <option value="128">◍ Ultra</option>
+            </select>
             <span class="tb-sep"></span>
             <button class="icon-btn" id="help-btn" title="Learn G-code">?</button>
           </div>

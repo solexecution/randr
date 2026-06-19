@@ -155,25 +155,25 @@ export function evaluate(ast, overrides = {}) {
         return mark(track(K.box(x, y, z, center)));
       }
       case 'sphere':
-        return mark(track(K.sphere(arg(0, 'r'), arg(1, 'segments', 64))));
+        return mark(track(K.sphere(arg(0, 'r'), arg(1, 'segments', K.getCurveQuality()))));
       case 'cylinder':
         return mark(track(K.cylinder(
-          arg(0, 'h'), arg(1, 'r'), arg(2, 'segments', 64), arg(3, 'center', true))));
+          arg(0, 'h'), arg(1, 'r'), arg(2, 'segments', K.getCurveQuality()), arg(3, 'center', true))));
       case 'cone':
         return mark(track(K.cone(
-          arg(0, 'h'), arg(1, 'r1'), arg(2, 'r2'), arg(3, 'segments', 64),
+          arg(0, 'h'), arg(1, 'r1'), arg(2, 'r2'), arg(3, 'segments', K.getCurveQuality()),
           arg(4, 'center', true))));
       case 'pyramid':
         return mark(track(K.pyramid(arg(0, 'h'), arg(1, 'r'), arg(2, 'segments', 4))));
       case 'torus':
-        return mark(track(K.torus(arg(0, 'radius'), arg(1, 'tube'), arg(2, 'segments', 64))));
+        return mark(track(K.torus(arg(0, 'radius'), arg(1, 'tube'), arg(2, 'segments', K.getCurveQuality()))));
       case 'wedge':
         return mark(track(K.wedge(arg(0, 'w'), arg(1, 'd'), arg(2, 'h'))));
       case 'roundedBox':
         return mark(track(K.roundedBox(
           arg(0, 'x'), arg(1, 'y'), arg(2, 'z'), arg(3, 'r'), arg(4, 'segments', 32))));
       case 'tube':
-        return mark(track(K.tube(arg(0, 'h'), arg(1, 'router'), arg(2, 'rinner'), arg(3, 'segments', 64))));
+        return mark(track(K.tube(arg(0, 'h'), arg(1, 'router'), arg(2, 'rinner'), arg(3, 'segments', K.getCurveQuality()))));
       case 'prism':
         return mark(track(K.prism(arg(0, 'h'), arg(1, 'r'), arg(2, 'sides', 6))));
       case 'roundedCylinder':
@@ -214,7 +214,7 @@ export function evaluate(ast, overrides = {}) {
           arg(2, 'twist', 0), arg(3, 'scaleTop', 1), arg(4, 'center', true))));
       case 'revolve':
         return mark(track(K.revolve(
-          arg(0, 'points'), arg(1, 'degrees', 360), arg(2, 'segments', 64))));
+          arg(0, 'points'), arg(1, 'degrees', 360), arg(2, 'segments', K.getCurveQuality()))));
 
       // --- transforms (consume children) ---
       case 'translate': {
