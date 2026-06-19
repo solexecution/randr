@@ -18,7 +18,13 @@ const COLORS = {
   hole: 0xef5350,
   glowSolid: 0x2a6b78,
   glowHole: 0x5a1a18,
+  buildVol: 0x3a4048,
+  buildVolBad: 0xef5350,
 };
+
+// Printable build volume of the target printer (Bambu A1 mini = 180×180×180 mm).
+// Exported so the HUD fit-check uses a single source of truth.
+export const BUILD_VOLUME = { x: 180, y: 180, z: 180 };
 
 export class Viewport {
   constructor(canvas) {
@@ -35,6 +41,7 @@ export class Viewport {
 
     this._setupLights();
     this._setupPlate(220, 220); // a generic 220x220 bed footprint
+    this._setupBuildVolume();   // A1-mini 180³ printable envelope
 
     this.modelGroup = new THREE.Group();
     this.scene.add(this.modelGroup);
@@ -106,6 +113,30 @@ export class Viewport {
     const grid = new THREE.GridHelper(w, w / 10, COLORS.gridMajor, COLORS.grid);
     this.scene.add(grid);
     this.grid = grid;
+  }
+
+  // A faint wireframe box marking the printable build volume; sits base-on-plate
+  // and turns red when the model spills outside it (see setBuildVolumeExceeded).
+  _setupBuildVolume() {
+    const { x, y, z } = BUILD_VOLUME; // manifold space: x,y footprint, z up
+    const box = new THREE.BoxGeometry(x, z, y); // three.js Y is up → map z→Y, y→Z
+    const mat = new THREE.LineBasicMaterial({ color: COLORS.buildVol, transparent: true, opacity: 0.22 });
+    const env = new THREE.LineSegments(new THREE.EdgesGeometry(box), mat);
+    env.position.y = z / 2; // base on the plate (y=0 .. z)
+    env.renderOrder = -1;    // behind the model
+    this.scene.add(env);
+    this.buildVolume = env;
+    this._bvExceeded = false;
+  }
+
+  // Toggle the build-volume box between its faint resting state and a bright red
+  // alarm when the current model exceeds the printable envelope.
+  setBuildVolumeExceeded(over) {
+    if (!this.buildVolume || over === this._bvExceeded) return;
+    this._bvExceeded = over;
+    const m = this.buildVolume.material;
+    m.color.setHex(over ? COLORS.buildVolBad : COLORS.buildVol);
+    m.opacity = over ? 0.9 : 0.22;
   }
 
   // --- picking helpers ------------------------------------------------------
@@ -774,6 +805,7 @@ export class Viewport {
     const v = !this.grid.visible;
     this.grid.visible = v;
     this.plate.visible = v;
+    if (this.buildVolume) this.buildVolume.visible = v;
     return v;
   }
 

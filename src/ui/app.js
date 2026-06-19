@@ -11,7 +11,7 @@ import { loadKernel, inspect, box, cylinder, sphere, cone, pyramid, torus, wedge
 import { manifoldToGeometry } from '../kernel/mesh.js';
 import { compile } from '../lang/compile.js';
 import { exportSTL, exportOBJ, export3MF, triggerDownload } from '../kernel/export.js';
-import { Viewport } from './viewport.js';
+import { Viewport, BUILD_VOLUME } from './viewport.js';
 import { buildTreeToSource, BuildTree, setNodeKind } from './buildtree.js';
 import { sourceToNodes } from './importBuild.js';
 import { RECIPES } from './recipes.js';
@@ -1294,9 +1294,13 @@ export class App {
     const vol = this.root.querySelector('#hud-vol');
     const tris = this.root.querySelector('#hud-tris');
     const wt = this.root.querySelector('#hud-watertight');
+    const fit = this.root.querySelector('#hud-fit');
     if (!info) {
       dims.textContent = vol.textContent = tris.textContent = '—';
+      dims.classList.remove('hud-bad');
       wt.textContent = '—'; wt.className = 'hud-ok';
+      if (fit) { fit.textContent = '—'; fit.className = 'hud-ok'; }
+      this.viewport.setBuildVolumeExceeded(false);
       return;
     }
     const [x, y, z] = info.bbox.size;
@@ -1308,6 +1312,21 @@ export class App {
     // so a valid result is always print-safe. genus is shown for info only.
     wt.textContent = info.genus > 0 ? `manifold ✓ · genus ${info.genus}` : 'manifold ✓';
     wt.className = 'hud-ok';
+    // Build-volume fit check against the A1-mini envelope (180³).
+    const over = [x > BUILD_VOLUME.x, y > BUILD_VOLUME.y, z > BUILD_VOLUME.z];
+    const exceeded = over[0] || over[1] || over[2];
+    dims.classList.toggle('hud-bad', exceeded);
+    if (fit) {
+      if (exceeded) {
+        const axes = ['X', 'Y', 'Z'].filter((_, i) => over[i]).join('/');
+        fit.textContent = `⚠ too big — ${axes} > ${BUILD_VOLUME.x}mm`;
+        fit.className = 'hud-bad';
+      } else {
+        fit.textContent = `✓ fits A1 mini (${BUILD_VOLUME.x}mm)`;
+        fit.className = 'hud-ok';
+      }
+    }
+    this.viewport.setBuildVolumeExceeded(exceeded);
   }
 
   _setStatus(state) {
@@ -2259,6 +2278,7 @@ export class App {
             <div class="hud-row"><span class="hud-key">volume</span><span id="hud-vol">—</span></div>
             <div class="hud-row"><span class="hud-key">mesh</span><span id="hud-tris">—</span></div>
             <div class="hud-row"><span class="hud-key">state</span><span id="hud-watertight" class="hud-ok">—</span></div>
+            <div class="hud-row"><span class="hud-key">fit</span><span id="hud-fit" class="hud-ok">—</span></div>
           </div>
         </div>
 

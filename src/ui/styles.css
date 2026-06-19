@@ -524,6 +524,7 @@ input[type=range]::-moz-range-thumb {
 .hud-row span:last-child { font-family: var(--mono); font-size: 13px; color: var(--ink); }
 .hud-ok { color: var(--green) !important; }
 .hud-warn { color: var(--amber) !important; }
+.hud-bad { color: var(--red) !important; }
 .hud-row.hidden { display: none; }
 #hud-sel { color: var(--cyan) !important; }
 
