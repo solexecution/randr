@@ -160,6 +160,28 @@ export function bevelEdges(m, r) {
   return out;
 }
 
+// Cut the solid in half along its longer horizontal axis and repack the two
+// halves side by side (separated by `gap`) along the perpendicular axis — so an
+// over-long model fits the plate and prints as two glue-able pieces. Z (height)
+// is untouched, so both halves stay base-on-plate.
+export function bisect(m, gap = 4) {
+  const bb = m.boundingBox();
+  const sx = bb.max[0] - bb.min[0], sy = bb.max[1] - bb.min[1];
+  const axis = sx >= sy ? 0 : 1;          // cut along the longer footprint axis
+  const perp = axis === 0 ? 1 : 0;
+  const center = (bb.min[axis] + bb.max[axis]) / 2;
+  const L = bb.max[axis] - bb.min[axis], W = bb.max[perp] - bb.min[perp];
+  const normal = axis === 0 ? [1, 0, 0] : [0, 1, 0];
+  const halves = m.splitByPlane(normal, center);          // [ +side, -side ]
+  const tPos = [0, 0, 0], tNeg = [0, 0, 0];
+  tPos[axis] = -(center + L / 4); tPos[perp] = W / 2 + gap / 2;   // recentre + spread
+  tNeg[axis] = -(center - L / 4); tNeg[perp] = -(W / 2 + gap / 2);
+  const a = halves[0].translate(tPos), b = halves[1].translate(tNeg);
+  const out = a.add(b);
+  halves[0].delete(); halves[1].delete(); a.delete(); b.delete();
+  return out;
+}
+
 // Chamfered box: like roundedBox but hulling 8 octahedra, so every edge gets a
 // flat 45 degree bevel of size `c` instead of a round fillet.
 export function chamferedBox(x, y, z, c) {

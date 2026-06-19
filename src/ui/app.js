@@ -228,6 +228,7 @@ export class App {
     this.currentModel = null;
     this.printRot = [0, 0, 0]; // print orientation (deg) wrapped around the model at compile
     this.printScale = 1; // uniform scale-to-fit wrapped around the model at compile (1 = none)
+    this.printCut = 0; // >0 bisects the model (gap mm) into two repacked halves at compile
     this.buildTree = new BuildTree();
     this.selectedNode = -1;
     this.selectedNodes = [];
@@ -280,6 +281,10 @@ export class App {
     const ps = this.printScale;
     if (ps && ps !== 1 && source.trim()) {
       source = `scale([${ps}, ${ps}, ${ps}]) {\n${source}\n}`;
+    }
+    const pc = this.printCut;
+    if (pc && pc > 0 && source.trim()) {
+      source = `bisect(${pc}) {\n${source}\n}`;
     }
 
     const { result, params, error } = compile(source, this.overrides);
@@ -908,7 +913,7 @@ export class App {
   // --- undo / redo (snapshot history) --------------------------------------
 
   _snapshot() {
-    return JSON.stringify({ mode: this.mode, source: this.source, nodes: this.buildTree.nodes, printRot: this.printRot, printScale: this.printScale });
+    return JSON.stringify({ mode: this.mode, source: this.source, nodes: this.buildTree.nodes, printRot: this.printRot, printScale: this.printScale, printCut: this.printCut });
   }
 
   _pushHistory() {
@@ -931,6 +936,7 @@ export class App {
     this.buildTree.nodes = d.nodes;
     this.printRot = d.printRot || [0, 0, 0];
     this.printScale = d.printScale || 1;
+    this.printCut = d.printCut || 0;
     this.selectedNode = -1;
     this.overrides = {};
     this.root.querySelectorAll('[data-mode]').forEach((t) => t.classList.toggle('active', t.dataset.mode === this.mode));
@@ -1781,6 +1787,16 @@ export class App {
     const fitBtn = this.root.querySelector('#v-fit-plate');
     if (fitBtn) fitBtn.addEventListener('click', () => this._scaleToFit());
 
+    const cutBtn = this.root.querySelector('#v-cut');
+    if (cutBtn) cutBtn.addEventListener('click', () => {
+      this.printCut = this.printCut > 0 ? 0 : 4; // toggle; 4 mm gap between halves
+      cutBtn.classList.toggle('on', this.printCut > 0);
+      if (this.printCut > 0 && this.mode === 'build' && this.viewMode !== 'result') this._setViewMode('result');
+      this.recompile();
+      this._pushHistory();
+      this._toast(this.printCut > 0 ? 'Cut in half — two pieces to print & glue' : 'Cut removed');
+    });
+
     // build view toggle: edit (parts + ghost) vs result (combined solid)
     this.root.querySelectorAll('[data-view]').forEach((b) =>
       b.addEventListener('click', () => this._setViewMode(b.dataset.view)));
@@ -2259,6 +2275,7 @@ export class App {
             <button class="icon-btn" id="v-overhang" title="Overhang check — red faces need support">◣</button>
             <button class="icon-btn" id="v-orient" title="Auto-orient for printing (least support)">⤓</button>
             <button class="icon-btn" id="v-fit-plate" title="Scale to fit the build plate">⤡</button>
+            <button class="icon-btn" id="v-cut" title="Cut in half — print as two glue-able pieces">✂</button>
             <select class="quality-sel" id="v-quality" title="Curve smoothness for round shapes (cylinders, spheres…)">
               <option value="24">◍ Draft</option>
               <option value="48">◍ Standard</option>

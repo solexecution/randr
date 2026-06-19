@@ -247,6 +247,11 @@ export function evaluate(ast, overrides = {}) {
         const child = unionOf(evalChildren(node.children));
         return child ? mark(track(K.bevelEdges(child, r))) : null;
       }
+      case 'bisect': {
+        const gap = arg(0, 'gap', 4);
+        const child = unionOf(evalChildren(node.children));
+        return child ? mark(track(K.bisect(child, gap))) : null;
+      }
 
       // --- Booleans (consume children) ---
       case 'union':
