@@ -1390,11 +1390,13 @@ export class App {
     const tris = this.root.querySelector('#hud-tris');
     const wt = this.root.querySelector('#hud-watertight');
     const fit = this.root.querySelector('#hud-fit');
+    const fil = this.root.querySelector('#hud-filament');
     if (!info) {
       dims.textContent = vol.textContent = tris.textContent = '—';
       dims.classList.remove('hud-bad');
       wt.textContent = '—'; wt.className = 'hud-ok';
       if (fit) { fit.textContent = '—'; fit.className = 'hud-ok'; }
+      if (fil) fil.textContent = '—';
       this.viewport.setBuildVolumeExceeded(false);
       return;
     }
@@ -1402,6 +1404,11 @@ export class App {
     const fmt = (n) => n.toFixed(1);
     dims.textContent = `${fmt(x)} × ${fmt(y)} × ${fmt(z)} mm`;
     vol.textContent = `${(info.volume / 1000).toFixed(2)} cm³`;
+    if (fil) {
+      const grams = (info.volume / 1000) * 1.24;  // PLA density ~1.24 g/cm³
+      const metres = info.volume / 2.405 / 1000;  // 1.75 mm filament ≈ 2.405 mm² section
+      fil.textContent = `≈ ${grams.toFixed(1)} g · ${metres.toFixed(1)} m`;
+    }
     tris.textContent = `${info.triangles.toLocaleString()} tris`;
     // manifold-3d output is watertight by construction (any component count),
     // so a valid result is always print-safe. genus is shown for info only.
@@ -2455,6 +2462,7 @@ export class App {
             <div class="hud-row"><span class="hud-key">mesh</span><span id="hud-tris">—</span></div>
             <div class="hud-row"><span class="hud-key">state</span><span id="hud-watertight" class="hud-ok">—</span></div>
             <div class="hud-row"><span class="hud-key">fit</span><span id="hud-fit" class="hud-ok">—</span></div>
+            <div class="hud-row"><span class="hud-key">filament</span><span id="hud-filament" title="Solid PLA at 1.24 g/cm³ on 1.75 mm filament — sparse infill prints use less">—</span></div>
           </div>
         </div>
 
