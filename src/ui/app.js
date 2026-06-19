@@ -149,6 +149,27 @@ difference() {
   translate([24, 0, wall/2 - h/2]) cylinder(wall + 6, holeR);
 }
 `,
+  'fit test': `// Tolerance fit-test. Push the loose pin into each hole; the snuggest
+// hole is your printer's clearance. Labels = clearance x 100 (20 = 0.20 mm).
+param d = 5;   // target pin / rod diameter (mm)
+param h = 8;   // bar height
+union() {
+  difference() {
+    translate([0, 0, h/2]) { box(85, d + 18, h); }
+    translate([-34, 2, h/2]) { cylinder(h + 4, d/2 + 0.10); }
+    translate([-17, 2, h/2]) { cylinder(h + 4, d/2 + 0.15); }
+    translate([0,   2, h/2]) { cylinder(h + 4, d/2 + 0.20); }
+    translate([17,  2, h/2]) { cylinder(h + 4, d/2 + 0.25); }
+    translate([34,  2, h/2]) { cylinder(h + 4, d/2 + 0.30); }
+    translate([-34, -d/2 - 4, h - 0.8]) { text("10", 5, 1.4); }
+    translate([-17, -d/2 - 4, h - 0.8]) { text("15", 5, 1.4); }
+    translate([0,   -d/2 - 4, h - 0.8]) { text("20", 5, 1.4); }
+    translate([17,  -d/2 - 4, h - 0.8]) { text("25", 5, 1.4); }
+    translate([34,  -d/2 - 4, h - 0.8]) { text("30", 5, 1.4); }
+  }
+  translate([0, -d/2 - 18, (h + 6) / 2]) { cylinder(h + 6, d/2); }
+}
+`,
   'pen cup': `// Pen / tool cup
 param w = 70; param d = 70; param h = 90; param wall = 2.5;
 difference() {
@@ -2473,6 +2494,7 @@ export class App {
                   <button data-tpl="washer">Washer</button>
                   <button data-tpl="L-bracket">L-bracket</button>
                   <button data-tpl="knob">Knob</button>
+                  <button data-tpl="fit test">Fit test 📏</button>
                 </div>
               </section>
               <section class="cat">
