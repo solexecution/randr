@@ -81,6 +81,7 @@ export function createNode(kind) {
     color: PALETTE[colorIx++ % PALETTE.length],
     locked: false,
     hidden: false,
+    clearance: 0, // fit clearance (mm): holes grow / solids shrink for press-fits
     group: null, // group id; members combine (and scope their holes) together
     groupMode: 'union', // how a group combines: union | subtract | intersect
     collapsed: false, // UI: part card folded to just its header
@@ -108,8 +109,34 @@ export function setNodeKind(node, kind) {
   node.pos[2] = baseHalfHeight(kind, get);
 }
 
+// Radial / cross-section dimension keys a fit clearance adjusts, per shape.
+const CLEARANCE_KEYS = {
+  cylinder: ['r'], cone: ['r1', 'r2'], sphere: ['r'], prism: ['r'], pyramid: ['r'],
+  tube: ['router'], torus: ['tube'], roundedCylinder: ['r'], chamferedCylinder: ['r'],
+  dome: ['r'], slot: ['r'], box: ['x', 'y', 'z'], roundedBox: ['x', 'y', 'z'],
+  chamferedBox: ['x', 'y', 'z'],
+};
+// Box-like dims span the whole part (offset applies to both sides → ×2); radial
+// dims are a radius (offset once).
+const CLEARANCE_X2 = new Set(['box', 'roundedBox', 'chamferedBox']);
+
+export function supportsClearance(kind) { return !!CLEARANCE_KEYS[kind]; }
+
+// A field value with the part's fit clearance folded in: a hole grows, a solid
+// shrinks, so a positive clearance always means a looser printed fit. Applied
+// only to the shape's mating (radial / cross-section) dimensions.
+export function effField(node, key) {
+  const x = node.fields.find((y) => y.key === key);
+  const raw = x ? x.value : 0;
+  const c = node.clearance || 0;
+  const keys = CLEARANCE_KEYS[node.kind];
+  if (!c || !keys || !keys.includes(key)) return raw;
+  const signed = (node.op === 'hole' ? c : -c) * (CLEARANCE_X2.has(node.kind) ? 2 : 1);
+  return Math.max(0.05, raw + signed);
+}
+
 function shapeCall(node) {
-  const f = (k) => node.fields.find((x) => x.key === k).value;
+  const f = (k) => effField(node, k);
   switch (node.kind) {
     case 'box':        return `box(${f('x')}, ${f('y')}, ${f('z')})`;
     case 'cylinder':   return `cylinder(${f('h')}, ${f('r')})`;

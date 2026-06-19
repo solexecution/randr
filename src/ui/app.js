@@ -12,7 +12,7 @@ import { manifoldToGeometry } from '../kernel/mesh.js';
 import { compile } from '../lang/compile.js';
 import { exportSTL, exportOBJ, export3MF, export3MFColored, triggerDownload } from '../kernel/export.js';
 import { Viewport, BUILD_VOLUME } from './viewport.js';
-import { buildTreeToSource, buildColoredParts, BuildTree, setNodeKind } from './buildtree.js';
+import { buildTreeToSource, buildColoredParts, effField, supportsClearance, BuildTree, setNodeKind } from './buildtree.js';
 import { sourceToNodes } from './importBuild.js';
 import { RECIPES } from './recipes.js';
 import gcodeHelp from '../help/gcode.md?raw';
@@ -75,7 +75,7 @@ function mdToHtml(md) {
 // Build one shape's geometry (centered, kernel-accurate) for the editable
 // build-mode view. The manifold is freed immediately after meshing.
 function nodeToGeometry(node) {
-  const f = (k) => { const x = node.fields.find((y) => y.key === k); return x ? x.value : 0; };
+  const f = (k) => effField(node, k);
   let m;
   try {
     switch (node.kind) {
@@ -1955,7 +1955,11 @@ export class App {
           <label data-unit="°">rx<input type="number" step="15" value="${node.rot[0]}" data-rot="${idx}:0"></label>
           <label data-unit="°">ry<input type="number" step="15" value="${node.rot[1]}" data-rot="${idx}:1"></label>
           <label data-unit="°">rz<input type="number" step="15" value="${node.rot[2]}" data-rot="${idx}:2"></label>
-        </div>`;
+        </div>
+        ${supportsClearance(node.kind) ? `<div class="bn-clear">
+          <label>fit clearance<input type="number" step="0.05" value="${node.clearance || 0}" data-clear="${idx}"></label>
+          <span class="bn-clear-hint">mm · + looser, for press-fits</span>
+        </div>` : ''}`;
       row.addEventListener('mousedown', (e) => {
         if (e.target.closest('input, button, select')) return;
         this._selectNode(idx, e.shiftKey || this.multiSelect);
@@ -2012,6 +2016,9 @@ export class App {
     }));
     host.querySelectorAll('[data-rot]').forEach((el) => el.addEventListener('input', () => {
       const [i, a] = el.dataset.rot.split(':'); nodes[+i].rot[+a] = parseFloat(el.value); this._scheduleRecompile();
+    }));
+    host.querySelectorAll('[data-clear]').forEach((el) => el.addEventListener('input', () => {
+      nodes[+el.dataset.clear].clearance = parseFloat(el.value) || 0; this._scheduleRecompile();
     }));
     this._updateCollapseAllLabel();
   }
