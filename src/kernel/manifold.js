@@ -415,6 +415,58 @@ export function importOBJ(text) {
   return out;
 }
 
+// Import a 3MF (a zip of model XML). Finds the 3D model part, inflates it if
+// DEFLATE-compressed (via DecompressionStream), parses every <mesh> (offsetting
+// indices) into one welded solid, and centres it on the plate. Build-item
+// transforms aren't applied (parts use mesh-local coords) — fine for the common
+// single-object case. Async (inflate is stream-based).
+export async function import3MF(buffer) {
+  const dv = new DataView(buffer), bytes = new Uint8Array(buffer);
+  let eocd = -1;
+  for (let i = buffer.byteLength - 22; i >= 0 && i > buffer.byteLength - 22 - 65557; i--) {
+    if (dv.getUint32(i, true) === 0x06054b50) { eocd = i; break; }
+  }
+  if (eocd < 0) throw new Error('not a zip / 3MF');
+  const cdCount = dv.getUint16(eocd + 10, true);
+  let p = dv.getUint32(eocd + 16, true), found = null;
+  for (let i = 0; i < cdCount && !found; i++) {
+    if (dv.getUint32(p, true) !== 0x02014b50) break;
+    const method = dv.getUint16(p + 10, true);
+    const compSize = dv.getUint32(p + 20, true);
+    const nameLen = dv.getUint16(p + 28, true);
+    const extraLen = dv.getUint16(p + 30, true), commentLen = dv.getUint16(p + 32, true);
+    const localOff = dv.getUint32(p + 42, true);
+    const name = new TextDecoder().decode(bytes.subarray(p + 46, p + 46 + nameLen));
+    if (/\.model$/i.test(name)) {
+      const ds = localOff + 30 + dv.getUint16(localOff + 26, true) + dv.getUint16(localOff + 28, true);
+      found = { method, data: bytes.subarray(ds, ds + compSize) };
+    }
+    p += 46 + nameLen + extraLen + commentLen;
+  }
+  if (!found) throw new Error('no 3D model in 3MF');
+  let xmlBytes = found.data;
+  if (found.method === 8) {
+    const s = new Blob([found.data]).stream().pipeThrough(new DecompressionStream('deflate-raw'));
+    xmlBytes = new Uint8Array(await new Response(s).arrayBuffer());
+  } else if (found.method !== 0) {
+    throw new Error('unsupported 3MF compression');
+  }
+  const doc = new DOMParser().parseFromString(new TextDecoder().decode(xmlBytes), 'application/xml');
+  const verts = [], idx = [];
+  for (const mesh of doc.getElementsByTagNameNS('*', 'mesh')) {
+    const base = verts.length / 3;
+    for (const v of mesh.getElementsByTagNameNS('*', 'vertex')) verts.push(+v.getAttribute('x'), +v.getAttribute('y'), +v.getAttribute('z'));
+    for (const t of mesh.getElementsByTagNameNS('*', 'triangle')) idx.push(base + +t.getAttribute('v1'), base + +t.getAttribute('v2'), base + +t.getAttribute('v3'));
+  }
+  if (!idx.length) throw new Error('empty 3MF mesh');
+  const man = meshSolid(verts, idx);
+  const bb = man.boundingBox();
+  const cx = (bb.min[0] + bb.max[0]) / 2, cy = (bb.min[1] + bb.max[1]) / 2;
+  const out = man.translate([-cx, -cy, -bb.min[2]]);
+  man.delete();
+  return out;
+}
+
 // Session registry of imported solids, keyed by id. The build tree / language
 // reference them by id (imported("...")), so a mesh round-trips through
 // code<->build within a session without embedding its geometry in the source.

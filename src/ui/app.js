@@ -7,7 +7,7 @@
 // sees one input format. The build pane is a structured editor that emits
 // source; a touch-built model can be opened in the code pane and vice versa.
 
-import { loadKernel, inspect, box, cylinder, sphere, cone, pyramid, torus, wedge, dome, slot, star, roundedBox, roundedCylinder, chamferedBox, chamferedCylinder, tube, prism, text, thread, bolt, nut, meshSolid, importSTL, importOBJ, registerSolid, imported, solidMesh, setCurveQuality } from '../kernel/manifold.js';
+import { loadKernel, inspect, box, cylinder, sphere, cone, pyramid, torus, wedge, dome, slot, star, roundedBox, roundedCylinder, chamferedBox, chamferedCylinder, tube, prism, text, thread, bolt, nut, meshSolid, importSTL, importOBJ, import3MF, registerSolid, imported, solidMesh, setCurveQuality } from '../kernel/manifold.js';
 import { manifoldToGeometry } from '../kernel/mesh.js';
 import { compile } from '../lang/compile.js';
 import { exportSTL, exportOBJ, export3MF, export3MFColored, triggerDownload } from '../kernel/export.js';
@@ -255,7 +255,7 @@ export class App {
     this.viewport.onTransform = (i, t) => this._onTransform(i, t);
     this.viewport.onTransformEnd = (i) => this._onTransformEnd(i);
     window.__forgeExport = { exportSTL, export3MF, export3MFColored, exportOBJ, build3MF: () => this._build3MF() }; // scripting/test hook
-    window.__dbg = { src: () => buildTreeToSource(this.buildTree), compile, meshSolid, importSTL, importOBJ, registerSolid, coloredParts: () => buildColoredParts(this.buildTree) }; // debug
+    window.__dbg = { src: () => buildTreeToSource(this.buildTree), compile, meshSolid, importSTL, importOBJ, import3MF, registerSolid, coloredParts: () => buildColoredParts(this.buildTree) }; // debug
     window.__recipes = RECIPES; // simple-mode makes (test hook)
     this._bindEvents();
     this.recompile(true);
@@ -1964,29 +1964,35 @@ export class App {
   }
   _closeAddModal() { const m = this.root.querySelector('#add-modal'); if (m) m.classList.add('hidden'); }
 
-  // Read a user-chosen STL, build a watertight solid, and add it as a part.
+  // Read a user-chosen STL / OBJ / 3MF, build a watertight solid, add it as a
+  // part. import3MF is async (zip inflate); STL/OBJ are sync — unified via a
+  // promise so all three share one success/failure path.
   _importSTLFile(file) {
     const isObj = /\.obj$/i.test(file.name);
+    const is3mf = /\.3mf$/i.test(file.name);
+    const fmt = is3mf ? '3MF' : isObj ? 'OBJ' : 'STL';
     const reader = new FileReader();
     reader.onerror = () => this._toast('Could not read the file');
     reader.onload = () => {
-      let man;
-      try { man = isObj ? importOBJ(reader.result) : importSTL(reader.result); }
-      catch (err) { this._toast(`Import failed — not a valid ${isObj ? 'OBJ' : 'STL'}`); return; }
-      if (!man || man.numTri() === 0) { this._toast('Import failed — mesh is not watertight'); try { man && man.delete(); } catch { /* freed */ } return; }
-      const id = (isObj ? 'obj-' : 'stl-') + (this._meshSeq = (this._meshSeq || 0) + 1);
-      registerSolid(id, man);
-      const node = this.buildTree.add('imported');
-      node.meshId = id;
-      node.meshName = file.name.replace(/\.(stl|obj)$/i, '');
-      const idx = this.buildTree.nodes.length - 1;
-      this.selectedNodes = [idx];
-      this.selectedNode = idx;
-      this._renderBuildTree();
-      this.recompile(true);
-      this._pushHistory();
-      this._renderAlignBar();
-      this._toast(`Imported ${file.name}`);
+      Promise.resolve()
+        .then(() => (is3mf ? import3MF(reader.result) : isObj ? importOBJ(reader.result) : importSTL(reader.result)))
+        .then((man) => {
+          if (!man || man.numTri() === 0) { this._toast(`Import failed — ${fmt} mesh is not watertight`); try { man && man.delete(); } catch { /* freed */ } return; }
+          const id = (is3mf ? '3mf-' : isObj ? 'obj-' : 'stl-') + (this._meshSeq = (this._meshSeq || 0) + 1);
+          registerSolid(id, man);
+          const node = this.buildTree.add('imported');
+          node.meshId = id;
+          node.meshName = file.name.replace(/\.(stl|obj|3mf)$/i, '');
+          const idx = this.buildTree.nodes.length - 1;
+          this.selectedNodes = [idx];
+          this.selectedNode = idx;
+          this._renderBuildTree();
+          this.recompile(true);
+          this._pushHistory();
+          this._renderAlignBar();
+          this._toast(`Imported ${file.name}`);
+        })
+        .catch(() => this._toast(`Import failed — not a valid ${fmt}`));
     };
     if (isObj) reader.readAsText(file); else reader.readAsArrayBuffer(file);
   }
@@ -2367,7 +2373,7 @@ export class App {
           </section>
 
           <section id="pane-build" class="pane hidden">
-            <input type="file" id="stl-file" accept=".stl,.obj,model/stl,application/sla" hidden>
+            <input type="file" id="stl-file" accept=".stl,.obj,.3mf,model/stl,application/sla" hidden>
             <p class="hint">Click to select · drag to move — snaps to nearby parts (hold <b>Alt</b> to free) · Shift-click multi-select · select 2+ to <b>align</b> / <b>group</b> · <b>Del</b> · <b>Ctrl+D</b></p>
             <div class="parts-head">
               <span class="pane-title">parts</span>
@@ -2558,7 +2564,7 @@ export class App {
               <section class="cat">
                 <h4>Import</h4>
                 <div class="cat-grid">
-                  <button id="modal-import">⬇ STL / OBJ file…</button>
+                  <button id="modal-import">⬇ STL / OBJ / 3MF…</button>
                 </div>
               </section>
             </div>
