@@ -642,6 +642,16 @@ export class Viewport {
       theta = Math.atan2(dz, dx);
       apply();
     };
+    // 45° orbit steps (nav-cube arrows) + home (iso).
+    this._rotateView = (dir) => {
+      const s = Math.PI / 4;
+      if (dir === 'left') theta -= s;
+      else if (dir === 'right') theta += s;
+      else if (dir === 'up') phi = Math.max(0.05, phi - s);
+      else if (dir === 'down') phi = Math.min(Math.PI - 0.05, phi + s);
+      apply();
+    };
+    this._home = () => { phi = Math.PI / 4; theta = Math.PI / 4; apply(); };
   }
 
   // --- transform gizmo (build mode) ----------------------------------------
@@ -1113,40 +1123,62 @@ export class Viewport {
 
   setView(which) { if (this._setView) this._setView(which); }
   setViewDir(d) { if (this._setViewDir) this._setViewDir(d.x, d.y, d.z); }
+  rotateView(dir) { if (this._rotateView) this._rotateView(dir); }
+  homeView() { this.fitView(); if (this._home) this._home(); }
 
   // --- navigation cube (FreeCAD-style) -------------------------------------
   // A small labelled cube in the corner that mirrors the camera orientation;
   // tap a face / edge / corner to snap to that orthographic or iso view.
   _setupNavCube() {
-    const SZ = 92;
+    const wrap = document.createElement('div');
+    wrap.id = 'nav-widget';
+    wrap.innerHTML =
+      '<div id="nav-cube-wrap">'
+      + '<button class="nav-arrow nav-up" data-rot="up" title="Tilt up">▴</button>'
+      + '<button class="nav-arrow nav-down" data-rot="down" title="Tilt down">▾</button>'
+      + '<button class="nav-arrow nav-left" data-rot="left" title="Turn left">◂</button>'
+      + '<button class="nav-arrow nav-right" data-rot="right" title="Turn right">▸</button>'
+      + '<button class="nav-home" title="Home view (iso + fit)">⌂</button>'
+      + '</div>'
+      + '<canvas id="nav-axis" title="Tap an axis to look down it"></canvas>';
+    (this.canvas.parentElement || document.body).appendChild(wrap);
+    const cubeWrap = wrap.querySelector('#nav-cube-wrap');
+
+    // --- the cube ---
+    const SZ = 80;
     const cv = document.createElement('canvas');
     cv.id = 'nav-cube';
-    cv.title = 'Click a face, edge or corner to snap the view';
-    (this.canvas.parentElement || document.body).appendChild(cv);
+    cv.title = 'Tap a face / edge / corner to snap the view';
+    cubeWrap.insertBefore(cv, cubeWrap.firstChild);
     this._navCanvas = cv;
-
     const r = new THREE.WebGLRenderer({ canvas: cv, antialias: true, alpha: true });
     r.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     r.setSize(SZ, SZ, false);
     this._navRenderer = r;
-
     const scene = new THREE.Scene();
     scene.add(new THREE.HemisphereLight(0xffffff, 0x404040, 1.15));
     const key = new THREE.DirectionalLight(0xffffff, 0.55); key.position.set(2, 3, 4); scene.add(key);
     this._navScene = scene;
-
     // BoxGeometry material order: +X, -X, +Y, -Y, +Z, -Z
     const labels = ['RIGHT', 'LEFT', 'TOP', 'BOTTOM', 'FRONT', 'BACK'];
     const mats = labels.map((t) => new THREE.MeshLambertMaterial({ map: this._faceTexture(t) }));
+    this._navMats = mats;
     const cube = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), mats);
-    cube.add(new THREE.LineSegments(new THREE.EdgesGeometry(cube.geometry), new THREE.LineBasicMaterial({ color: 0x4dd0e1, transparent: true, opacity: 0.6 })));
+    cube.add(new THREE.LineSegments(new THREE.EdgesGeometry(cube.geometry), new THREE.LineBasicMaterial({ color: 0x4dd0e1, transparent: true, opacity: 0.55 })));
     scene.add(cube);
     this._navCube = cube;
-
     this._navCamera = new THREE.PerspectiveCamera(36, 1, 0.1, 20);
     this._navRay = new THREE.Raycaster();
-
+    cv.addEventListener('pointermove', (e) => this._navHover(e.clientX, e.clientY));
+    cv.addEventListener('pointerleave', () => this._highlightFace(-1));
     cv.addEventListener('click', (e) => { e.preventDefault(); this._navCubePick(e.clientX, e.clientY); });
+
+    // --- rotate arrows + home ---
+    wrap.querySelectorAll('[data-rot]').forEach((b) => b.addEventListener('click', (e) => { e.preventDefault(); e.stopPropagation(); this.rotateView(b.dataset.rot); }));
+    wrap.querySelector('.nav-home').addEventListener('click', (e) => { e.preventDefault(); e.stopPropagation(); this.homeView(); });
+
+    // --- the axis gizmo (Blender-style) ---
+    this._setupNavAxis(wrap.querySelector('#nav-axis'));
   }
 
   _faceTexture(text) {
@@ -1182,6 +1214,75 @@ export class Viewport {
     const p = hit.point; // on a unit cube (±0.5)
     const comp = [p.x, p.y, p.z].map((v) => (Math.abs(v) > 0.31 ? Math.sign(v) : 0));
     if (comp.some(Boolean)) this.setViewDir({ x: comp[0], y: comp[1], z: comp[2] });
+  }
+
+  _navHover(clientX, clientY) {
+    const rect = this._navCanvas.getBoundingClientRect();
+    this._navRay.setFromCamera(new THREE.Vector2(
+      ((clientX - rect.left) / rect.width) * 2 - 1,
+      -((clientY - rect.top) / rect.height) * 2 + 1,
+    ), this._navCamera);
+    const hit = this._navRay.intersectObject(this._navCube, false)[0];
+    this._highlightFace(hit && hit.face ? hit.face.materialIndex : -1);
+  }
+
+  _highlightFace(idx) {
+    if (this._navMats) this._navMats.forEach((m, i) => m.emissive.setHex(i === idx ? 0x16424a : 0x000000));
+  }
+
+  // --- axis gizmo (Blender-style): red/green/blue X·Y·Z balls, tap to snap ---
+  _setupNavAxis(cv) {
+    const SZ = 56;
+    this._axisCanvas = cv;
+    const r = new THREE.WebGLRenderer({ canvas: cv, antialias: true, alpha: true });
+    r.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    r.setSize(SZ, SZ, false);
+    this._axisRenderer = r;
+    const scene = new THREE.Scene(); this._axisScene = scene;
+    const AX = [
+      { dir: [1, 0, 0], col: 0xef5350 }, { dir: [-1, 0, 0], col: 0xef5350 },
+      { dir: [0, 1, 0], col: 0x66bb6a }, { dir: [0, -1, 0], col: 0x66bb6a },
+      { dir: [0, 0, 1], col: 0x4dd0e1 }, { dir: [0, 0, -1], col: 0x4dd0e1 },
+    ];
+    AX.filter((a) => a.dir.some((v) => v > 0)).forEach((a) => {
+      const g = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(0, 0, 0), new THREE.Vector3(...a.dir)]);
+      scene.add(new THREE.Line(g, new THREE.LineBasicMaterial({ color: a.col })));
+    });
+    this._axisBalls = [];
+    AX.forEach((a) => {
+      const pos = a.dir.some((v) => v > 0);
+      const ball = new THREE.Mesh(
+        new THREE.SphereGeometry(pos ? 0.22 : 0.15, 16, 12),
+        new THREE.MeshBasicMaterial({ color: a.col, transparent: !pos, opacity: pos ? 1 : 0.35 }),
+      );
+      ball.position.set(...a.dir);
+      ball.userData.dir = a.dir;
+      scene.add(ball); this._axisBalls.push(ball);
+    });
+    this._axisCamera = new THREE.PerspectiveCamera(40, 1, 0.1, 20);
+    this._axisRay = new THREE.Raycaster();
+    cv.addEventListener('click', (e) => { e.preventDefault(); this._navAxisPick(e.clientX, e.clientY); });
+  }
+
+  _renderNavAxis() {
+    if (!this._axisRenderer || !this._target) return;
+    const dir = this.camera.position.clone().sub(this._target);
+    if (dir.lengthSq() < 1e-6) return;
+    dir.normalize().multiplyScalar(3.2);
+    this._axisCamera.position.copy(dir);
+    this._axisCamera.up.copy(this.camera.up);
+    this._axisCamera.lookAt(0, 0, 0);
+    this._axisRenderer.render(this._axisScene, this._axisCamera);
+  }
+
+  _navAxisPick(clientX, clientY) {
+    const rect = this._axisCanvas.getBoundingClientRect();
+    this._axisRay.setFromCamera(new THREE.Vector2(
+      ((clientX - rect.left) / rect.width) * 2 - 1,
+      -((clientY - rect.top) / rect.height) * 2 + 1,
+    ), this._axisCamera);
+    const hit = this._axisRay.intersectObjects(this._axisBalls, false)[0];
+    if (hit) { const d = hit.object.userData.dir; this.setViewDir({ x: d[0], y: d[1], z: d[2] }); }
   }
 
   toggleGrid() {
@@ -1222,5 +1323,6 @@ export class Viewport {
     this._updateMeasureLabel();
     this.renderer.render(this.scene, this.camera);
     this._renderNavCube();
+    this._renderNavAxis();
   }
 }

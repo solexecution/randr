@@ -538,15 +538,33 @@ input[type=range]::-moz-range-thumb {
 #viewport-canvas { display: block; width: 100%; height: 100%; touch-action: none; }
 
 /* the signature: a caliper-style dimension HUD — floats top-right, collapsible */
-/* navigation cube — top-right, above the readout */
-#nav-cube {
-  position: absolute; top: 52px; right: 14px; width: 92px; height: 92px;
-  z-index: 16; cursor: pointer; opacity: .9; transition: opacity .15s; touch-action: manipulation;
+/* navigation widget — cube + rotate arrows + home + axis gizmo, top-right.
+   The wrapper ignores pointer events so empty areas still orbit the scene;
+   only the cube / axis / buttons capture taps. */
+#nav-widget {
+  position: absolute; top: 48px; right: 12px; z-index: 16;
+  display: flex; flex-direction: column; align-items: center; gap: 2px;
+  pointer-events: none; touch-action: manipulation;
 }
-#nav-cube:hover { opacity: 1; }
+#nav-cube-wrap { position: relative; width: 108px; height: 108px; }
+#nav-cube { position: absolute; left: 16px; top: 16px; width: 76px; height: 76px; cursor: pointer; pointer-events: auto; }
+.nav-arrow, .nav-home {
+  position: absolute; pointer-events: auto; display: grid; place-items: center;
+  background: rgba(31,35,41,.8); color: var(--ink-dim); border: 1px solid var(--line);
+  border-radius: 6px; cursor: pointer; line-height: 1; padding: 0;
+  backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px); transition: .12s;
+}
+.nav-arrow { width: 22px; height: 22px; font-size: 11px; }
+.nav-arrow:hover, .nav-home:hover { color: var(--cyan); border-color: var(--cyan); }
+.nav-up { top: 0; left: 50%; transform: translateX(-50%); }
+.nav-down { bottom: 0; left: 50%; transform: translateX(-50%); }
+.nav-left { left: 0; top: 50%; transform: translateY(-50%); }
+.nav-right { right: 0; top: 50%; transform: translateY(-50%); }
+.nav-home { top: 0; right: 0; width: 20px; height: 20px; font-size: 12px; }
+#nav-axis { width: 48px; height: 48px; cursor: pointer; pointer-events: auto; }
 
 .hud {
-  position: absolute; top: 152px; right: 12px; z-index: 8;
+  position: absolute; top: 212px; right: 12px; z-index: 8;
   background: rgba(22,25,29,.82); backdrop-filter: blur(8px);
   border: 1px solid var(--line); border-radius: 10px;
   padding: 8px 12px 10px; min-width: 178px;
