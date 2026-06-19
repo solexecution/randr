@@ -12,7 +12,7 @@ import { manifoldToGeometry } from '../kernel/mesh.js';
 import { compile } from '../lang/compile.js';
 import { exportSTL, exportOBJ, export3MF, export3MFColored, triggerDownload } from '../kernel/export.js';
 import { Viewport, BUILD_VOLUME } from './viewport.js';
-import { buildTreeToSource, buildColoredParts, effField, supportsClearance, isShellable, isFastener, applyMetricSize, currentMetricSize, METRIC_SIZES, BuildTree, setNodeKind } from './buildtree.js';
+import { buildTreeToSource, buildColoredParts, effField, supportsClearance, isShellable, supportsFillet, isFastener, applyMetricSize, currentMetricSize, METRIC_SIZES, BuildTree, setNodeKind } from './buildtree.js';
 import { sourceToNodes } from './importBuild.js';
 import { RECIPES } from './recipes.js';
 import gcodeHelp from '../help/gcode.md?raw';
@@ -2061,6 +2061,11 @@ export class App {
           ${supportsClearance(node.kind) ? `<label>fit clearance<input type="number" step="0.05" value="${node.clearance || 0}" data-clear="${idx}"></label>` : ''}
           ${isShellable(node.kind) ? `<label>wall (hollow)<input type="number" step="0.2" value="${node.hollow || 0}" data-hollow="${idx}"></label>` : ''}
           <span class="bn-clear-hint">mm · press-fit / hollow shell</span>
+        </div>` : ''}
+        ${supportsFillet(node.kind) ? `<div class="bn-clear">
+          <label>edge fillet<input type="number" step="0.5" min="0" value="${node.fillet || 0}" data-fillet="${idx}"></label>
+          <label class="bn-bevel-lab"><input type="checkbox" data-bevel="${idx}" ${node.bevel ? 'checked' : ''}> bevel</label>
+          <span class="bn-clear-hint">mm · rounds edges (✓ = chamfer)</span>
         </div>` : ''}`;
       row.addEventListener('mousedown', (e) => {
         if (e.target.closest('input, button, select')) return;
@@ -2124,6 +2129,12 @@ export class App {
     }));
     host.querySelectorAll('[data-hollow]').forEach((el) => el.addEventListener('input', () => {
       nodes[+el.dataset.hollow].hollow = Math.max(0, parseFloat(el.value) || 0); this._scheduleRecompile();
+    }));
+    host.querySelectorAll('[data-fillet]').forEach((el) => el.addEventListener('input', () => {
+      nodes[+el.dataset.fillet].fillet = Math.max(0, parseFloat(el.value) || 0); this._scheduleRecompile();
+    }));
+    host.querySelectorAll('[data-bevel]').forEach((el) => el.addEventListener('change', () => {
+      nodes[+el.dataset.bevel].bevel = el.checked; this._scheduleRecompile();
     }));
     host.querySelectorAll('[data-size]').forEach((el) => el.addEventListener('change', () => {
       if (!el.value) return;

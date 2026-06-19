@@ -83,6 +83,8 @@ export function createNode(kind) {
     hidden: false,
     clearance: 0, // fit clearance (mm): holes grow / solids shrink for press-fits
     hollow: 0, // wall thickness (mm): >0 turns the solid into a shell
+    fillet: 0, // edge radius (mm): >0 rounds (or bevels) the part's convex edges
+    bevel: false, // fillet style: false = round, true = chamfer
     group: null, // group id; members combine (and scope their holes) together
     groupMode: 'union', // how a group combines: union | subtract | intersect
     collapsed: false, // UI: part card folded to just its header
@@ -189,27 +191,44 @@ const SHELL = {
 
 export function isShellable(kind) { return !!SHELL[kind]; }
 
-// Emit a part's geometry call. When the node has a wall thickness, subtract an
-// inset copy of the same shape to leave a hollow shell (closed — fine for FDM,
-// no drain hole needed); bails back to a solid if the wall would consume it.
+// Edge rounding (fillet/chamfer via minkowski opening) is general but expensive
+// on dense / non-convex meshes, so it's offered only on the simpler solids —
+// not text, threads, fasteners, imported meshes, or spiky/holed shapes.
+const FILLET_KINDS = new Set([
+  'box', 'cylinder', 'sphere', 'cone', 'pyramid', 'prism', 'wedge',
+  'roundedBox', 'chamferedBox', 'roundedCylinder', 'chamferedCylinder', 'dome', 'slot',
+]);
+export function supportsFillet(kind) { return FILLET_KINDS.has(kind); }
+
+// Emit a part's geometry call: the base shape, optionally hollowed into a shell,
+// then optionally rounded/bevelled on its convex edges (fillet/chamfer).
 function shapeCall(node) {
-  const outer = baseShapeCall(node);
+  let s = baseShapeCall(node);
+  if (!s) return s;
+
+  // hollow → closed shell (fine for FDM, no drain hole); bail if wall too thick.
   const t = node.hollow || 0;
   const cfg = SHELL[node.kind];
-  if (t <= 0 || !cfg || !outer) return outer;
-  const inner = { ...node, hollow: 0, clearance: 0, fields: node.fields.map((x) => ({ ...x })) };
-  let bail = false;
-  const reduce = (keys, amt) => {
-    for (const k of keys || []) {
-      const f = inner.fields.find((x) => x.key === k);
-      if (f) { f.value -= amt; if (f.value < 0.4) bail = true; }
-    }
-  };
-  reduce(cfg.byT, t);
-  reduce(cfg.by2T, 2 * t);
-  if (bail) return outer;
-  const innerCall = baseShapeCall(inner);
-  return innerCall ? `difference() { ${outer}; ${innerCall}; }` : outer;
+  if (t > 0 && cfg) {
+    const inner = { ...node, hollow: 0, clearance: 0, fields: node.fields.map((x) => ({ ...x })) };
+    let bail = false;
+    const reduce = (keys, amt) => {
+      for (const k of keys || []) {
+        const f = inner.fields.find((x) => x.key === k);
+        if (f) { f.value -= amt; if (f.value < 0.4) bail = true; }
+      }
+    };
+    reduce(cfg.byT, t);
+    reduce(cfg.by2T, 2 * t);
+    if (!bail) { const innerCall = baseShapeCall(inner); if (innerCall) s = `difference() { ${s}; ${innerCall}; }`; }
+  }
+
+  // fillet / chamfer the convex edges
+  const fr = node.fillet || 0;
+  if (fr > 0 && FILLET_KINDS.has(node.kind)) {
+    s = `${node.bevel ? 'chamfer' : 'fillet'}(${fr}) { ${s}; }`;
+  }
+  return s;
 }
 
 function baseShapeCall(node) {

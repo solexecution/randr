@@ -136,6 +136,30 @@ function octahedron(c) {
   );
 }
 
+// Round every convex edge of an existing solid by radius `r`, keeping the
+// overall size — a morphological OPENING (erode then dilate) with a sphere.
+// This is the general fillet that works on any geometry, not just primitives.
+export function roundEdges(m, r, seg = 14) {
+  if (!(r > 0)) return m;
+  const ball = kernel().Manifold.sphere(r, seg);
+  const eroded = m.minkowskiDifference(ball);
+  const out = eroded.minkowskiSum(ball);
+  eroded.delete();
+  ball.delete();
+  return out;
+}
+
+// Chamfer: same opening but with an octahedron, so edges get 45 degree bevels.
+export function bevelEdges(m, r) {
+  if (!(r > 0)) return m;
+  const oct = octahedron(r);
+  const eroded = m.minkowskiDifference(oct);
+  const out = eroded.minkowskiSum(oct);
+  eroded.delete();
+  oct.delete();
+  return out;
+}
+
 // Chamfered box: like roundedBox but hulling 8 octahedra, so every edge gets a
 // flat 45 degree bevel of size `c` instead of a round fillet.
 export function chamferedBox(x, y, z, c) {

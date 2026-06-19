@@ -496,6 +496,8 @@ input[type=range]::-moz-range-thumb {
 .bn-clear input { width: 70px; font-family: var(--mono); font-size: 10px; color: var(--ink); background: var(--surface); border: 1px solid var(--line); border-radius: 4px; padding: 2px 5px; }
 .bn-clear input:focus { outline: none; border-color: var(--cyan); }
 .bn-clear-hint { font-family: var(--mono); font-size: 8px; color: var(--ink-dim); opacity: .7; padding-bottom: 3px; }
+.bn-bevel-lab { flex-direction: row !important; align-items: center; gap: 3px; padding-bottom: 4px; cursor: pointer; }
+.bn-bevel-lab input { width: auto !important; cursor: pointer; }
 .bn-size { display: flex; align-items: flex-end; gap: 8px; margin-top: 6px; max-width: 300px; }
 .bn-size label { font-family: var(--mono); font-size: 8.5px; color: var(--ink-dim); display: flex; flex-direction: column; gap: 2px; }
 .bn-size select { font-family: var(--mono); font-size: 10px; color: var(--ink); background: var(--surface-2); border: 1px solid var(--line); border-radius: 4px; padding: 2px 6px; cursor: pointer; }
