@@ -1909,6 +1909,7 @@ export class App {
     // shape/part buttons live in the Add modal; one handler covers them all
     this.root.querySelectorAll('[data-add]').forEach((b) =>
       b.addEventListener('click', () => this._addShape(b.dataset.add)));
+    this.root.querySelector('#engrave-text')?.addEventListener('click', () => this._engraveText());
     const collapseAll = this.root.querySelector('#collapse-all');
     if (collapseAll) collapseAll.addEventListener('click', () => this._collapseAll());
 
@@ -2050,6 +2051,38 @@ export class App {
       this._pushHistory();
       this._renderAlignBar();
       this._toast('Placed on face');
+    });
+  }
+
+  // Engrave text onto a clicked face: prompt for the text, then pick a face and
+  // drop a recessed (hole) text solid oriented to it — the global difference cuts
+  // it into the part. Edit the resulting text card to tweak size/depth/emboss.
+  _engraveText() {
+    this._closeAddModal();
+    if (this.mode !== 'build') { this._toast('Switch to build mode to engrave on a face'); return; }
+    this._promptName('Engrave text on a face', '', (txt) => {
+      const s = (txt || '').trim();
+      if (!s) return;
+      this._toast('Now click the face to engrave onto');
+      this.viewport.armWorkplanePick((info) => {
+        if (!info) { this._toast('Engrave — cancelled'); return; }
+        const node = this.buildTree.add('text');
+        if (!node) return;
+        const setF = (k, v) => { const f = node.fields.find((x) => x.key === k); if (f) f.value = v; };
+        setF('str', s); setF('size', 8); setF('height', 2);
+        node.op = 'hole'; // recessed engraving (mark it solid for a raised emboss)
+        const { origin: o, normal: n, rot } = info;
+        const r2 = (v) => Math.round(v * 100) / 100 || 0;
+        node.rot = [...rot];
+        node.pos = [r2(o[0] - n[0]), r2(o[1] - n[1]), r2(o[2] - n[2])]; // straddle the face (~1 mm in)
+        const idx = this.buildTree.nodes.length - 1;
+        this.selectedNodes = [idx]; this.selectedNode = idx;
+        this._renderBuildTree();
+        this.recompile();
+        this._pushHistory();
+        this._renderAlignBar();
+        this._toast('Engraved — tweak size/depth on the text card (set it solid to emboss)');
+      });
     });
   }
 
@@ -2497,6 +2530,7 @@ export class App {
                 <h4>Text</h4>
                 <div class="cat-grid">
                   <button data-add="text">T text</button>
+                  <button id="engrave-text">✎ on a face…</button>
                 </div>
               </section>
               <section class="cat">
