@@ -2643,7 +2643,7 @@ export class App {
 
         <header class="topbar">
           <button class="icon-btn on" id="panel-toggle" title="Toggle panel">☰</button>
-          <div class="brand"><span class="brand-mark">◆</span> Rand<em>R</em></div>
+          <div class="brand"><span class="brand-mark">◆</span><span class="brand-name"> Rand<em>R</em></span></div>
           <div class="tabs">
             <button data-mode="code" class="active">code</button>
             <button data-mode="build">build</button>
@@ -2664,7 +2664,7 @@ export class App {
             <button class="icon-btn" id="view-open" title="View, display &amp; print-prep tools">⊞</button>
           </div>
           <div class="menu" id="proj-menu">
-            <button class="exp" id="proj-btn">🗂 <span id="proj-name">Untitled</span> ▾</button>
+            <button class="exp" id="proj-btn"><span class="m-ico">🗂</span><span class="m-lab"><span id="proj-name">Untitled</span> ▾</span></button>
             <div class="menu-pop">
               <button id="proj-new">New project</button>
               <button id="proj-save">Save <span class="kbd">Ctrl+S</span></button>
@@ -2673,7 +2673,7 @@ export class App {
             </div>
           </div>
           <div class="menu" id="tpl-menu">
-            <button class="exp" id="tpl-btn">✦ Templates ▾</button>
+            <button class="exp" id="tpl-btn"><span class="m-ico">✦</span><span class="m-lab">Templates ▾</span></button>
             <div class="menu-pop">
               <button data-tpl="soap dish">Soap dish</button>
               <button data-tpl="pen cup">Pen cup</button>
@@ -2683,7 +2683,7 @@ export class App {
             </div>
           </div>
           <div class="menu" id="export-menu">
-            <button class="exp" id="export-btn">⤓ Export ▾</button>
+            <button class="exp" id="export-btn"><span class="m-ico">⤓</span><span class="m-lab">Export ▾</span></button>
             <div class="menu-pop">
               <button id="btn-stl">STL — for slicing</button>
               <button id="btn-3mf">3MF — units, best</button>

@@ -747,6 +747,22 @@ input[type=range]::-moz-range-thumb {
 .vquality select { font-family: var(--mono); font-size: 12px; color: var(--ink); background: var(--surface-2); border: 1px solid var(--line); border-radius: 6px; padding: 5px 8px; cursor: pointer; }
 .vquality select:focus { outline: none; border-color: var(--cyan); }
 
+/* top-bar menu triggers: icon + label, so the label can collapse on narrow */
+.m-ico { font-size: 14px; }
+.m-lab { margin-left: 5px; }
+
+/* Tablet / narrow: collapse the file·templates·export menus to icons and
+   shrink the level switch so the whole bar fits without clipping. */
+@media (max-width: 1040px) {
+  .m-lab { display: none; }
+  .tier-switch button { padding: 5px 7px; font-size: 9px; letter-spacing: 0; }
+  .topbar { gap: 6px; padding: 0 6px; }
+  .tabs button { padding: 5px 9px; }
+}
+@media (max-width: 900px) {
+  .brand-name { display: none; } /* keep just the ◆ mark to reclaim width */
+}
+
 /* ===== sketch → extrude ====================================================*/
 .sketch-bar {
   position: absolute; left: 50%; bottom: 22px; transform: translateX(-50%); z-index: 22;
