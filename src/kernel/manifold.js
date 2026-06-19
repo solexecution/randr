@@ -217,6 +217,26 @@ export function prism(height, radius, sides = 6) {
   return kernel().Manifold.cylinder(height, radius, radius, Math.max(3, Math.round(sides)), true);
 }
 
+// Spur gear: trapezoidal teeth (thinned for backlash, so printed gears mesh and
+// stay separate) extruded to `height`, with an optional centre bore. `module`
+// sets tooth size (pitch diameter = module x teeth). Centred on the origin.
+export function gear(teeth, module = 2, height = 6, bore = 0) {
+  const N = Math.max(4, Math.round(teeth)), m = Math.max(0.2, module);
+  const rp = (m * N) / 2, ro = rp + m, rr = Math.max(0.4, rp - 1.25 * m), pa = (2 * Math.PI) / N;
+  const pts = [];
+  const at = (rad, ang) => pts.push([rad * Math.cos(ang), rad * Math.sin(ang)]);
+  for (let i = 0; i < N; i++) {
+    const c = i * pa;
+    at(rr, c - 0.30 * pa); at(ro, c - 0.12 * pa); at(ro, c + 0.12 * pa); at(rr, c + 0.30 * pa);
+  }
+  const g = extrude(pts, height);
+  if (!(bore > 0)) return g;
+  const hole = kernel().Manifold.cylinder(height + 2, bore / 2, bore / 2, CURVE_SEGMENTS, true);
+  const out = g.subtract(hole);
+  g.delete(); hole.delete();
+  return out;
+}
+
 // Stadium / slot prism: a rounded-end bar (hull of two cylinders). `length` is
 // the overall length, `radius` the end radius (half-width). Centred.
 export function slot(length, radius, height, segments = 48) {
