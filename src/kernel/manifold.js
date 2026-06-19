@@ -347,6 +347,52 @@ export function importSTL(buffer) {
   return out;
 }
 
+// Import a Wavefront OBJ as a watertight solid: read v/f, fan-triangulate any
+// polygons, weld coincident vertices, build the Manifold, centre XY + base on
+// the plate. Texture/normal indices (f a/b/c) and 1-based / negative indices are
+// handled; everything else (vt, vn, groups, materials) is ignored.
+export function importOBJ(text) {
+  const raw = [];   // raw OBJ vertex coords
+  const faces = []; // triangles as [i,j,k] 0-based into raw
+  for (const line of text.split('\n')) {
+    const t = line.trim();
+    if (t.startsWith('v ')) {
+      const p = t.slice(2).trim().split(/\s+/);
+      raw.push(+p[0], +p[1], +p[2]);
+    } else if (t.startsWith('f ')) {
+      const toks = t.slice(2).trim().split(/\s+/);
+      const vi = toks.map((tok) => {
+        let i = parseInt(tok.split('/')[0], 10);
+        if (i < 0) i = raw.length / 3 + i; else i -= 1; // -> 0-based
+        return i;
+      });
+      for (let k = 1; k < vi.length - 1; k++) faces.push([vi[0], vi[k], vi[k + 1]]); // fan
+    }
+  }
+  const nRaw = raw.length / 3;
+  const map = new Map();
+  const verts = [];
+  const key = (x, y, z) => `${Math.round(x * 1000)},${Math.round(y * 1000)},${Math.round(z * 1000)}`;
+  const remap = (oi) => {
+    const x = raw[oi * 3], y = raw[oi * 3 + 1], z = raw[oi * 3 + 2];
+    const k = key(x, y, z);
+    let i = map.get(k);
+    if (i === undefined) { i = verts.length / 3; verts.push(x, y, z); map.set(k, i); }
+    return i;
+  };
+  const idx = [];
+  for (const f of faces) {
+    if (f.some((i) => i < 0 || i >= nRaw || Number.isNaN(i))) continue;
+    idx.push(remap(f[0]), remap(f[1]), remap(f[2]));
+  }
+  const man = meshSolid(verts, idx);
+  const bb = man.boundingBox();
+  const cx = (bb.min[0] + bb.max[0]) / 2, cy = (bb.min[1] + bb.max[1]) / 2;
+  const out = man.translate([-cx, -cy, -bb.min[2]]);
+  man.delete();
+  return out;
+}
+
 // Session registry of imported solids, keyed by id. The build tree / language
 // reference them by id (imported("...")), so a mesh round-trips through
 // code<->build within a session without embedding its geometry in the source.
