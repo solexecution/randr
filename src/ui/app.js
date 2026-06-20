@@ -294,6 +294,7 @@ export class App {
     await loadKernel();
     this.viewport = new Viewport(this.root.querySelector('#viewport-canvas'));
     this.viewport.onSelect = (i, additive) => this._selectNode(i, additive);
+    this.viewport.onMultiArm = (on) => this._onMultiArm(on);
     this.viewport.onContext = (i, x, y) => this._showContextMenu(i, x, y);
     this.viewport.onShapeMove = (i, pos) => this._onShapeMove(i, pos);
     this.viewport.onShapeMoveEnd = (i, pos) => this._onShapeMoveEnd(i, pos);
@@ -407,6 +408,7 @@ export class App {
     this.viewport.setSelection(this.selectedNodes);
     this._highlightBuildRows();
     this._renderAlignBar();
+    this._updatePartsHeader();
   }
 
   // The ghost preview only helps when the combined result differs from the
@@ -452,6 +454,24 @@ export class App {
     return nodes.map((n, k) => (n.group === g ? k : -1)).filter((k) => k >= 0);
   }
 
+  // Single source of truth for the additive ("multi") selection mode, shared by
+  // the card's ⊹ toggle and the scene long-press gesture.
+  _setMultiSelect(on) {
+    this.multiSelect = on;
+    if (this.viewport) this.viewport.multiSelect = on;
+    const b = this.root.querySelector('#multi-toggle');
+    if (b) b.classList.toggle('on', on);
+  }
+
+  // Called by the viewport when a long-press arms (or an empty tap finishes)
+  // multi-select.
+  _onMultiArm(on) {
+    this._setMultiSelect(on);
+    this._toast(on
+      ? 'Multi-select on — tap parts to add · tap empty space to finish'
+      : 'Multi-select off');
+  }
+
   _selectNode(i, additive) {
     if (i < 0) {
       if (!additive) this.selectedNodes = [];
@@ -469,6 +489,7 @@ export class App {
     this.viewport.setSelection(this.selectedNodes);
     this._highlightBuildRows();
     this._renderAlignBar();
+    this._updatePartsHeader();
   }
 
   _highlightBuildRows() {
@@ -482,13 +503,21 @@ export class App {
   // over the code view.
   _syncBuildTools() {
     const build = this.mode === 'build';
-    const fab = this.root.querySelector('#tools-fab');
-    const dock = this.root.querySelector('#tools-dock');
-    if (fab) fab.classList.toggle('hidden', !build);
-    if (!build) {
-      if (dock) dock.classList.remove('open');
-      if (fab) fab.classList.remove('on');
-    }
+    const card = this.root.querySelector('#part-card');
+    if (card) card.classList.toggle('hidden', !build);
+    this._setPanel(!build); // build edits live in the card; the left panel is code-only
+    this._applyCardLayout();
+  }
+
+  // Keep the HUD (top-left) and nav-cube (top-right) clear of a side-docked
+  // card on desktop, by flagging the dock side on the stage (see styles.css).
+  _applyCardLayout() {
+    const stage = this.root.querySelector('.stage');
+    if (!stage) return;
+    const build = this.mode === 'build';
+    const dock = this._cardDock || 'left';
+    stage.classList.toggle('cardleft', build && dock === 'left');
+    stage.classList.toggle('cardright', build && dock === 'right');
   }
 
   // --- layer preview (slice into printed layers) ---------------------------
@@ -1012,6 +1041,7 @@ export class App {
     this.root.querySelector('#pane-build').classList.toggle('hidden', this.mode !== 'build');
     this.root.querySelector('#editor').value = this.source;
     this._renderBuildTree();
+    this._syncBuildTools();
     this.recompile(true);
     this._restoring = false;
     this._updateHistoryButtons();
@@ -1032,7 +1062,7 @@ export class App {
   _switchMode(mode) {
     const $ = (s) => this.root.querySelector(s);
     if (this.viewport && this.viewport._sketch?.on) { this.viewport.cancelSketch(); this.root.querySelector('#sketch-bar')?.classList.add('hidden'); }
-    if (mode === this.mode) { this._setPanel(true); return; }
+    if (mode === this.mode) { this._syncBuildTools(); return; }
     if (mode === 'code') {
       this.source = buildTreeToSource(this.buildTree) || this.source;
       this._codeMirror = this.source; // clean mirror — reused if we switch back unedited
@@ -1050,7 +1080,7 @@ export class App {
           const why = (e && e.name === 'ForgeError' && e.message) ? e.message
             : 'This design uses features build mode can’t edit yet';
           this._toast(`${why} — staying in code`);
-          this._setPanel(true);
+          this._syncBuildTools();
           return; // stay in code rather than show a different object
         }
       }
@@ -1059,7 +1089,7 @@ export class App {
     this.root.querySelectorAll('[data-mode]').forEach((t) => t.classList.toggle('active', t.dataset.mode === this.mode));
     $('#pane-code').classList.toggle('hidden', this.mode !== 'code');
     $('#pane-build').classList.toggle('hidden', this.mode !== 'build');
-    this._setPanel(true);
+    this._syncBuildTools();
     if (this.mode === 'build') this._renderBuildTree();
     this.recompile(true);
     this._pushHistory();
@@ -1322,7 +1352,7 @@ export class App {
     this.root.querySelector('#pane-code').classList.remove('hidden');
     this.root.querySelector('#pane-build').classList.add('hidden');
     this.root.querySelector('#editor').value = src;
-    this._setPanel(true);
+    this._syncBuildTools();
     this.recompile(true);
     this._pushHistory();
   }
@@ -1397,6 +1427,7 @@ export class App {
     this.root.querySelector('#editor').value = this.source;
     this.root.querySelectorAll('[data-view]').forEach((b) => b.classList.toggle('on', b.dataset.view === this.viewMode));
     this._renderBuildTree();
+    this._syncBuildTools();
     this.recompile(true);
     this.history = []; this.histIdx = -1; this._pushHistory();
     this._updateHistoryButtons();
@@ -1419,7 +1450,7 @@ export class App {
   }
 
   _newProject() {
-    if (this.project) this._saveCurrent();
+    if (this.project) { this._prevProjectId = this.project.id; this._saveCurrent(); }
     const meta = { id: Projects.newId(), name: this._uniqueName('Untitled'), created: Date.now(), modified: Date.now(), seconds: 0 };
     this.project = meta;
     this._workSeconds = 0;
@@ -1439,7 +1470,7 @@ export class App {
   _doSaveAs(name) {
     const clean = (name || '').trim();
     if (!clean) return;
-    if (this.project) this._saveCurrent(); // checkpoint the source project first
+    if (this.project) { this._prevProjectId = this.project.id; this._saveCurrent(); } // checkpoint the source project first
     const meta = { id: Projects.newId(), name: this._uniqueName(clean), created: Date.now(), modified: Date.now(), seconds: this._workSeconds };
     this.project = meta;
     const entry = Projects.saveProject(meta, this._serializeDesign());
@@ -1452,7 +1483,7 @@ export class App {
     const meta = Projects.listProjects().find((p) => p.id === id);
     const data = Projects.loadProject(id);
     if (!meta || !data) { this._toast('Could not open that project'); return; }
-    if (this.project && this.project.id !== id) this._saveCurrent();
+    if (this.project && this.project.id !== id) { this._prevProjectId = this.project.id; this._saveCurrent(); }
     this.project = { id: meta.id, name: meta.name, created: meta.created, modified: meta.modified, seconds: meta.seconds || 0 };
     this._workSeconds = meta.seconds || 0;
     this._applyDesign(data);
@@ -1494,6 +1525,48 @@ export class App {
   _updateProjectName() {
     const el = this.root.querySelector('#proj-name');
     if (el) el.textContent = this.project ? this.project.name : 'Untitled';
+    this._updateProjBackBtn();
+  }
+
+  // Show the one-click "back" button only when there's a still-existing project
+  // to return to (and it isn't the one already open). Switching keeps flipping
+  // _prevProjectId, so the button toggles between the two most recent projects.
+  _updateProjBackBtn() {
+    const btn = this.root.querySelector('#proj-back');
+    if (!btn) return;
+    const curId = this.project && this.project.id;
+    const prev = this._prevProjectId && this._prevProjectId !== curId
+      ? Projects.listProjects().find((p) => p.id === this._prevProjectId)
+      : null;
+    btn.hidden = !prev;
+    if (prev) { btn.title = `Back to “${prev.name}”`; btn.textContent = `↩ Back to “${prev.name}”`; }
+  }
+
+  // One-click jump to the project we were on before this one.
+  _goToPrevious() {
+    const id = this._prevProjectId;
+    if (!id || (this.project && id === this.project.id)) return;
+    if (!Projects.listProjects().some((p) => p.id === id)) { this._prevProjectId = null; this._updateProjBackBtn(); return; }
+    this._openProject(id); // sets _prevProjectId to the project we're leaving, so back toggles
+  }
+
+  // Recent-projects list inside the project dropdown (excludes the open one), so
+  // any background project is one click away without opening the manager.
+  _renderRecentMenu() {
+    const host = this.root.querySelector('#proj-recent');
+    const sep = this.root.querySelector('#proj-recent-sep');
+    const lab = this.root.querySelector('#proj-recent-lab');
+    if (!host) return;
+    const curId = this.project && this.project.id;
+    const list = Projects.listProjects()
+      .filter((p) => p.id !== curId)
+      .sort((a, b) => b.modified - a.modified)
+      .slice(0, 6);
+    if (sep) sep.hidden = !list.length;
+    if (lab) lab.hidden = !list.length;
+    host.innerHTML = list
+      .map((p) => `<button data-switch="${p.id}">${String(p.name).replace(/&/g, '&amp;').replace(/</g, '&lt;')}</button>`)
+      .join('');
   }
 
   // Count visible (engaged) seconds for the current project; flush periodically.
@@ -1928,33 +2001,35 @@ export class App {
     // collapsible panel
     $('#panel-toggle').addEventListener('click', () => this._setPanel());
 
-    // export dropdown
-    // open one top-bar menu at a time (closing one's siblings — stopPropagation
-    // otherwise stops their document-level close handlers from firing)
+    // top-bar menus: ☰ app menu (project / templates / export) and ⚙ gear
+    // (mode / level / view). Open one at a time; any click elsewhere closes them.
     const openMenu = (m) => { const was = m.classList.contains('open'); this.root.querySelectorAll('.menu.open').forEach((o) => o.classList.remove('open')); if (!was) m.classList.add('open'); };
-    const menu = $('#export-menu');
-    $('#export-btn').addEventListener('click', (e) => { e.stopPropagation(); openMenu(menu); });
-    const out = (fn, name) => { if (this.currentModel) triggerDownload(fn(this.currentModel), name); menu.classList.remove('open'); };
-    $('#btn-stl').addEventListener('click', () => out(exportSTL, 'part.stl'));
-    $('#btn-3mf').addEventListener('click', () => { if (this.currentModel) triggerDownload(this._build3MF(), 'part.3mf'); menu.classList.remove('open'); });
-    $('#btn-obj').addEventListener('click', () => out(exportOBJ, 'part.obj'));
-    document.addEventListener('click', () => menu.classList.remove('open'));
+    const appMenu = $('#app-menu');
+    const gearMenu = $('#gear-menu');
+    $('#app-btn').addEventListener('click', (e) => { e.stopPropagation(); this._renderRecentMenu(); openMenu(appMenu); });
+    $('#gear-btn').addEventListener('click', (e) => { e.stopPropagation(); openMenu(gearMenu); });
+    document.addEventListener('click', () => this.root.querySelectorAll('.menu.open').forEach((m) => m.classList.remove('open')));
 
-    // templates dropdown
-    const tpl = $('#tpl-menu');
-    $('#tpl-btn').addEventListener('click', (e) => { e.stopPropagation(); openMenu(tpl); });
-    this.root.querySelectorAll('[data-tpl]').forEach((b) =>
-      b.addEventListener('click', () => { this._loadTemplate(b.dataset.tpl); tpl.classList.remove('open'); }));
-    document.addEventListener('click', () => tpl.classList.remove('open'));
-
-    // projects (File) dropdown
-    const proj = $('#proj-menu');
-    $('#proj-btn').addEventListener('click', (e) => { e.stopPropagation(); openMenu(proj); });
-    document.addEventListener('click', () => proj.classList.remove('open'));
+    // project actions (in the app menu)
     $('#proj-new').addEventListener('click', () => this._newProject());
+    $('#proj-back').addEventListener('click', () => this._goToPrevious());
     $('#proj-save').addEventListener('click', () => this._saveProject());
     $('#proj-saveas').addEventListener('click', () => this._promptName('Save project as', this.project ? this.project.name : '', (n) => this._doSaveAs(n)));
     $('#proj-open').addEventListener('click', () => { this._renderProjectList(); this._openModal('#proj-modal'); });
+    $('#proj-recent').addEventListener('click', (e) => {
+      const b = e.target.closest('button[data-switch]');
+      if (b) this._openProject(b.dataset.switch);
+    });
+
+    // templates (in the app menu)
+    this.root.querySelectorAll('[data-tpl]').forEach((b) =>
+      b.addEventListener('click', () => { this._loadTemplate(b.dataset.tpl); appMenu.classList.remove('open'); }));
+
+    // export (in the app menu)
+    const out = (fn, name) => { if (this.currentModel) triggerDownload(fn(this.currentModel), name); appMenu.classList.remove('open'); };
+    $('#btn-stl').addEventListener('click', () => out(exportSTL, 'part.stl'));
+    $('#btn-3mf').addEventListener('click', () => { if (this.currentModel) triggerDownload(this._build3MF(), 'part.3mf'); appMenu.classList.remove('open'); });
+    $('#btn-obj').addEventListener('click', () => out(exportOBJ, 'part.obj'));
 
     // projects manager modal
     const pm = $('#proj-modal');
@@ -2003,53 +2078,78 @@ export class App {
     this.root.querySelectorAll('[data-xform]').forEach((b) =>
       b.addEventListener('click', () => this._setXform(b.dataset.xform)));
 
-    // floating tools dock: the bottom-right button expands/collapses the bars
-    const toolsFab = this.root.querySelector('#tools-fab');
-    const toolsDock = this.root.querySelector('#tools-dock');
-    if (toolsFab && toolsDock) {
-      toolsFab.addEventListener('click', () => {
-        toolsFab.classList.toggle('on', toolsDock.classList.toggle('open'));
-      });
-      const toolsClose = this.root.querySelector('#tools-dock-close');
-      if (toolsClose) toolsClose.addEventListener('click', () => {
-        toolsDock.classList.remove('open');
-        toolsFab.classList.remove('on');
+    // floating part card: drag the header to move; it snaps to either edge or
+    // floats. Position persists in localStorage (randr.cardDock).
+    const card = this.root.querySelector('#part-card');
+    const cardHead = this.root.querySelector('#card-head');
+    if (card && cardHead) {
+      const applyDock = (mode, x, y) => {
+        card.classList.remove('dock-left', 'dock-right', 'float');
+        if (mode === 'float') {
+          card.classList.add('float');
+          if (x != null) { card.style.left = `${x}px`; card.style.top = `${y}px`; }
+          card.style.right = 'auto'; card.style.bottom = 'auto';
+        } else {
+          card.classList.add(mode === 'right' ? 'dock-right' : 'dock-left');
+          card.style.left = card.style.top = card.style.right = card.style.bottom = '';
+        }
+        this._cardDock = mode;
+        this._applyCardLayout();
+        try { localStorage.setItem('randr.cardDock', JSON.stringify({ mode, x, y })); } catch { /* quota */ }
+      };
+      // restore the saved dock (default: left, where the parts panel used to be)
+      let savedDock = null;
+      try { savedDock = JSON.parse(localStorage.getItem('randr.cardDock')); } catch { /* ignore */ }
+      applyDock(savedDock?.mode || 'left', savedDock?.x ?? 80, savedDock?.y ?? 90);
+
+      let sx = 0, sy = 0, ox = 0, oy = 0, moved = false;
+      const onMove = (e) => {
+        moved = true;
+        card.classList.remove('dock-left', 'dock-right'); card.classList.add('float');
+        const r = card.getBoundingClientRect();
+        const x = Math.max(6, Math.min(ox + e.clientX - sx, window.innerWidth - r.width - 6));
+        const y = Math.max(50, Math.min(oy + e.clientY - sy, window.innerHeight - 44));
+        card.style.left = `${x}px`; card.style.top = `${y}px`; card.style.right = 'auto'; card.style.bottom = 'auto';
+      };
+      const onUp = () => {
+        window.removeEventListener('pointermove', onMove);
+        window.removeEventListener('pointerup', onUp);
+        if (!moved) return;
+        const r = card.getBoundingClientRect();
+        const mid = r.left + r.width / 2;
+        if (mid < 110) applyDock('left');
+        else if (mid > window.innerWidth - 110) applyDock('right');
+        else applyDock('float', Math.round(r.left), Math.round(r.top));
+      };
+      cardHead.addEventListener('pointerdown', (e) => {
+        if (e.target.closest('button')) return; // let the head buttons work
+        const r = card.getBoundingClientRect();
+        sx = e.clientX; sy = e.clientY; ox = r.left; oy = r.top; moved = false;
+        window.addEventListener('pointermove', onMove);
+        window.addEventListener('pointerup', onUp);
+        e.preventDefault();
       });
 
-      // Drag the dock by its header (pointer events → works on touch + mouse).
-      const head = this.root.querySelector('#tools-dock-head');
-      if (head) {
-        let sx = 0, sy = 0, ox = 0, oy = 0;
-        const onMove = (e) => {
-          const r = toolsDock.getBoundingClientRect();
-          const x = Math.max(6, Math.min(ox + e.clientX - sx, window.innerWidth - r.width - 6));
-          const y = Math.max(50, Math.min(oy + e.clientY - sy, window.innerHeight - 44));
-          toolsDock.style.left = `${x}px`; toolsDock.style.top = `${y}px`;
-          toolsDock.style.right = 'auto'; toolsDock.style.bottom = 'auto';
-        };
-        const onUp = () => {
-          window.removeEventListener('pointermove', onMove);
-          window.removeEventListener('pointerup', onUp);
-        };
-        head.addEventListener('pointerdown', (e) => {
-          if (e.target.closest('button')) return; // let the ✕ work
-          const r = toolsDock.getBoundingClientRect();
-          sx = e.clientX; sy = e.clientY; ox = r.left; oy = r.top;
-          window.addEventListener('pointermove', onMove);
-          window.addEventListener('pointerup', onUp);
-          e.preventDefault();
-        });
-      }
+      // snap button cycles left → right → float
+      this.root.querySelector('#card-snap')?.addEventListener('click', () => {
+        const next = this._cardDock === 'left' ? 'right' : this._cardDock === 'right' ? 'float' : 'left';
+        applyDock(next, 80, 90);
+      });
+      // collapse button hides the body (keep just the header bar)
+      this.root.querySelector('#card-min')?.addEventListener('click', (e) => {
+        const min = card.classList.toggle('min');
+        e.currentTarget.textContent = min ? '▸' : '▾';
+        e.currentTarget.title = min ? 'Expand' : 'Collapse';
+      });
     }
 
-    // multi-select toggle: a sticky additive mode so a tap (no Shift) adds to
-    // the selection — the way to multi-select on a touchscreen.
+    // multi-select toggle: a sticky additive mode so a tap (no Shift) adds to the
+    // selection. Long-pressing a part in the scene arms the same mode (see
+    // viewport.js → onMultiArm); both share this._setMultiSelect.
     const multiBtn = this.root.querySelector('#multi-toggle');
     if (multiBtn) multiBtn.addEventListener('click', () => {
-      this.multiSelect = !this.multiSelect;
-      this.viewport.multiSelect = this.multiSelect;
-      multiBtn.classList.toggle('on', this.multiSelect);
-      this._toast(this.multiSelect ? 'Multi-select on — tap parts to add them' : 'Multi-select off');
+      this._setMultiSelect(!this.multiSelect);
+      this._toast(this.multiSelect ? 'Multi-select on — tap parts to add · tap empty to finish' : 'Multi-select off');
     });
 
     // dismiss the right-click context menu on any click outside it
@@ -2517,8 +2617,32 @@ export class App {
     this._pushHistory();
   }
 
+  // Object count + a short, touch-aware contextual line in the card header.
+  _updatePartsHeader() {
+    const nodes = this.buildTree.nodes || [];
+    const total = nodes.length;
+    const holes = nodes.filter((n) => n.op === 'hole').length;
+    const solids = total - holes;
+    const countEl = this.root.querySelector('#parts-count');
+    if (countEl) countEl.textContent = total
+      ? `Parts · ${total}  (${solids} solid · ${holes} hole${holes === 1 ? '' : 's'})`
+      : 'Parts';
+    const hintEl = this.root.querySelector('#parts-hint');
+    if (hintEl) {
+      const sel = this.selectedNodes ? this.selectedNodes.length : 0;
+      if (sel >= 2) hintEl.textContent = `${sel} parts selected — align / group / array below`;
+      else if (sel === 1) {
+        const n = nodes[this.selectedNodes[0]];
+        const name = n ? (n.kind === 'imported' ? (n.meshName || 'mesh') : (n.kind || 'part')) : 'part';
+        hintEl.textContent = `Editing ${name} — change anything below`;
+      } else hintEl.textContent = total ? 'Tap a part to edit · long-press to multi-select' : 'Tap + to add your first part';
+    }
+  }
+
   _renderBuildTree() {
     const host = this.root.querySelector('#build-list');
+    if (!host) return; // card not in the DOM yet (e.g. an early call during boot)
+    this._updatePartsHeader();
     host.innerHTML = '';
     if (this.buildTree.nodes.length === 0) {
       host.innerHTML = '<p class="muted">Tap a shape above to add it. Click a shape in the scene and drag it on the plate. Mark each one solid or hole, then export.</p>';
@@ -2702,16 +2826,54 @@ export class App {
         <canvas id="viewport-canvas"></canvas>
 
         <header class="topbar">
-          <button class="icon-btn on" id="panel-toggle" title="Toggle panel">☰</button>
-          <div class="brand"><span class="brand-mark">◆</span><span class="brand-name"> R<em>&amp;</em>R</span></div>
-          <div class="tabs">
-            <button data-mode="code" class="active">code</button>
-            <button data-mode="build">build</button>
+          <div class="menu" id="app-menu">
+            <button class="icon-btn" id="app-btn" title="Menu — project, templates, export" aria-label="Menu">☰</button>
+            <div class="menu-pop">
+              <div class="menu-lab">Project</div>
+              <button id="proj-new">New project</button>
+              <button id="proj-back" hidden>↩ Back to previous</button>
+              <button id="proj-save">Save <span class="kbd">Ctrl+S</span></button>
+              <button id="proj-saveas">Save as…</button>
+              <button id="proj-open">Open / manage…</button>
+              <div class="menu-sep" id="proj-recent-sep" hidden></div>
+              <div class="menu-lab" id="proj-recent-lab" hidden>Recent — switch</div>
+              <div id="proj-recent"></div>
+              <div id="tpl-section">
+                <div class="menu-sep"></div>
+                <div class="menu-lab">Templates</div>
+                <button data-tpl="soap dish">Soap dish</button>
+                <button data-tpl="pen cup">Pen cup</button>
+                <button data-tpl="coaster">Coaster</button>
+                <button data-tpl="stacking bin">Stacking bin</button>
+                <button data-tpl="bolt & nut">Bolt &amp; nut 🔩</button>
+              </div>
+              <div class="menu-sep"></div>
+              <div class="menu-lab">Export</div>
+              <button id="btn-stl">STL — for slicing</button>
+              <button id="btn-3mf">3MF — units, best</button>
+              <button id="btn-obj">OBJ — mesh</button>
+            </div>
           </div>
-          <div class="tier-switch" id="tier-switch" role="group" aria-label="Experience level">
-            <button data-tier="simple" title="Simple — pick a thing and size it">Simple</button>
-            <button data-tier="maker" title="Maker — build from parts, plus code">Maker</button>
-            <button data-tier="pro" title="Pro — every tool: measure, layers, full control">Pro</button>
+          <div class="brand"><span class="brand-mark">◆</span><span class="brand-name"> R<em>&amp;</em>R</span></div>
+          <span class="bar-proj" id="proj-name" title="Current project">Untitled</span>
+          <div class="menu" id="gear-menu">
+            <button class="icon-btn" id="gear-btn" title="Settings — mode, level, view" aria-label="Settings">⚙</button>
+            <div class="menu-pop">
+              <div class="menu-lab" id="mode-lab">Mode</div>
+              <div class="tabs" id="mode-tabs">
+                <button data-mode="code" class="active">code</button>
+                <button data-mode="build">build</button>
+              </div>
+              <div class="menu-lab">Level</div>
+              <div class="tier-switch" id="tier-switch" role="group" aria-label="Experience level">
+                <button data-tier="simple" title="Simple — pick a thing and size it">Simple</button>
+                <button data-tier="maker" title="Maker — build from parts, plus code">Maker</button>
+                <button data-tier="pro" title="Pro — every tool: measure, layers, full control">Pro</button>
+              </div>
+              <div class="menu-sep"></div>
+              <button id="view-open">View &amp; display…</button>
+              <button id="panel-toggle">Show / hide panel</button>
+            </div>
           </div>
           <button class="icon-btn add-btn" id="add-open" title="Add a shape, part, or ready-made object">+</button>
           <div class="spacer"></div>
@@ -2720,35 +2882,6 @@ export class App {
             <button class="icon-btn" id="v-undo" title="Undo (Ctrl+Z)">↶</button>
             <button class="icon-btn" id="v-redo" title="Redo (Ctrl+Y)">↷</button>
             <button class="icon-btn" id="v-fit" title="Fit to view (F)">⤢</button>
-            <span class="tb-sep"></span>
-            <button class="icon-btn" id="view-open" title="View, display &amp; print-prep tools">⊞</button>
-          </div>
-          <div class="menu" id="proj-menu">
-            <button class="exp" id="proj-btn"><span class="m-ico">🗂</span><span class="m-lab"><span id="proj-name">Untitled</span> ▾</span></button>
-            <div class="menu-pop">
-              <button id="proj-new">New project</button>
-              <button id="proj-save">Save <span class="kbd">Ctrl+S</span></button>
-              <button id="proj-saveas">Save as…</button>
-              <button id="proj-open">Open / manage…</button>
-            </div>
-          </div>
-          <div class="menu" id="tpl-menu">
-            <button class="exp" id="tpl-btn"><span class="m-ico">✦</span><span class="m-lab">Templates ▾</span></button>
-            <div class="menu-pop">
-              <button data-tpl="soap dish">Soap dish</button>
-              <button data-tpl="pen cup">Pen cup</button>
-              <button data-tpl="coaster">Coaster</button>
-              <button data-tpl="stacking bin">Stacking bin</button>
-              <button data-tpl="bolt & nut">Bolt &amp; nut 🔩</button>
-            </div>
-          </div>
-          <div class="menu" id="export-menu">
-            <button class="exp" id="export-btn"><span class="m-ico">⤓</span><span class="m-lab">Export ▾</span></button>
-            <div class="menu-pop">
-              <button id="btn-stl">STL — for slicing</button>
-              <button id="btn-3mf">3MF — units, best</button>
-              <button id="btn-obj">OBJ — mesh</button>
-            </div>
           </div>
         </header>
 
@@ -2764,32 +2897,35 @@ export class App {
             <div id="params" class="params"></div>
           </section>
 
-          <section id="pane-build" class="pane hidden">
+          <!-- build editing now lives in the floating #part-card; this stub keeps
+               mode-toggle code that references #pane-build working -->
+          <section id="pane-build" class="pane hidden"></section>
+        </aside>
+        <div id="panel-resize" title="Drag to resize the panel"></div>
+
+        <div id="part-card" class="part-card dock-left hidden" role="region" aria-label="Parts and tools">
+          <div class="card-head" id="card-head">
+            <span class="card-grip" title="Drag to move · snaps to either edge">⠿</span>
+            <span class="card-title" id="parts-count">Parts</span>
+            <span class="card-head-acts">
+              <button id="card-snap" class="card-ic" title="Dock left / right / float">▣</button>
+              <button id="card-min" class="card-ic" title="Collapse">▾</button>
+            </span>
+          </div>
+          <div class="card-body" id="card-body">
             <input type="file" id="stl-file" accept=".stl,.obj,.3mf,model/stl,application/sla" hidden>
-            <p class="hint">Click to select · drag to move — snaps to nearby parts (hold <b>Alt</b> to free) · Shift-click multi-select · select 2+ to <b>align</b> / <b>group</b> · <b>Del</b> · <b>Ctrl+D</b></p>
+            <p class="hint" id="parts-hint">Tap a part to edit · long-press to multi-select · drag the header to move this card</p>
             <div class="parts-head">
               <span class="pane-title">parts</span>
               <button id="collapse-all" class="mini-btn" title="Collapse or expand all parts">collapse all</button>
             </div>
             <div id="build-list" class="build-list"></div>
-          </section>
-        </aside>
-        <div id="panel-resize" title="Drag to resize the panel"></div>
-
-        <button id="tools-fab" class="tools-fab hidden" title="Build tools" aria-label="Build tools">
-          <span class="tf-ico">⛭</span><span class="tf-label">Tools</span>
-        </button>
-        <div id="tools-dock" class="tools-dock" role="dialog" aria-label="Build tools">
-          <div class="tools-dock-head" id="tools-dock-head">
-            <span class="tools-dock-title"><span class="tools-grip">⠿</span> Tools</span>
-            <button id="tools-dock-close" class="modal-x" title="Collapse" aria-label="Collapse tools">✕</button>
-          </div>
-          <div class="tools-dock-body">
+            <div class="card-tools">
             <div class="xform" id="xform">
               <button data-xform="translate" class="on" title="Move (W)">↔ move</button>
               <button data-xform="rotate" title="Rotate (E)">⟳ turn</button>
               <button data-xform="scale" title="Scale (R)">⤢ size</button>
-              <button id="multi-toggle" title="Multi-select: tap parts to add them to the selection (no Shift needed — for touch)">⊹ multi</button>
+              <button id="multi-toggle" title="Multi-select — or long-press a part in the scene. Tap parts to add; tap empty to finish.">⊹ multi</button>
             </div>
             <div class="xform" id="viewbar">
               <span class="xform-label">view</span>
@@ -2845,6 +2981,7 @@ export class App {
               <button data-gmode="subtract" title="Subtract — first part minus the rest">∖</button>
               <button data-gmode="intersect" title="Keep only the overlap (intersection)">∩</button>
               <button data-gmode="hull" title="Hull — smooth blend / loft across the parts">⬭</button>
+            </div>
             </div>
           </div>
         </div>

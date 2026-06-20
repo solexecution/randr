@@ -107,6 +107,8 @@ export class Viewport {
     this.onShapeMoveEnd = null;    // (index, [x,y,z])
     this.onTransform = null;       // (index, {pos,rot,scale}) — live during gizmo drag
     this.onTransformEnd = null;    // (index)
+    this.onMultiArm = null;        // (on) — long-press armed / disarmed multi-select
+    this._lpTimer = null;          // long-press timer (touch multi-select)
     this._raycaster = new THREE.Raycaster();
     this._ndc = new THREE.Vector2();
     this._outline = null;
@@ -550,6 +552,18 @@ export class Viewport {
       const hit = pan ? null : this._pickShape(x, y);
       if (hit) beginShapeDrag(hit, additive);
       else startOrbit(x, y, pan);
+      // Long-press a shape (held still) to arm multi-select — the touch way to
+      // build a selection without a Shift key. A move or quick release cancels.
+      clearTimeout(this._lpTimer);
+      if (hit && !additive) {
+        this._lpTimer = setTimeout(() => {
+          if (!downOnCanvas || moved >= 4 || this.multiSelect) return;
+          shapeDrag = false; this._clearSnapGuides(); this._magnetTargets = null; this._dragBox = null;
+          this.multiSelect = true;
+          if (navigator.vibrate) navigator.vibrate(15);
+          if (this.onMultiArm) this.onMultiArm(true);
+        }, 450);
+      }
     };
     const onMove = (x, y) => {
       moved = Math.max(moved, Math.hypot(x - downX, y - downY));
@@ -559,6 +573,7 @@ export class Viewport {
     const onUp = () => {
       if (!downOnCanvas) return; // ignore mouseups that didn't start on the canvas (e.g. panel clicks)
       downOnCanvas = false;
+      clearTimeout(this._lpTimer); // a release cancels any pending long-press
       if (this._measurePending) { // measure mode: a click (not a drag) places a point
         this._measurePending = false; dragging = false; panning = false;
         if (moved < 4) this._measurePick(downX, downY);
@@ -576,9 +591,17 @@ export class Viewport {
         shapeDrag = false;
         this._clearSnapGuides();
         this._magnetTargets = null; this._dragBox = null;
-      } else if (this.editActive && moved < 4 && !downAdditive) {
-        // a click on empty space clears the selection
-        if (!this._pickShape(downX, downY) && this.onSelect) this.onSelect(-1, false);
+      } else if (this.editActive && moved < 4) {
+        const onEmpty = !this._pickShape(downX, downY);
+        if (onEmpty && this.multiSelect) {
+          // armed long-press multi-select: an empty tap finishes it
+          this.multiSelect = false;
+          if (this.onMultiArm) this.onMultiArm(false);
+          if (this.onSelect) this.onSelect(-1, false);
+        } else if (onEmpty && !downAdditive && this.onSelect) {
+          // a plain click on empty space clears the selection
+          this.onSelect(-1, false);
+        }
       }
       dragging = false; panning = false;
     };
@@ -602,6 +625,7 @@ export class Viewport {
       if (e.touches.length === 1) onDown(e.touches[0].clientX, e.touches[0].clientY, false, this.multiSelect);
       else if (e.touches.length === 2) {
         shapeDrag = false;
+        clearTimeout(this._lpTimer); // a second finger cancels a pending long-press
         pinchDist = Math.hypot(
           e.touches[0].clientX - e.touches[1].clientX,
           e.touches[0].clientY - e.touches[1].clientY);
