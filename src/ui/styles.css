@@ -169,16 +169,6 @@ body {
 /* collapsed: slide the whole sidebar off whichever edge it's docked to */
 .part-card.dock-left.collapsed  { transform: translateX(-100%); }
 .part-card.dock-right.collapsed { transform: translateX(100%); }
-#card-reopen {
-  position: fixed; top: 50%; transform: translateY(-50%); left: 0; z-index: 23;
-  width: 15px; height: 48px; display: grid; place-items: center; padding: 0;
-  font-size: 12px; color: var(--ink-dim); cursor: pointer;
-  background: rgba(31,35,41,.92); -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px);
-  border: 1px solid var(--line); border-left: 0; border-radius: 0 8px 8px 0;
-}
-#card-reopen.on-right { left: auto; right: 0; border-left: 1px solid var(--line); border-right: 0; border-radius: 8px 0 0 8px; }
-#card-reopen:hover { color: var(--cyan); border-color: var(--cyan); }
-#card-reopen.hidden { display: none; }
 .card-head {
   display: flex; align-items: center; gap: 8px; padding: 7px 7px 7px 10px;
   border-bottom: 1px solid var(--line); cursor: move; touch-action: none; user-select: none; flex: none;

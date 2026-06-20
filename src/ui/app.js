@@ -518,11 +518,10 @@ export class App {
     // the HUD / nav-cube only need to dodge an *expanded* side dock
     stage.classList.toggle('cardleft', build && dock === 'left' && !collapsed);
     stage.classList.toggle('cardright', build && dock === 'right' && !collapsed);
-    const reopen = this.root.querySelector('#card-reopen');
-    if (reopen) {
-      reopen.classList.toggle('on-right', dock === 'right');
-      reopen.classList.toggle('hidden', !(build && collapsed));
-      reopen.textContent = dock === 'right' ? '‹' : '›';
+    const toggleBtn = this.root.querySelector('#parts-toggle');
+    if (toggleBtn) {
+      toggleBtn.classList.toggle('hidden', !build);          // only relevant in build mode
+      toggleBtn.classList.toggle('on', build && !collapsed); // lit while the panel is open
     }
     const minBtn = this.root.querySelector('#card-min');
     if (minBtn) { minBtn.textContent = dock === 'right' ? '»' : '«'; minBtn.title = 'Hide the parts panel'; }
@@ -2161,7 +2160,10 @@ export class App {
       });
       // collapse button tucks the whole sidebar away; the reopen tab brings it back
       this.root.querySelector('#card-min')?.addEventListener('click', () => setCardCollapsed(true));
-      this.root.querySelector('#card-reopen')?.addEventListener('click', () => setCardCollapsed(false));
+      // expand / collapse from the top bar
+      this.root.querySelector('#parts-toggle')?.addEventListener('click', () => setCardCollapsed(!this._cardCollapsed));
+      // tapping the 3D canvas tucks the parts panel away
+      this.root.querySelector('#viewport-canvas')?.addEventListener('pointerdown', () => { if (!this._cardCollapsed) setCardCollapsed(true); });
     }
 
     // the detail editor + action tools live in a standalone modal; relocate the
@@ -3009,6 +3011,7 @@ export class App {
               <button id="panel-toggle">Show / hide panel</button>
             </div>
           </div>
+          <button class="icon-btn" id="parts-toggle" title="Show / hide the parts panel">▤</button>
           <button class="icon-btn add-btn" id="add-open" title="Add a shape, part, or ready-made object">+</button>
           <div class="viewtools">
             <button class="icon-btn" id="cmd-open" title="Find a command (Ctrl+K)">⌕</button>
@@ -3116,8 +3119,6 @@ export class App {
             </div>
           </div>
         </div>
-
-        <button id="card-reopen" class="hidden" title="Show the parts panel">›</button>
 
         <div id="part-modal" class="modal-overlay hidden">
           <div class="modal-panel part-modal-panel" role="dialog" aria-label="Part editor">
