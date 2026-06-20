@@ -514,8 +514,22 @@ export class App {
     if (!stage) return;
     const build = this.mode === 'build';
     const dock = this._cardDock || 'left';
-    stage.classList.toggle('cardleft', build && dock === 'left');
-    stage.classList.toggle('cardright', build && dock === 'right');
+    const collapsed = !!this._cardCollapsed;
+    // the HUD / nav-cube only need to dodge an *expanded* side dock
+    stage.classList.toggle('cardleft', build && dock === 'left' && !collapsed);
+    stage.classList.toggle('cardright', build && dock === 'right' && !collapsed);
+    const reopen = this.root.querySelector('#card-reopen');
+    if (reopen) {
+      reopen.classList.toggle('on-right', dock === 'right');
+      reopen.classList.toggle('hidden', !(build && collapsed));
+      reopen.textContent = dock === 'right' ? '‹' : '›';
+    }
+    const minBtn = this.root.querySelector('#card-min');
+    if (minBtn) { minBtn.textContent = dock === 'right' ? '»' : '«'; minBtn.title = 'Hide the parts panel'; }
+  }
+
+  _saveCardDock() {
+    try { localStorage.setItem('randr.cardDock', JSON.stringify({ mode: this._cardDock || 'left', collapsed: !!this._cardCollapsed })); } catch { /* quota */ }
   }
 
   // --- layer preview (slice into printed layers) ---------------------------
@@ -2004,9 +2018,19 @@ export class App {
     const openMenu = (m) => { const was = m.classList.contains('open'); this.root.querySelectorAll('.menu.open').forEach((o) => o.classList.remove('open')); if (!was) m.classList.add('open'); };
     const appMenu = $('#app-menu');
     const gearMenu = $('#gear-menu');
-    $('#app-btn').addEventListener('click', (e) => { e.stopPropagation(); this._renderRecentMenu(); openMenu(appMenu); });
+    $('#app-btn').addEventListener('click', (e) => { e.stopPropagation(); this.root.querySelectorAll('.menu-fly.open').forEach((f) => f.classList.remove('open')); this._renderRecentMenu(); openMenu(appMenu); });
     $('#gear-btn').addEventListener('click', (e) => { e.stopPropagation(); openMenu(gearMenu); });
     document.addEventListener('click', () => this.root.querySelectorAll('.menu.open').forEach((m) => m.classList.remove('open')));
+    // Templates / Export fly-out submenus inside the app menu (tap to open on touch)
+    this.root.querySelectorAll('.menu-fly-btn').forEach((b) => b.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const fly = b.closest('.menu-fly');
+      const wasOpen = fly.classList.contains('open');
+      this.root.querySelectorAll('.menu-fly.open').forEach((f) => f.classList.remove('open'));
+      if (!wasOpen) fly.classList.add('open');
+    }));
+    // click the project name (next to the logo) to rename the project
+    $('#proj-name')?.addEventListener('click', () => this._promptName('Rename project', this.project ? this.project.name : '', (n) => this._renameCurrentProject(n)));
 
     // project actions (in the app menu)
     $('#proj-new').addEventListener('click', () => this._newProject());
@@ -2081,24 +2105,30 @@ export class App {
     const card = this.root.querySelector('#part-card');
     const cardHead = this.root.querySelector('#card-head');
     if (card && cardHead) {
-      const applyDock = (mode, x, y) => {
+      const applyDock = (mode) => {
+        const side = mode === 'right' ? 'right' : 'left';
         card.classList.remove('dock-left', 'dock-right', 'float');
-        if (mode === 'float') {
-          card.classList.add('float');
-          if (x != null) { card.style.left = `${x}px`; card.style.top = `${y}px`; }
-          card.style.right = 'auto'; card.style.bottom = 'auto';
-        } else {
-          card.classList.add(mode === 'right' ? 'dock-right' : 'dock-left');
-          card.style.left = card.style.top = card.style.right = card.style.bottom = '';
-        }
-        this._cardDock = mode;
+        card.classList.add(side === 'right' ? 'dock-right' : 'dock-left');
+        card.style.left = card.style.top = card.style.right = card.style.bottom = '';
+        this._cardDock = side;
         this._applyCardLayout();
-        try { localStorage.setItem('randr.cardDock', JSON.stringify({ mode, x, y })); } catch { /* quota */ }
+        this._saveCardDock();
       };
-      // restore the saved dock (default: left, where the parts panel used to be)
+      // collapse / reveal the whole sidebar — it slides off whichever edge it's
+      // docked to, leaving a reopen tab on that edge.
+      const setCardCollapsed = (c) => {
+        this._cardCollapsed = c;
+        card.classList.toggle('collapsed', c);
+        this._applyCardLayout();
+        this._saveCardDock();
+      };
+      this._setCardCollapsed = setCardCollapsed;
+      // the parts list is a docked sidebar — left by default; drag the header (or
+      // the ▣ button) to snap it to the other edge. Older 'float' state → left.
       let savedDock = null;
       try { savedDock = JSON.parse(localStorage.getItem('randr.cardDock')); } catch { /* ignore */ }
-      applyDock(savedDock?.mode || 'left', savedDock?.x ?? 80, savedDock?.y ?? 90);
+      applyDock(savedDock?.mode === 'right' ? 'right' : 'left');
+      setCardCollapsed(!!savedDock?.collapsed);
 
       let sx = 0, sy = 0, ox = 0, oy = 0, moved = false;
       const onMove = (e) => {
@@ -2114,10 +2144,7 @@ export class App {
         window.removeEventListener('pointerup', onUp);
         if (!moved) return;
         const r = card.getBoundingClientRect();
-        const mid = r.left + r.width / 2;
-        if (mid < 110) applyDock('left');
-        else if (mid > window.innerWidth - 110) applyDock('right');
-        else applyDock('float', Math.round(r.left), Math.round(r.top));
+        applyDock(r.left + r.width / 2 < window.innerWidth / 2 ? 'left' : 'right');
       };
       cardHead.addEventListener('pointerdown', (e) => {
         if (e.target.closest('button')) return; // let the head buttons work
@@ -2128,17 +2155,13 @@ export class App {
         e.preventDefault();
       });
 
-      // snap button cycles left → right → float
+      // snap button toggles the sidebar between the left and right edge
       this.root.querySelector('#card-snap')?.addEventListener('click', () => {
-        const next = this._cardDock === 'left' ? 'right' : this._cardDock === 'right' ? 'float' : 'left';
-        applyDock(next, 80, 90);
+        applyDock(this._cardDock === 'left' ? 'right' : 'left');
       });
-      // collapse button hides the body (keep just the header bar)
-      this.root.querySelector('#card-min')?.addEventListener('click', (e) => {
-        const min = card.classList.toggle('min');
-        e.currentTarget.textContent = min ? '▸' : '▾';
-        e.currentTarget.title = min ? 'Expand' : 'Collapse';
-      });
+      // collapse button tucks the whole sidebar away; the reopen tab brings it back
+      this.root.querySelector('#card-min')?.addEventListener('click', () => setCardCollapsed(true));
+      this.root.querySelector('#card-reopen')?.addEventListener('click', () => setCardCollapsed(false));
     }
 
     // the detail editor + action tools live in a standalone modal; relocate the
@@ -2146,7 +2169,7 @@ export class App {
     const toolsBlock = this.root.querySelector('.card-tools');
     const toolsHost = this.root.querySelector('#part-modal-tools');
     if (toolsBlock && toolsHost) toolsHost.appendChild(toolsBlock);
-    this.root.querySelector('#card-edit')?.addEventListener('click', () => this._openPartModal());
+    this.root.querySelector('#card-edit')?.addEventListener('click', (e) => this._openPartModal(e.currentTarget.getBoundingClientRect()));
     this.root.querySelector('#part-modal-close')?.addEventListener('click', () => this._closeModal('#part-modal'));
     const partModal = this.root.querySelector('#part-modal');
     if (partModal) partModal.addEventListener('mousedown', (e) => { if (e.target === partModal) this._closeModal('#part-modal'); });
@@ -2853,8 +2876,9 @@ export class App {
     host.querySelectorAll('[data-sel]').forEach((el) => el.addEventListener('click', () => this._selectNode(+el.dataset.sel, true)));
     host.querySelectorAll('[data-edit]').forEach((el) => el.addEventListener('click', () => {
       const i = +el.dataset.edit;
+      const rect = el.getBoundingClientRect(); // capture before the list re-renders
       if (this.selectedNodes.length <= 1 || !this.selectedNodes.includes(i)) this._selectNode(i, false);
-      this._openPartModal();
+      this._openPartModal(rect);
     }));
     host.querySelectorAll('[data-op]').forEach((el) => el.addEventListener('click', () => {
       const n = this.buildTree.nodes[+el.dataset.op]; n.op = n.op === 'hole' ? 'solid' : 'hole';
@@ -2874,9 +2898,33 @@ export class App {
   }
 
   // Open the standalone part editor for the current selection.
-  _openPartModal() {
+  // Open the detail editor as a popover that grows out of the button/row that
+  // triggered it (pass that element's bounding rect as anchorRect).
+  _openPartModal(anchorRect) {
     this._renderBuildTree();   // fills #part-modal-fields for the selected part
-    this._openModal('#part-modal');
+    const modal = this.root.querySelector('#part-modal');
+    const panel = modal && modal.querySelector('.part-modal-panel');
+    if (!modal || !panel) return;
+    modal.classList.remove('hidden');
+    const pw = panel.offsetWidth || 360, ph = panel.offsetHeight || 360;
+    const W = window.innerWidth, H = window.innerHeight;
+    const card = this.root.querySelector('#part-card');
+    const cr = card ? card.getBoundingClientRect() : null;
+    if (anchorRect) {
+      const by = anchorRect.top + anchorRect.height / 2;
+      // sit just past the sidebar's edge (so it doesn't cover the list) but grow
+      // from the side facing it, at the clicked row's height
+      const onRight = !!cr && this._cardDock === 'right';
+      let left = onRight ? (cr.left - pw - 10) : (cr ? cr.right + 10 : anchorRect.right + 10);
+      left = Math.max(8, Math.min(left, W - pw - 8));
+      const top = Math.max(52, Math.min(anchorRect.top, H - ph - 8));
+      panel.style.left = `${left}px`; panel.style.top = `${top}px`;
+      panel.style.transformOrigin = `${onRight ? pw : 0}px ${Math.max(0, Math.min(ph, by - top))}px`;
+    } else {
+      panel.style.left = `${Math.max(8, (W - pw) / 2)}px`; panel.style.top = `${Math.max(52, (H - ph) / 2)}px`;
+      panel.style.transformOrigin = 'center';
+    }
+    panel.classList.remove('pm-in'); void panel.offsetWidth; panel.classList.add('pm-in');
   }
 
   // The "collapse/expand all" control reflects and flips every part card's
@@ -2921,20 +2969,25 @@ export class App {
               <div class="menu-sep" id="proj-recent-sep" hidden></div>
               <div class="menu-lab" id="proj-recent-lab" hidden>Recent — switch</div>
               <div id="proj-recent"></div>
-              <div id="tpl-section">
-                <div class="menu-sep"></div>
-                <div class="menu-lab">Templates</div>
-                <button data-tpl="soap dish">Soap dish</button>
-                <button data-tpl="pen cup">Pen cup</button>
-                <button data-tpl="coaster">Coaster</button>
-                <button data-tpl="stacking bin">Stacking bin</button>
-                <button data-tpl="bolt & nut">Bolt &amp; nut 🔩</button>
-              </div>
               <div class="menu-sep"></div>
-              <div class="menu-lab">Export</div>
-              <button id="btn-stl">STL — for slicing</button>
-              <button id="btn-3mf">3MF — units, best</button>
-              <button id="btn-obj">OBJ — mesh</button>
+              <div class="menu-fly" id="tpl-fly">
+                <button class="menu-fly-btn">Templates<span class="fly-arr">▸</span></button>
+                <div class="menu-sub">
+                  <button data-tpl="soap dish">Soap dish</button>
+                  <button data-tpl="pen cup">Pen cup</button>
+                  <button data-tpl="coaster">Coaster</button>
+                  <button data-tpl="stacking bin">Stacking bin</button>
+                  <button data-tpl="bolt & nut">Bolt &amp; nut 🔩</button>
+                </div>
+              </div>
+              <div class="menu-fly" id="export-fly">
+                <button class="menu-fly-btn">Export<span class="fly-arr">▸</span></button>
+                <div class="menu-sub">
+                  <button id="btn-stl">STL — for slicing</button>
+                  <button id="btn-3mf">3MF — units, best</button>
+                  <button id="btn-obj">OBJ — mesh</button>
+                </div>
+              </div>
             </div>
           </div>
           <div class="menu" id="gear-menu">
@@ -3064,7 +3117,9 @@ export class App {
           </div>
         </div>
 
-        <div id="part-modal" class="modal-overlay center hidden">
+        <button id="card-reopen" class="hidden" title="Show the parts panel">›</button>
+
+        <div id="part-modal" class="modal-overlay hidden">
           <div class="modal-panel part-modal-panel" role="dialog" aria-label="Part editor">
             <div class="modal-head">
               <span class="modal-title">Edit part <span id="part-modal-metrics" class="pm-metrics">—</span></span>
