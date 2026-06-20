@@ -2868,6 +2868,7 @@ export class App {
         <button class="pl-sel${on ? ' on' : ''}" data-sel="${idx}" title="Add to / remove from selection" aria-pressed="${on}">${on ? '◉' : '◯'}</button>
         <input type="color" class="pl-color" data-rcolor="${idx}" value="${hex(node.color)}" title="Colour" ${node.op === 'hole' ? 'disabled' : ''}>
         <button class="pl-name" data-edit="${idx}" title="Edit this part">${esc(nameOf(node))}</button>
+        ${node.group != null ? `<span class="pl-grp" title="Group ${node.group}">G${node.group}</span>` : ''}
         <button class="pl-op ${node.op}" data-op="${idx}" title="Toggle solid / hole">${node.op}</button>
         <button class="pl-ic${node.locked ? ' on' : ''}" data-rlock="${idx}" title="Lock position">${node.locked ? '🔒' : '🔓'}</button>
         <button class="pl-ic" data-rhide="${idx}" title="${node.hidden ? 'Show' : 'Hide'}">${node.hidden ? '🚫' : '👁'}</button>
