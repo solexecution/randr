@@ -606,14 +606,18 @@ input[type=range]::-moz-range-thumb {
 /* transient in-page toast (bottom-centre); never a native dialog */
 .toast {
   position: absolute; bottom: 56px; left: 50%; transform: translate(-50%, 8px);
+  display: flex; align-items: center; gap: 12px;
   font-family: var(--mono); font-size: 12px; color: var(--ink);
   background: rgba(22,25,29,.92); backdrop-filter: blur(8px);
   border: 1px solid var(--line); border-left: 3px solid var(--cyan);
   border-radius: 8px; padding: 9px 14px; max-width: 78vw;
-  opacity: 0; pointer-events: none; transition: opacity .18s ease, transform .18s ease;
+  opacity: 0; pointer-events: none; cursor: pointer; transition: opacity .18s ease, transform .18s ease, border-color .12s;
   box-shadow: 0 12px 30px rgba(0,0,0,.5); z-index: 30;
 }
-.toast.show { opacity: 1; transform: translate(-50%, 0); }
+.toast::after { content: '✕'; color: var(--ink-dim); font-size: 11px; flex: none; } /* tap-to-dismiss hint */
+.toast.show { opacity: 1; transform: translate(-50%, 0); pointer-events: auto; }
+.toast:hover { border-color: var(--cyan); }
+.toast:hover::after { color: var(--cyan); }
 
 /* responsive: the drawer already overlays, so just tighten on small screens */
 @media (max-width: 720px) {

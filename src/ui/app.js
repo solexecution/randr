@@ -1347,12 +1347,16 @@ export class App {
       t = document.createElement('div');
       t.id = 'toast';
       t.className = 'toast';
+      t.title = 'Tap to dismiss';
+      t.addEventListener('click', () => { t.classList.remove('show'); clearTimeout(this._toastTimer); }); // easy dismiss
       this.root.querySelector('.stage').appendChild(t);
     }
     t.textContent = msg;
     t.classList.add('show');
     clearTimeout(this._toastTimer);
-    this._toastTimer = setTimeout(() => t.classList.remove('show'), 2600);
+    // linger longer, scaled to reading time (≈ message length), tap dismisses sooner
+    const dur = Math.min(6500, 2800 + msg.length * 50);
+    this._toastTimer = setTimeout(() => t.classList.remove('show'), dur);
   }
 
   // --- projects (local, persisted in localStorage) --------------------------
