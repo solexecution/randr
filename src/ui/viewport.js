@@ -536,7 +536,7 @@ export class Viewport {
   _setupControls() {
     let dragging = false, panning = false, shapeDrag = false, downOnCanvas = false, downAdditive = false;
     let lastX = 0, lastY = 0, downX = 0, downY = 0, moved = 0;
-    let theta = Math.PI / 4, phi = Math.PI / 4, radius = 200;
+    let theta = -Math.PI / 2, phi = (40 * Math.PI) / 180, radius = 200; // open on the home view: front, 50° above the horizon
     const target = new THREE.Vector3(0, 0, 0);
     const dragPlane = new THREE.Plane();
     const hitV = new THREE.Vector3();
@@ -770,7 +770,7 @@ export class Viewport {
       else if (dir === 'down') phi = Math.min(Math.PI - 0.05, phi + s);
       apply();
     };
-    this._home = () => { phi = Math.PI / 4; theta = Math.PI / 4; apply(); };
+    this._home = () => { phi = (40 * Math.PI) / 180; theta = -Math.PI / 2; apply(); }; // front, 50° above the horizon
   }
 
   // --- transform gizmo (build mode) ----------------------------------------
@@ -1257,7 +1257,7 @@ export class Viewport {
       + '<button class="nav-arrow nav-down" data-rot="down" title="Tilt down">▾</button>'
       + '<button class="nav-arrow nav-left" data-rot="left" title="Turn left">◂</button>'
       + '<button class="nav-arrow nav-right" data-rot="right" title="Turn right">▸</button>'
-      + '<button class="nav-home" title="Home view (iso + fit)">⌂</button>'
+      + '<button class="nav-home" title="Home view (front + fit)">⌂</button>'
       + '</div>'
       + '<canvas id="nav-axis" title="Tap an axis to look down it"></canvas>';
     (this.canvas.parentElement || document.body).appendChild(wrap);
