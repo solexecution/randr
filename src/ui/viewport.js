@@ -25,6 +25,27 @@ const COLORS = {
   measure: 0xffb74d,
 };
 
+// Snapshot of the dark palette so the theme toggle can restore it, plus a light
+// variant tuned so the model, grid and plate read well on a bright background
+// (not a naive invert — geometry needs different contrast in light).
+const DARK = { ...COLORS };
+const LIGHT = {
+  bg: 0xeef1f4,
+  grid: 0xc4ccd6,
+  gridMajor: 0xaab4c0,
+  gridFine: 0xdfe4ea,
+  gridCm: 0x2f7dc4,
+  model: 0x2bb6c9,
+  edge: 0x8a98a8,
+  plate: 0xe2e6ec,
+  hole: 0xe24a47,
+  glowSolid: 0x2a6b78,
+  glowHole: 0x7a3a38,
+  buildVol: 0x9aa6b3,
+  buildVolBad: 0xe24a47,
+  measure: 0xc77f1a,
+};
+
 // Printable build volume of the target printer (Bambu A1 mini = 180×180×180 mm).
 // Exported so the HUD fit-check uses a single source of truth.
 export const BUILD_VOLUME = { x: 180, y: 180, z: 180 };
@@ -148,7 +169,15 @@ export class Viewport {
     plate.position.y = -0.05;
     this.scene.add(plate);
     this.plate = plate;
+    this._plateW = w;
+    this._fineWanted = false;
+    this._addGrids(w);
+  }
 
+  // Builds the 10 mm grid + the fine 1 mm grid. Split out so a theme change can
+  // rebuild them: GridHelper bakes its colours into the geometry, so recolouring
+  // means recreating the helpers rather than poking a material.
+  _addGrids(w) {
     const grid = new THREE.GridHelper(w, w / 10, COLORS.gridMajor, COLORS.grid);
     this.scene.add(grid);
     this.grid = grid;
@@ -158,10 +187,10 @@ export class Viewport {
     fine.material.opacity = 0.55;
     fine.material.transparent = true;
     fine.position.y = -0.02; // just under the 10 mm grid so the cm lines stay on top
-    fine.visible = false;
+    fine.visible = this._fineWanted && grid.visible;
     this.scene.add(fine);
     this.fineGrid = fine;
-    this._fineWanted = false;
+    this._setCmLinesBlue(this._fineWanted);
   }
 
   // A faint wireframe box marking the printable build volume; sits base-on-plate
@@ -1345,6 +1374,35 @@ export class Viewport {
     m.vertexColors = !blue;                                 // blue → uniform material colour on every cm line
     m.color.set(blue ? COLORS.gridCm : 0xffffff);           // white lets the baked grey vertex colours show again
     m.needsUpdate = true;
+  }
+
+  // Switch the whole 3D scene between dark and light. CSS themes the surrounding
+  // UI; this themes everything drawn in WebGL. Edit-mode part meshes carry their
+  // own per-part colours and are re-tinted by the caller via a recompile.
+  setTheme(theme) {
+    Object.assign(COLORS, theme === 'light' ? LIGHT : DARK);
+    if (this.scene.background) this.scene.background.set(COLORS.bg);
+    if (this.plate) this.plate.material.color.set(COLORS.plate);
+    if (this.material) this.material.color.set(COLORS.model);
+    if (this.overhangMaterial) this.overhangMaterial.color.set(COLORS.model);
+    if (this.edgeMaterial) this.edgeMaterial.color.set(COLORS.edge);
+    if (this.buildVolume) this.buildVolume.material.color.set(COLORS.buildVol);
+    this._rebuildGrids();
+  }
+
+  // Recreate both grids with the active palette, preserving the user's grid-on
+  // and mm-grid toggles (GridHelper colours are baked, so we rebuild to recolour).
+  _rebuildGrids() {
+    const vis = this.grid ? this.grid.visible : true;
+    [this.grid, this.fineGrid].forEach((g) => {
+      if (!g) return;
+      this.scene.remove(g);
+      g.geometry.dispose();
+      g.material.dispose();
+    });
+    this._addGrids(this._plateW || 220);
+    this.grid.visible = vis;
+    this.fineGrid.visible = this._fineWanted && vis;
   }
 
   // Overhang analysis: recolour the result mesh so steep downward faces (which

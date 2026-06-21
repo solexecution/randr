@@ -305,11 +305,39 @@ export class App {
     window.__dbg = { src: () => buildTreeToSource(this.buildTree), compile, meshSolid, importSTL, importOBJ, import3MF, registerSolid, coloredParts: () => buildColoredParts(this.buildTree) }; // debug
     window.__recipes = RECIPES; // simple-mode makes (test hook)
     this._bindEvents();
+    this._initTheme();    // apply saved light/dark before the first compile tints the meshes
     this.recompile(true);
     this._pushHistory();
     this._initProjects(); // restore last project (or adopt the starter as the first)
     this._initTier();     // apply the saved experience level, or show the first-run chooser
     this.root.querySelector('#boot').classList.add('gone');
+  }
+
+  // --- theme (light / dark) -------------------------------------------------
+
+  _initTheme() {
+    let saved = 'dark';
+    try { saved = localStorage.getItem('randr.theme') || 'dark'; } catch { /* private mode */ }
+    this._applyTheme(saved === 'light', false); // start()'s first recompile tints the meshes
+  }
+
+  _setTheme(light) { this._applyTheme(light, true); }
+
+  // Flip the whole app between dark and light: the <html> class drives the CSS,
+  // the viewport themes the WebGL scene, and a recompile re-tints part meshes.
+  _applyTheme(light, recompile = true) {
+    this._lightTheme = !!light;
+    document.documentElement.classList.toggle('theme-light', this._lightTheme);
+    if (this.viewport) this.viewport.setTheme(this._lightTheme ? 'light' : 'dark');
+    const b = document.querySelector('#v-theme');
+    if (b) {
+      b.classList.toggle('on', this._lightTheme);
+      b.innerHTML = this._lightTheme
+        ? '<span class="vico">◑</span>Dark mode'
+        : '<span class="vico">◐</span>Light mode';
+    }
+    try { localStorage.setItem('randr.theme', this._lightTheme ? 'light' : 'dark'); } catch { /* ignore */ }
+    if (recompile && this.viewport) this.recompile();
   }
 
   // --- compile + render loop ------------------------------------------------
@@ -1188,6 +1216,7 @@ export class App {
     add('Front view', '', 'View', () => A.viewport.setView('front'));
     add('Toggle grid', 'G', 'View', () => clickBtn('#v-grid'));
     add('Toggle mm grid', '', 'View', () => clickBtn('#v-mmgrid'));
+    add('Toggle light / dark theme', '', 'View', () => clickBtn('#v-theme'));
     add('Toggle wireframe', '', 'View', () => clickBtn('#v-wire'));
     add('Auto-orient for printing', 'least support', 'Prep', () => A._autoOrient());
     add('Scale to fit the plate', '', 'Prep', () => A._scaleToFit());
@@ -2113,6 +2142,7 @@ export class App {
     $('#v-front').addEventListener('click', () => this.viewport.setView('front'));
     $('#v-grid').addEventListener('click', (e) => e.currentTarget.classList.toggle('on', this.viewport.toggleGrid()));
     $('#v-mmgrid')?.addEventListener('click', (e) => e.currentTarget.classList.toggle('on', this.viewport.toggleFineGrid()));
+    $('#v-theme')?.addEventListener('click', () => this._setTheme(!this._lightTheme));
     $('#v-wire').addEventListener('click', (e) => e.currentTarget.classList.toggle('on', this.viewport.toggleWireframe()));
 
     // HUD collapse
@@ -3223,6 +3253,7 @@ export class App {
                 <button class="vbtn" id="v-mmgrid"><span class="vico">⊞</span>mm grid</button>
                 <button class="vbtn" id="v-wire"><span class="vico">◇</span>Wireframe</button>
                 <button class="vbtn on" id="v-snap"><span class="vico">⌗</span>Snap 1mm</button>
+                <button class="vbtn" id="v-theme"><span class="vico">◐</span>Light mode</button>
               </div>
               <label class="vquality">Curve smoothness
                 <select class="quality-sel" id="v-quality" title="Smoothness for round shapes">
