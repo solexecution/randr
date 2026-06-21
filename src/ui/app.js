@@ -529,8 +529,7 @@ export class App {
   // over the code view.
   _syncBuildTools() {
     const build = this.mode === 'build';
-    const tab = this._panelTab || 'parts';
-    const show = build || tab === 'settings'; // Settings is the only tab that works in code mode
+    const show = build; // the inspector panel is build-mode only (settings is its own modal now)
     const card = this.root.querySelector('#part-card');
     if (card) card.classList.toggle('hidden', !show);
     this._setPanel(!build); // the code editor (left panel) shows only in code mode
@@ -2063,7 +2062,10 @@ export class App {
     const appMenu = $('#app-menu');
     const gearMenu = $('#gear-menu');
     $('#app-btn').addEventListener('click', (e) => { e.stopPropagation(); this.root.querySelectorAll('.menu-fly.open').forEach((f) => f.classList.remove('open')); this._renderRecentMenu(); openMenu(appMenu); });
-    $('#gear-btn').addEventListener('click', () => this._setPanelTab('settings'));
+    $('#gear-btn').addEventListener('click', () => this._openModal('#settings-modal'));
+    $('#settings-close')?.addEventListener('click', () => this._closeModal('#settings-modal'));
+    const settingsModal = $('#settings-modal');
+    if (settingsModal) settingsModal.addEventListener('mousedown', (e) => { if (e.target === settingsModal) this._closeModal('#settings-modal'); });
     document.addEventListener('click', () => this.root.querySelectorAll('.menu.open').forEach((m) => m.classList.remove('open')));
     // Templates / Export fly-out submenus inside the app menu (tap to open on touch)
     this.root.querySelectorAll('.menu-fly-btn').forEach((b) => b.addEventListener('click', (e) => {
@@ -2230,9 +2232,6 @@ export class App {
 
     // ── unified panel: fold the Add gallery + settings into their tabs ──
     // (move the existing markup so all ids / handlers keep working)
-    const shapesHost = this.root.querySelector('#shapes-host');
-    const addBody = this.root.querySelector('#add-modal .modal-body');
-    if (shapesHost && addBody) shapesHost.appendChild(addBody);
     const settingsHost = this.root.querySelector('#settings-host');
     if (settingsHost) {
       const moveInto = (sel) => { const el = this.root.querySelector(sel); if (el) settingsHost.appendChild(el); };
@@ -2414,7 +2413,7 @@ export class App {
         if (this.viewport && this.viewport._sketch?.on) { e.preventDefault(); this._cancelSketchUI(); return; }
         const tm = this.root.querySelector('#tier-modal');
         if (tm && !tm.classList.contains('hidden')) { e.preventDefault(); this._setTier('maker'); tm.classList.add('hidden'); return; }
-        for (const sel of ['#part-modal', '#cmd-modal', '#view-modal', '#name-modal', '#proj-modal', '#add-modal', '#help-modal']) {
+        for (const sel of ['#part-modal', '#cmd-modal', '#view-modal', '#settings-modal', '#name-modal', '#proj-modal', '#add-modal', '#help-modal']) {
           const m = this.root.querySelector(sel);
           if (m && !m.classList.contains('hidden')) { e.preventDefault(); if (sel === '#name-modal') this._nameCb = null; m.classList.add('hidden'); return; }
         }
@@ -2496,6 +2495,9 @@ export class App {
     const openBtn = this.root.querySelector('#add-open');
     const closeBtn = this.root.querySelector('#add-close');
     if (openBtn) openBtn.addEventListener('click', () => this._openAddModal());
+    this.root.querySelector('#add-close')?.addEventListener('click', () => this._closeModal('#add-modal'));
+    const addModalEl = this.root.querySelector('#add-modal');
+    if (addModalEl) addModalEl.addEventListener('mousedown', (e) => { if (e.target === addModalEl) this._closeModal('#add-modal'); });
     if (closeBtn) closeBtn.addEventListener('click', () => this._closeAddModal());
     if (modal) modal.addEventListener('click', (e) => { if (e.target === modal) this._closeAddModal(); });
 
@@ -2528,14 +2530,15 @@ export class App {
       if (this.mode !== 'build') return;
     }
     const s = this.root.querySelector('#add-search'); if (s) { s.value = ''; this._filterAdd(''); } // fresh each open
-    this._setPanelTab('shapes');
+    this._openModal('#add-modal');
+    this._positionAddModal();
   }
 
   // Filter the Add-modal items by a search query; hide non-matching buttons and
   // any category left with no matches (and show the grids even if collapsed).
   _filterAdd(query) {
     const q = (query || '').trim().toLowerCase();
-    const modal = this.root.querySelector('#shapes-host');
+    const modal = this.root.querySelector('#add-modal');
     if (!modal) return;
     modal.classList.toggle('searching', !!q);
     let matched = 0;
@@ -3150,12 +3153,6 @@ export class App {
               <button id="card-min" class="card-ic" title="Collapse">«</button>
             </span>
           </div>
-          <div class="ptabs" role="tablist">
-            <button class="ptab on" data-ptab="parts">Parts</button>
-            <button class="ptab" data-ptab="shapes">Shapes</button>
-            <button class="ptab" data-ptab="settings">Settings</button>
-            <button class="ptab" data-ptab="edit" id="ptab-edit">Edit</button>
-          </div>
           <div class="pcols" id="pcols">
             <div class="pcol-main">
               <input type="file" id="stl-file" accept=".stl,.obj,.3mf,model/stl,application/sla" hidden>
@@ -3166,8 +3163,6 @@ export class App {
                 </div>
                 <div id="build-list" class="build-list"></div>
               </div>
-              <div class="ppane hidden" data-pane="shapes"><div id="shapes-host"></div></div>
-              <div class="ppane hidden" data-pane="settings"><div id="settings-host"></div></div>
             </div>
             <div class="pcol-edit hidden" id="pcol-edit">
               <div class="pedit-head">Edit <span id="part-modal-metrics" class="pm-metrics">—</span></div>
@@ -3356,6 +3351,16 @@ export class App {
                 </button>
               </div>
             </div>
+          </div>
+        </div>
+
+        <div id="settings-modal" class="modal-overlay center hidden">
+          <div class="modal-panel view-panel" role="dialog" aria-label="Settings">
+            <div class="modal-head">
+              <span class="modal-title">Settings</span>
+              <button class="modal-x" id="settings-close" title="Close (Esc)">✕</button>
+            </div>
+            <div class="modal-body" id="settings-host"></div>
           </div>
         </div>
 
