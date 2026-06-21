@@ -1243,7 +1243,19 @@ export class Viewport {
   setView(which) { if (this._setView) this._setView(which); }
   setViewDir(d) { if (this._setViewDir) this._setViewDir(d.x, d.y, d.z); }
   rotateView(dir) { if (this._rotateView) this._rotateView(dir); }
-  homeView() { this.fitView(); if (this._home) this._home(); }
+  homeView() {
+    // Home frames the whole build plate (so you always see the workspace), or
+    // the model if it happens to be larger than the plate. The ⤢ Fit button is
+    // the one that zooms tight to the model.
+    const plate = this._plateW || 220;
+    const box = new THREE.Box3();
+    const group = this.editActive ? this.editGroup : this.modelGroup;
+    group.traverse((o) => { if (o.isMesh) box.expandByObject(o); });
+    const ms = new THREE.Vector3();
+    if (!box.isEmpty()) box.getSize(ms);
+    this.frameModel({ x: Math.max(plate, ms.x), y: ms.y, z: Math.max(plate, ms.z) });
+    if (this._home) this._home();
+  }
 
   // --- navigation cube (FreeCAD-style) -------------------------------------
   // A small labelled cube in the corner that mirrors the camera orientation;

@@ -310,6 +310,7 @@ export class App {
     this._pushHistory();
     this._initProjects(); // restore last project (or adopt the starter as the first)
     this._initTier();     // apply the saved experience level, or show the first-run chooser
+    this.viewport.homeView(); // open framed on the whole plate, from the front
     this.root.querySelector('#boot').classList.add('gone');
   }
 
