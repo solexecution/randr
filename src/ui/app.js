@@ -2907,6 +2907,16 @@ export class App {
       return;
     }
     const KIND_LABEL = { roundedBox: 'rounded', roundedCylinder: 'r-cyl', chamferedBox: 'cham-box', chamferedCylinder: 'cham-cyl', thread: 'rod' };
+    // small type glyph per shape — mirrors the Add gallery so they read the same
+    const KIND_ICON = {
+      box: '□', cylinder: '▮', sphere: '●', cone: '▲', pyramid: '◭', prism: '⬡',
+      gear: '⚙', wedge: '◣', torus: '◍', dome: '◗', slot: '▭', star: '★',
+      roundedBox: '▢', roundedCylinder: '▯', chamferedBox: '◇', chamferedCylinder: '⬢', tube: '◎',
+      text: 'T', bolt: '🔩', nut: '⬢', thread: '▎',
+      counterbore: '⌽', countersink: '⌵', insertHole: '◎', nutTrap: '⬡', keyhole: '🔑',
+      imported: '⬚', extrusion: '✎', revolution: '◓',
+    };
+    const iconOf = (n) => KIND_ICON[n.kind] || '◆';
     const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
     const nameOf = (n) => n.kind === 'imported' ? (n.meshName || 'mesh')
       : n.kind === 'extrusion' ? 'sketch' : n.kind === 'revolution' ? 'lathe'
@@ -2921,7 +2931,7 @@ export class App {
       row.innerHTML = `
         <button class="pl-sel${on ? ' on' : ''}" data-sel="${idx}" title="Add to / remove from selection" aria-pressed="${on}">${on ? '◉' : '◯'}</button>
         <input type="color" class="pl-color" data-rcolor="${idx}" value="${hex(node.color)}" title="Colour" ${node.op === 'hole' ? 'disabled' : ''}>
-        <button class="pl-name" data-edit="${idx}" title="Edit this part">${esc(nameOf(node))}</button>
+        <button class="pl-name" data-edit="${idx}" title="Edit this part"><span class="pl-ico" aria-hidden="true">${iconOf(node)}</span>${esc(nameOf(node))}</button>
         ${node.group != null ? `<span class="pl-grp" title="Group ${node.group}">G${node.group}</span>` : ''}
         <button class="pl-op ${node.op}" data-op="${idx}" title="Toggle solid / hole">${node.op}</button>
         <button class="pl-ic${node.locked ? ' on' : ''}" data-rlock="${idx}" title="Lock position">${node.locked ? '🔒' : '🔓'}</button>
