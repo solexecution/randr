@@ -1187,6 +1187,7 @@ export class App {
     add('Top view', '', 'View', () => A.viewport.setView('top'));
     add('Front view', '', 'View', () => A.viewport.setView('front'));
     add('Toggle grid', 'G', 'View', () => clickBtn('#v-grid'));
+    add('Toggle mm grid', '', 'View', () => clickBtn('#v-mmgrid'));
     add('Toggle wireframe', '', 'View', () => clickBtn('#v-wire'));
     add('Auto-orient for printing', 'least support', 'Prep', () => A._autoOrient());
     add('Scale to fit the plate', '', 'Prep', () => A._scaleToFit());
@@ -2111,6 +2112,7 @@ export class App {
     $('#v-top').addEventListener('click', () => this.viewport.setView('top'));
     $('#v-front').addEventListener('click', () => this.viewport.setView('front'));
     $('#v-grid').addEventListener('click', (e) => e.currentTarget.classList.toggle('on', this.viewport.toggleGrid()));
+    $('#v-mmgrid')?.addEventListener('click', (e) => e.currentTarget.classList.toggle('on', this.viewport.toggleFineGrid()));
     $('#v-wire').addEventListener('click', (e) => e.currentTarget.classList.toggle('on', this.viewport.toggleWireframe()));
 
     // HUD collapse
@@ -3218,6 +3220,7 @@ export class App {
               </div></section>
               <section class="vcat"><h4>Display</h4><div class="vgrid">
                 <button class="vbtn on" id="v-grid"><span class="vico">▦</span>Grid</button>
+                <button class="vbtn" id="v-mmgrid"><span class="vico">⊞</span>mm grid</button>
                 <button class="vbtn" id="v-wire"><span class="vico">◇</span>Wireframe</button>
                 <button class="vbtn on" id="v-snap"><span class="vico">⌗</span>Snap 1mm</button>
               </div>

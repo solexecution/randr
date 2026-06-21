@@ -12,6 +12,7 @@ const COLORS = {
   bg: 0x1a1d21,
   grid: 0x2c3036,
   gridMajor: 0x3a4048,
+  gridFine: 0x2a2f34,
   model: 0x4dd0e1,
   edge: 0x1a1d21,
   plate: 0x202428,
@@ -150,6 +151,16 @@ export class Viewport {
     const grid = new THREE.GridHelper(w, w / 10, COLORS.gridMajor, COLORS.grid);
     this.scene.add(grid);
     this.grid = grid;
+
+    // fine 1 mm grid — subtle, off by default; toggle on for mm-precise work
+    const fine = new THREE.GridHelper(w, w, COLORS.gridFine, COLORS.gridFine);
+    fine.material.opacity = 0.55;
+    fine.material.transparent = true;
+    fine.position.y = -0.02; // just under the 10 mm grid so the cm lines stay on top
+    fine.visible = false;
+    this.scene.add(fine);
+    this.fineGrid = fine;
+    this._fineWanted = false;
   }
 
   // A faint wireframe box marking the printable build volume; sits base-on-plate
@@ -1314,7 +1325,15 @@ export class Viewport {
     this.grid.visible = v;
     this.plate.visible = v;
     if (this.buildVolume) this.buildVolume.visible = v;
+    if (this.fineGrid) this.fineGrid.visible = v && this._fineWanted;
     return v;
+  }
+
+  // The fine 1 mm grid (only shows while the main grid is on).
+  toggleFineGrid() {
+    this._fineWanted = !this._fineWanted;
+    if (this.fineGrid) this.fineGrid.visible = this._fineWanted && this.grid.visible;
+    return this._fineWanted;
   }
 
   // Overhang analysis: recolour the result mesh so steep downward faces (which
