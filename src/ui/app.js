@@ -2239,6 +2239,7 @@ export class App {
       const lab = (t) => { const d = document.createElement('div'); d.className = 'menu-lab'; d.textContent = t; settingsHost.appendChild(d); };
       lab('Mode'); moveInto('#mode-tabs');
       lab('Level'); moveInto('#tier-switch');
+      lab('Quality'); moveInto('.vquality');
     }
     // panel tabs (Parts · Shapes · Settings · Edit)
     this.root.querySelectorAll('.ptab').forEach((b) => b.addEventListener('click', () => this._setPanelTab(b.dataset.ptab)));
@@ -3075,6 +3076,8 @@ export class App {
                   <button id="btn-obj">OBJ — mesh</button>
                 </div>
               </div>
+              <div class="menu-sep"></div>
+              <button id="help-btn">Code help</button>
             </div>
           </div>
           <button class="rail-btn add-btn" id="add-open" title="Add a shape, part, or ready-made object">+</button>
@@ -3090,7 +3093,7 @@ export class App {
           <button class="rail-btn on" id="v-snap" title="Snap to 1 mm">⌗</button>
           <button class="rail-btn" id="v-theme" title="Dark / light mode">◐</button>
           <div class="rail-sep"></div>
-          <button class="rail-btn" id="view-open" title="More — quality, measure, print prep, help">⋯</button>
+          <button class="rail-btn" id="view-open" title="Print prep &amp; inspect">⤓</button>
           <div class="rail-sep"></div>
           <div class="menu" id="gear-menu">
             <button class="rail-btn" id="gear-btn" title="Mode · experience level" aria-label="Settings">⚙</button>
@@ -3294,11 +3297,10 @@ export class App {
         <div id="view-modal" class="modal-overlay center hidden">
           <div class="modal-panel view-panel" role="dialog" aria-label="View and tools">
             <div class="modal-head">
-              <span class="modal-title">View &amp; tools</span>
+              <span class="modal-title">Print prep &amp; inspect</span>
               <button class="modal-x" id="view-close" title="Close (Esc)">✕</button>
             </div>
             <div class="modal-body view-body">
-              <section class="vcat"><h4>Quality</h4>
               <label class="vquality">Curve smoothness
                 <select class="quality-sel" id="v-quality" title="Smoothness for round shapes">
                   <option value="24">◍ Draft</option>
@@ -3306,7 +3308,7 @@ export class App {
                   <option value="64" selected>◍ Smooth</option>
                   <option value="128">◍ Ultra</option>
                 </select>
-              </label></section>
+              </label>
               <section class="vcat" data-vcat="inspect"><h4>Inspect</h4><div class="vgrid">
                 <button class="vbtn" id="v-measure"><span class="vico">📏</span>Measure</button>
                 <button class="vbtn" id="v-layers"><span class="vico">≣</span>Layers</button>
@@ -3316,9 +3318,6 @@ export class App {
                 <button class="vbtn" id="v-orient"><span class="vico">⤓</span>Auto-orient</button>
                 <button class="vbtn" id="v-fit-plate"><span class="vico">⤡</span>Fit plate</button>
                 <button class="vbtn" id="v-cut"><span class="vico">✂</span>Cut in half</button>
-              </div></section>
-              <section class="vcat" data-vcat="help"><h4>Learn</h4><div class="vgrid">
-                <button class="vbtn" id="help-btn"><span class="vico">?</span>Code help</button>
               </div></section>
             </div>
           </div>
