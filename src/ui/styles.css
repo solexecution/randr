@@ -182,14 +182,14 @@ body {
 .card-body { flex: 1; overflow-y: auto; overscroll-behavior: contain; padding: 8px 10px 12px; }
 .part-card.min .card-body { display: none; }
 /* tabbed panel: tab bar + main / edit columns (edit slides out as 2nd column) */
-.part-card.editing { width: 640px; max-width: calc(100vw - 16px); }
 .ptabs { display: flex; gap: 2px; padding: 6px 6px 0; flex: none; border-bottom: 1px solid var(--line); }
 .ptab { flex: 1; font-family: var(--mono); font-size: 11px; color: var(--ink-dim); background: none; border: 0; border-bottom: 2px solid transparent; padding: 7px 3px; cursor: pointer; }
 .ptab:hover { color: var(--ink); }
 .ptab.on { color: var(--cyan); border-bottom-color: var(--cyan); }
-.pcols { flex: 1; display: flex; min-height: 0; }
-.pcol-main, .pcol-edit { width: 320px; flex: none; overflow-y: auto; overscroll-behavior: contain; padding: 8px 10px 12px; }
-.pcol-edit { border-left: 1px solid var(--line); }
+/* the edit column stacks BELOW the parts list — the panel stays one column wide */
+.pcols { flex: 1; display: flex; flex-direction: column; min-height: 0; }
+.pcol-main { flex: 1 1 0; min-height: 70px; overflow-y: auto; overscroll-behavior: contain; padding: 8px 10px 12px; }
+.pcol-edit { flex: 1 1 auto; min-height: 0; max-height: 62%; overflow-y: auto; overscroll-behavior: contain; padding: 8px 10px 12px; border-top: 1px solid var(--line); }
 .pcol-edit.hidden, .ppane.hidden { display: none; }
 .pedit-head { font-family: var(--mono); font-size: 11px; letter-spacing: .04em; color: var(--ink-dim); margin-bottom: 8px; }
 .card-tools { display: flex; flex-direction: column; gap: 6px; margin-top: 10px; }
