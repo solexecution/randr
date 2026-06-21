@@ -70,7 +70,15 @@ Deploy = **push to `main`** → GitHub Pages Action builds + publishes. PWA (ser
 - **Command palette** (Ctrl+K, ⌕): 63 commands, fuzzy filter, keyboard nav (Maker/Pro).
 - **Navigation widget** (top-right): FreeCAD-style **ViewCube** (face/edge/corner snap + hover highlight) + **rotate-arrow ring** + **Home** + **Blender-style axis gizmo** (X/Y/Z balls).
 - **Add modal:** search box + collapsible categories + wrapped labels + dense 6-col grid.
-- Tap-to-dismiss toasts (length-scaled duration); context-menu submenus open on a single tap; HUD readout top-left; topbar fits tablet widths.
+- Tap-to-dismiss toasts (length-scaled duration); context-menu submenus open on a single tap.
+
+**Tablet-first UI overhaul** (latest session)
+- **Consolidated top bar:** logo · project name (**click to rename**) · **☰ app menu** (Project / **Templates▸** / **Export▸** fly-out submenus) · **⚙ gear** (mode · level · view) · **▤ parts toggle** · **+ add** · ⌕ ↶ ↷ ⤢ — all left-aligned for max canvas. (Retired the old separate File/Templates/Export bar menus.)
+- **Parts panel = collapsible sidebar** (`#part-card`): docks **left/right** (drag header or **▣**), collapses off its edge via the top-bar **▤** or a **canvas tap**, reopen from **▤**; persists in `randr.cardDock` `{mode,collapsed}`. Compact rows: select · colour · name · solid/hole · lock · hide · duplicate · remove · **G** group badge. (Replaced the inline per-row editor.)
+- **Per-part editor = standalone modal** (`#part-modal`): opens as a popover that **grows from the tapped row**; holds the full editor (dims / pos / rot / colour / fit / fillet / size), per-part actions, the **align/group/array/place/flip tools** (moved here from the retired floating ⛭ dock), and a size **metric**. Multi-select shows the tools with an "N selected" summary.
+- **Readout** moved to the **top-right corner** with the status dot folded into its header; **nav-cube fixed just below it**.
+- **Multi-select on touch:** long-press a part in the scene to arm additive select; tap empty to finish (plus the per-row select toggles).
+- _Note:_ canvas-tap auto-collapse currently fires on **any** canvas tap (incl. selecting a part) — could be scoped to empty-space taps if desired.
 
 **Print prep**
 - Build-volume fit warning (180³), scale-to-fit, **cut-in-half** (two glue-able pieces), auto-orient (least support), overhang highlight, layer preview, curve-quality (Draft/Standard/Smooth/Ultra). _(Cut/overhang return you to edit view when toggled off.)_
@@ -119,11 +127,13 @@ A Simple-mode **"makes" catalogue** (friendly knobs + `build(vals) → source`) 
 
 ---
 
-## This session's commits (newest first)
+## Recent commits (newest first)
 
-`c986e68` rename to **R&R** · `f3036e5` Add-modal density · `7ad3f16` Add-modal search/collapse/wrap · `2849941` toasts longer + tap-dismiss · `37ceb59` fix overlapping top-bar menus + readout move · `be918c6` readout reposition · `79042c4` nav widget (arrows+home+axis) · `bfd1a82` nav cube · `43facf9` context-menu submenu single-tap · `099bd67` cut/overhang no longer strand in Result view · `6cee97a` topbar tablet fit · `1d8e284` part-card collapse fix + View-tools modal · `a2de9ee` sketch v2 (revolve + curved profiles) · `3aec7b4` sketch → extrude · `5255ff3` command palette · `310a695` Simple/Maker/Pro tiers.
+**Tablet-first UI overhaul (latest):** `9805d10` group badge on rows · `886d372` parts toggle → top bar + canvas auto-collapse · `71fe8d7` parts sidebar (collapsible) + part popover editor + Templates/Export submenus + rename · `9a9bf63` left-aligned bar + top-right readout + parts list/modal split · `4c57c15` consolidated top bar + floating part card + long-press multi-select.
 
-Full-app test sweep this session: ~80 geometry/state checks + the full interaction layer — all green, zero console errors. No known regressions.
+**Prior (tiers / nav / palette):** `c986e68` rename to **R&R** · `f3036e5` Add-modal density · `7ad3f16` Add-modal search/collapse/wrap · `2849941` toasts longer + tap-dismiss · `37ceb59` fix overlapping top-bar menus + readout move · `be918c6` readout reposition · `79042c4` nav widget (arrows+home+axis) · `bfd1a82` nav cube · `43facf9` context-menu submenu single-tap · `099bd67` cut/overhang no longer strand in Result view · `6cee97a` topbar tablet fit · `1d8e284` part-card collapse fix + View-tools modal · `a2de9ee` sketch v2 (revolve + curved profiles) · `3aec7b4` sketch → extrude · `5255ff3` command palette · `310a695` Simple/Maker/Pro tiers.
+
+Full interaction sweep re-run the latest session (every top-bar menu, the parts sidebar + all row controls, the part editor modal, multi-select/group, canvas orbit/select/auto-collapse, readout, nav-cube, undo/redo, palette, snap left/right) — all green, zero console errors. No known regressions.
 
 ---
 
