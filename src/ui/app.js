@@ -2299,6 +2299,7 @@ export class App {
     // measure tool: toggle + floating distance label fed by the viewport
     const measLabel = this.root.querySelector('#measure-label');
     this.viewport.measureLabel = measLabel;
+    this.viewport.xformReadout = this.root.querySelector('#xform-readout');
     this.viewport.onMeasure = (info) => {
       if (info && measLabel) measLabel.innerHTML =
         `<b>${info.dist.toFixed(1)} mm</b><span>X ${info.x.toFixed(1)} · Y ${info.y.toFixed(1)} · Z ${info.z.toFixed(1)} · tap to pin</span>`;
@@ -3423,6 +3424,7 @@ export class App {
         </div>
 
         <div class="measure-label" id="measure-label"></div>
+        <div class="xform-readout" id="xform-readout"></div>
       </div>`;
   }
 }

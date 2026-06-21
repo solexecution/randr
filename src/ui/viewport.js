@@ -137,6 +137,9 @@ export class Viewport {
     this._outline = null;
     this._measure = { on: false, a: null, b: null, group: null }; // measure tool
     this.measureLabel = null; // DOM overlay positioned at the segment midpoint
+    this.xformReadout = null; // DOM overlay: live size (W·D·H) while scaling, angles (X·Y·Z°) while rotating
+    this._xfBox = new THREE.Box3();
+    this._xfCenter = new THREE.Vector3();
     this._pins = []; // pinned dimension annotations (persist across recompiles)
     this.onMeasure = null;    // (info|null) — { dist, x, y, z } in mm
     this._sketch = { on: false, pts: [], cursor: null, group: null, mode: 'extrude' }; // sketch → extrude/revolve
@@ -375,6 +378,45 @@ export class Viewport {
     el.style.left = ((mid.x * 0.5 + 0.5) * r.width) + 'px';
     el.style.top = ((-mid.y * 0.5 + 0.5) * r.height) + 'px';
     el.style.display = (mid.z < 1) ? 'block' : 'none';
+  }
+
+  // While the gizmo is dragging in size/turn mode, float a chip over the part
+  // showing its live dimensions (W·D·H mm) or rotation (X·Y·Z°), so you can see
+  // exactly what you're setting without looking away at the editor fields.
+  _updateXformReadout() {
+    const el = this.xformReadout;
+    if (!el) return;
+    const live = this._gizmoDragging && (this.transformMode === 'scale' || this.transformMode === 'rotate');
+    const em = live ? this.editMeshes.find((m) => m.index === this.selectedIndex) : null;
+    if (!em) { if (el.style.display !== 'none') el.style.display = 'none'; return; }
+    const mesh = em.mesh;
+
+    if (this.transformMode === 'scale') {
+      const g = mesh.geometry;
+      if (!g.boundingBox) g.computeBoundingBox();
+      const bb = g.boundingBox; // geometry-local = model frame (x=width, y=depth, z=height)
+      const dim = (n, axis) => {
+        const v = (bb.max[axis] - bb.min[axis]) * Math.abs(mesh.scale[axis]);
+        return `<span class="xr-ax">${n}</span><span class="xr-v">${(Math.round(v * 10) / 10).toFixed(1)}</span>`;
+      };
+      el.innerHTML = dim('W', 'x') + dim('D', 'y') + dim('H', 'z') + '<span class="xr-u">mm</span>';
+    } else { // rotate
+      const D = 180 / Math.PI;
+      const ang = (n, axis) => {
+        const a = Math.round(mesh.rotation[axis] * D) || 0;
+        return `<span class="xr-ax">${n}</span><span class="xr-v">${a}°</span>`;
+      };
+      el.innerHTML = ang('X', 'x') + ang('Y', 'y') + ang('Z', 'z');
+    }
+
+    // anchor the chip at the part's world-space bounding-box centre
+    this._xfBox.setFromObject(mesh);
+    this._xfBox.getCenter(this._xfCenter);
+    const p = this._xfCenter.clone().project(this.camera);
+    const r = this.canvas.getBoundingClientRect();
+    el.style.left = ((p.x * 0.5 + 0.5) * r.width) + 'px';
+    el.style.top = ((-p.y * 0.5 + 0.5) * r.height) + 'px';
+    el.style.display = (p.z < 1) ? 'block' : 'none';
   }
 
   // --- sketch → extrude (draw a polygon on the ground workplane) ------------
@@ -1433,6 +1475,7 @@ export class Viewport {
     requestAnimationFrame(() => this._animate());
     this._resize();
     this._updateMeasureLabel();
+    this._updateXformReadout();
     this.renderer.render(this.scene, this.camera);
     this._renderNavCube();
     this._renderNavAxis();
