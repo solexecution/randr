@@ -770,7 +770,43 @@ export class Viewport {
       else if (dir === 'down') phi = Math.min(Math.PI - 0.05, phi + s);
       apply();
     };
-    this._home = () => { phi = (40 * Math.PI) / 180; theta = -Math.PI / 2; apply(); }; // front, 50° above the horizon
+    // Home: face the plate from the front-50 angle, then pull the camera to the
+    // exact distance where the whole plate (or the model, if larger) fills the
+    // view without clipping. A corner's x/y in camera space don't depend on the
+    // distance — only its depth does — so the tight radius is a closed-form max
+    // over the corners (accounts for the tilt + the window's aspect ratio).
+    this._homePlate = (plateW, modelBox) => {
+      const h = plateW / 2;
+      target.set(0, 0, 0); // centre on the plate so the plate itself drives the fill
+      phi = (40 * Math.PI) / 180; theta = -Math.PI / 2; // front, 50° above the horizon
+      const u = new THREE.Vector3(Math.sin(phi) * Math.cos(theta), Math.cos(phi), Math.sin(phi) * Math.sin(theta));
+      const fwd = u.clone().negate();
+      const right = new THREE.Vector3().crossVectors(fwd, new THREE.Vector3(0, 1, 0));
+      if (right.lengthSq() < 1e-6) right.set(1, 0, 0);
+      right.normalize();
+      const cup = new THREE.Vector3().crossVectors(right, fwd).normalize();
+      if (this._resize) this._resize(); // sync the camera aspect to the live canvas before framing
+      const tanY = Math.tan((this.camera.fov * Math.PI / 180) / 2);
+      const asp = this.camera.aspect || 1;
+      const MARGIN = 0.97; // leave a hair so nothing clips
+      // Fit the real points — the four plate corners plus the model's own box
+      // corners (so a tall part never clips) — NOT their merged AABB, which would
+      // invent phantom corners at plate-width × model-height and shrink the view.
+      const pts = [];
+      for (let i = 0; i < 4; i++) pts.push(new THREE.Vector3(i & 1 ? h : -h, 0, i & 2 ? h : -h));
+      if (modelBox && !modelBox.isEmpty()) {
+        const b = modelBox;
+        for (let i = 0; i < 8; i++) pts.push(new THREE.Vector3(i & 1 ? b.max.x : b.min.x, i & 2 ? b.max.y : b.min.y, i & 4 ? b.max.z : b.min.z));
+      }
+      let r = 60;
+      for (const p of pts) {
+        const c = p.sub(target);
+        const need = Math.max(Math.abs(c.dot(cup)) / tanY, Math.abs(c.dot(right)) / (tanY * asp)) / MARGIN;
+        r = Math.max(r, c.dot(u) + need);
+      }
+      radius = r;
+      apply();
+    };
   }
 
   // --- transform gizmo (build mode) ----------------------------------------
@@ -1244,17 +1280,13 @@ export class Viewport {
   setViewDir(d) { if (this._setViewDir) this._setViewDir(d.x, d.y, d.z); }
   rotateView(dir) { if (this._rotateView) this._rotateView(dir); }
   homeView() {
-    // Home frames the whole build plate (so you always see the workspace), or
-    // the model if it happens to be larger than the plate. The ⤢ Fit button is
-    // the one that zooms tight to the model.
+    // Home fills the view with the whole build plate (or the model, if larger),
+    // from the front-50 angle. The ⤢ Fit button is the one that zooms to the model.
     const plate = this._plateW || 220;
     const box = new THREE.Box3();
     const group = this.editActive ? this.editGroup : this.modelGroup;
     group.traverse((o) => { if (o.isMesh) box.expandByObject(o); });
-    const ms = new THREE.Vector3();
-    if (!box.isEmpty()) box.getSize(ms);
-    this.frameModel({ x: Math.max(plate, ms.x), y: ms.y, z: Math.max(plate, ms.z) });
-    if (this._home) this._home();
+    if (this._homePlate) this._homePlate(plate, box);
   }
 
   // --- navigation cube (FreeCAD-style) -------------------------------------
