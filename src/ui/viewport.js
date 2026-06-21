@@ -386,12 +386,16 @@ export class Viewport {
   _updateXformReadout() {
     const el = this.xformReadout;
     if (!el) return;
-    const live = this._gizmoDragging && (this.transformMode === 'scale' || this.transformMode === 'rotate');
-    const em = live ? this.editMeshes.find((m) => m.index === this.selectedIndex) : null;
+    const gizmo = this._gizmoDragging;
+    const sizing = gizmo && this.transformMode === 'scale';
+    const turning = gizmo && this.transformMode === 'rotate';
+    // "moving" covers both the gizmo's translate handles and dragging the part body
+    const moving = this._shapeDragging || (gizmo && this.transformMode === 'translate');
+    const em = (sizing || turning || moving) ? this.editMeshes.find((m) => m.index === this.selectedIndex) : null;
     if (!em) { if (el.style.display !== 'none') el.style.display = 'none'; return; }
     const mesh = em.mesh;
 
-    if (this.transformMode === 'scale') {
+    if (sizing) {
       const g = mesh.geometry;
       if (!g.boundingBox) g.computeBoundingBox();
       const bb = g.boundingBox; // geometry-local = model frame (x=width, y=depth, z=height)
@@ -400,13 +404,19 @@ export class Viewport {
         return `<span class="xr-ax">${n}</span><span class="xr-v">${(Math.round(v * 10) / 10).toFixed(1)}</span>`;
       };
       el.innerHTML = dim('W', 'x') + dim('D', 'y') + dim('H', 'z') + '<span class="xr-u">mm</span>';
-    } else { // rotate
+    } else if (turning) {
       const D = 180 / Math.PI;
       const ang = (n, axis) => {
         const a = Math.round(mesh.rotation[axis] * D) || 0;
         return `<span class="xr-ax">${n}</span><span class="xr-v">${a}°</span>`;
       };
       el.innerHTML = ang('X', 'x') + ang('Y', 'y') + ang('Z', 'z');
+    } else { // moving — live position in mm
+      const pos = (n, axis) => {
+        const v = Math.round(mesh.position[axis] * 10) / 10;
+        return `<span class="xr-ax">${n}</span><span class="xr-v">${v.toFixed(1)}</span>`;
+      };
+      el.innerHTML = pos('X', 'x') + pos('Y', 'y') + pos('Z', 'z') + '<span class="xr-u">mm</span>';
     }
 
     // anchor the chip at the part's world-space bounding-box centre
@@ -568,6 +578,7 @@ export class Viewport {
       const locked = this.editMeshes.find((e) => e.index === idx)?.lock;
       if (locked) return; // select only — don't move a locked shape
       shapeDrag = true;
+      this._shapeDragging = true; // drives the live position readout
       // Drag on the horizontal plane through the shape's current height. The
       // raycaster is still aimed at the pointer-down position here, so the
       // intersection is the grab point — store its offset from the shape origin
@@ -641,7 +652,7 @@ export class Viewport {
       if (hit && !additive) {
         this._lpTimer = setTimeout(() => {
           if (!downOnCanvas || moved >= 4 || this.multiSelect) return;
-          shapeDrag = false; this._clearSnapGuides(); this._magnetTargets = null; this._dragBox = null;
+          shapeDrag = false; this._shapeDragging = false; this._clearSnapGuides(); this._magnetTargets = null; this._dragBox = null;
           this.multiSelect = true;
           if (navigator.vibrate) navigator.vibrate(15);
           if (this.onMultiArm) this.onMultiArm(true);
@@ -656,6 +667,7 @@ export class Viewport {
     const onUp = () => {
       if (!downOnCanvas) return; // ignore mouseups that didn't start on the canvas (e.g. panel clicks)
       downOnCanvas = false;
+      this._shapeDragging = false;
       clearTimeout(this._lpTimer); // a release cancels any pending long-press
       if (this._measurePending) { // measure mode: a click (not a drag) places a point
         this._measurePending = false; dragging = false; panning = false;
