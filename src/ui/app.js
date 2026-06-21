@@ -1227,8 +1227,6 @@ export class App {
     Object.keys(TEMPLATES).forEach((k) => add(`Insert ${k}`, 'ready-made', 'Add', () => A._loadTemplate(k)));
     add('Draw a sketch (extrude / revolve)', 'polygon → 3D', 'Add', () => A._startSketch());
     add('Fit to view', 'F', 'View', () => A.viewport.fitView());
-    add('Top view', '', 'View', () => A.viewport.setView('top'));
-    add('Front view', '', 'View', () => A.viewport.setView('front'));
     add('Toggle grid', 'G', 'View', () => clickBtn('#v-grid'));
     add('Toggle mm grid', '', 'View', () => clickBtn('#v-mmgrid'));
     add('Toggle light / dark theme', '', 'View', () => clickBtn('#v-theme'));
@@ -2155,8 +2153,6 @@ export class App {
     // view controls
     $('#v-fit').addEventListener('click', () => this.viewport.fitView());
     $('#rail-home')?.addEventListener('click', () => this.viewport.homeView());
-    $('#v-top').addEventListener('click', () => this.viewport.setView('top'));
-    $('#v-front').addEventListener('click', () => this.viewport.setView('front'));
     $('#v-grid').addEventListener('click', (e) => e.currentTarget.classList.toggle('on', this.viewport.toggleGrid()));
     $('#v-mmgrid')?.addEventListener('click', (e) => e.currentTarget.classList.toggle('on', this.viewport.toggleFineGrid()));
     $('#v-theme')?.addEventListener('click', () => this._setTheme(!this._lightTheme));
@@ -2245,7 +2241,6 @@ export class App {
       const lab = (t) => { const d = document.createElement('div'); d.className = 'menu-lab'; d.textContent = t; settingsHost.appendChild(d); };
       lab('Mode'); moveInto('#mode-tabs');
       lab('Level'); moveInto('#tier-switch');
-      lab('Display & view'); moveInto('#view-modal .view-body');
     }
     // panel tabs (Parts · Shapes · Settings · Edit)
     this.root.querySelectorAll('.ptab').forEach((b) => b.addEventListener('click', () => this._setPanelTab(b.dataset.ptab)));
@@ -3299,10 +3294,6 @@ export class App {
               <button class="modal-x" id="view-close" title="Close (Esc)">✕</button>
             </div>
             <div class="modal-body view-body">
-              <section class="vcat"><h4>Views</h4><div class="vgrid">
-                <button class="vbtn" id="v-top"><span class="vico">⊟</span>Top</button>
-                <button class="vbtn" id="v-front"><span class="vico">⊡</span>Front</button>
-              </div></section>
               <section class="vcat"><h4>Display</h4><div class="vgrid">
                 <button class="vbtn on" id="v-grid"><span class="vico">▦</span>Grid</button>
                 <button class="vbtn" id="v-mmgrid"><span class="vico">⊞</span>mm grid</button>
