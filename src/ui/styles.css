@@ -33,6 +33,7 @@
   --hl-str:      #8fd98f;
   --hl-kw:       #f778ba;
   --radius:    10px;
+  --rail-w:    52px;
   --mono: 'IBM Plex Mono', ui-monospace, 'SF Mono', Menlo, monospace;
   --display: 'Space Grotesk', system-ui, sans-serif;
 }
@@ -91,11 +92,34 @@ body {
 
 /* floating top bar — overlays the canvas, only the controls capture clicks */
 .topbar {
-  position: absolute; top: 0; left: 0; right: 0; z-index: 24; /* above the parts sidebar (22) so its menus aren't covered */
-  height: 46px; display: flex; align-items: center; gap: 10px; padding: 0 10px;
+  position: absolute; top: 0; left: var(--rail-w); right: 0; z-index: 24; /* clears the left rail */
+  height: 46px; display: flex; align-items: center; gap: 10px; padding: 0 12px;
   background: var(--topbar-grad);
   pointer-events: none;
 }
+
+/* left global rail (taskbar) — every global tool; selection tools stay contextual */
+.rail {
+  position: absolute; top: 0; left: 0; bottom: 0; z-index: 26;
+  width: var(--rail-w); display: flex; flex-direction: column; align-items: center;
+  gap: 4px; padding: 7px 0 10px;
+  background: var(--overlay-bg); -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px);
+  border-right: 1px solid var(--line);
+}
+.rail-brand { font-size: 18px; line-height: 1; color: var(--cyan); margin-bottom: 3px; flex: none; }
+.rail-btn {
+  width: 38px; height: 38px; flex: none; display: grid; place-items: center;
+  font-size: 16px; color: var(--ink); background: var(--btn-bg);
+  border: 1px solid var(--line); border-radius: 9px; cursor: pointer; transition: .12s;
+}
+.rail-btn:hover { border-color: var(--cyan); color: var(--cyan); }
+.rail-btn.on { background: var(--surface-2); border-color: var(--cyan); color: var(--cyan); }
+.rail-btn:disabled { opacity: .35; cursor: default; }
+.rail-btn:disabled:hover { border-color: var(--line); color: var(--ink); }
+.rail-btn.add-btn { color: var(--bg); background: var(--cyan); border-color: var(--cyan); font-size: 22px; font-weight: 600; }
+.rail-btn.add-btn:hover { filter: brightness(1.08); color: var(--bg); }
+.rail-sep { width: 24px; height: 1px; background: var(--line); margin: 3px 0; flex: none; }
+.rail-spacer { flex: 1 1 auto; }
 .topbar > * { pointer-events: auto; }
 .brand {
   font-weight: 700; letter-spacing: .14em; font-size: 14px;
@@ -182,7 +206,7 @@ body {
 .icon-btn.hidden { display: none; }
 .menu-pop button[hidden] { display: none; }
 /* ☰ app menu + ⚙ gear sit at the left of the bar, so their pops anchor left */
-#app-menu .menu-pop, #gear-menu .menu-pop { left: 0; right: auto; min-width: 188px; }
+#app-menu .menu-pop, #gear-menu .menu-pop { left: calc(100% + 6px); top: 0; right: auto; min-width: 188px; } /* open to the right of the rail */
 /* segmented controls (mode / level) reused inside the gear pop */
 .menu-pop .tabs, .menu-pop .tier-switch { width: 100%; margin: 1px 0 3px; }
 .menu-pop .tabs button, .menu-pop .tier-switch button { flex: 1; text-align: center; }
@@ -214,7 +238,7 @@ body {
   transition: transform .2s ease, width .2s ease;
 }
 .part-card.hidden { display: none; }
-.part-card.dock-left  { top: 46px; left: 0;  bottom: 0; max-height: none; border-radius: 0 12px 12px 0; }
+.part-card.dock-left  { top: 46px; left: var(--rail-w);  bottom: 0; max-height: none; border-radius: 0 12px 12px 0; }
 .part-card.dock-right { top: 46px; right: 0; bottom: 0; max-height: none; border-radius: 12px 0 0 12px; }
 .part-card.float { top: 80px; left: 80px; }
 /* collapsed: slide the whole sidebar off whichever edge it's docked to */
@@ -294,7 +318,7 @@ body {
 
 /* left drawer — a collapsible blade that overlays the full-bleed canvas */
 .panel {
-  position: absolute; top: 46px; left: 0; bottom: 0; z-index: 18;
+  position: absolute; top: 46px; left: var(--rail-w); bottom: 0; z-index: 18;
   width: var(--panel-w, 320px); max-width: 92vw;
   background: var(--panel-bg); backdrop-filter: blur(10px);
   border-right: 1px solid var(--line);
@@ -305,7 +329,7 @@ body {
 
 /* drag handle on the panel's right edge to resize it */
 #panel-resize {
-  position: absolute; top: 46px; bottom: 0; left: var(--panel-w, 320px); z-index: 19;
+  position: absolute; top: 46px; bottom: 0; left: calc(var(--rail-w) + var(--panel-w, 320px)); z-index: 19;
   width: 8px; margin-left: -4px; cursor: ew-resize; touch-action: none;
 }
 #panel-resize::after {

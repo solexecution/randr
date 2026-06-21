@@ -2154,6 +2154,7 @@ export class App {
 
     // view controls
     $('#v-fit').addEventListener('click', () => this.viewport.fitView());
+    $('#rail-home')?.addEventListener('click', () => this.viewport.homeView());
     $('#v-top').addEventListener('click', () => this.viewport.setView('top'));
     $('#v-front').addEventListener('click', () => this.viewport.setView('front'));
     $('#v-grid').addEventListener('click', (e) => e.currentTarget.classList.toggle('on', this.viewport.toggleGrid()));
@@ -3048,11 +3049,10 @@ export class App {
       <div class="stage">
         <canvas id="viewport-canvas"></canvas>
 
-        <header class="topbar">
-          <div class="brand"><span class="brand-mark">◆</span><span class="brand-name"> R<em>&amp;</em>R</span></div>
-          <span class="bar-proj" id="proj-name" title="Current project">Untitled</span>
+        <nav class="rail" id="rail" aria-label="Tools">
+          <div class="rail-brand" title="R&amp;R">◆</div>
           <div class="menu" id="app-menu">
-            <button class="icon-btn" id="app-btn" title="Menu — project, templates, export" aria-label="Menu">☰</button>
+            <button class="rail-btn" id="app-btn" title="Project · templates · export" aria-label="Menu">☰</button>
             <div class="menu-pop">
               <div class="menu-lab">Project</div>
               <button id="proj-new">New project</button>
@@ -3084,8 +3084,17 @@ export class App {
               </div>
             </div>
           </div>
+          <button class="rail-btn add-btn" id="add-open" title="Add a shape, part, or ready-made object">+</button>
+          <div class="rail-sep"></div>
+          <button class="rail-btn" id="v-undo" title="Undo (Ctrl+Z)">↶</button>
+          <button class="rail-btn" id="v-redo" title="Redo (Ctrl+Y)">↷</button>
+          <div class="rail-sep"></div>
+          <button class="rail-btn" id="rail-home" title="Home view — front, whole plate">⌂</button>
+          <button class="rail-btn" id="v-fit" title="Fit to model (F)">⤢</button>
+          <button class="rail-btn" id="view-open" title="View &amp; display">◐</button>
+          <div class="rail-sep"></div>
           <div class="menu" id="gear-menu">
-            <button class="icon-btn" id="gear-btn" title="Settings — mode, level, view" aria-label="Settings">⚙</button>
+            <button class="rail-btn" id="gear-btn" title="Mode · experience level" aria-label="Settings">⚙</button>
             <div class="menu-pop">
               <div class="menu-lab" id="mode-lab">Mode</div>
               <div class="tabs" id="mode-tabs">
@@ -3099,19 +3108,17 @@ export class App {
                 <button data-tier="pro" title="Pro — every tool: measure, layers, full control">Pro</button>
               </div>
               <div class="menu-sep"></div>
-              <button id="view-open">View &amp; display…</button>
-              <button id="panel-toggle">Show / hide panel</button>
+              <button id="panel-toggle">Show / hide code panel</button>
             </div>
           </div>
-          <button class="icon-btn" id="parts-toggle" title="Show / hide the parts panel">▤</button>
-          <button class="icon-btn add-btn" id="add-open" title="Add a shape, part, or ready-made object">+</button>
-          <div class="viewtools">
-            <button class="icon-btn" id="cmd-open" title="Find a command (Ctrl+K)">⌕</button>
-            <button class="icon-btn" id="v-undo" title="Undo (Ctrl+Z)">↶</button>
-            <button class="icon-btn" id="v-redo" title="Redo (Ctrl+Y)">↷</button>
-            <button class="icon-btn" id="v-fit" title="Fit to view (F)">⤢</button>
-          </div>
-          <div class="spacer"></div>
+          <button class="rail-btn" id="cmd-open" title="Find a command (Ctrl+K)">⌕</button>
+          <div class="rail-spacer"></div>
+          <button class="rail-btn" id="parts-toggle" title="Show / hide the parts panel">▤</button>
+          <button class="rail-btn" id="layout-toggle" title="Switch layout — inspector / bottom bar" hidden>⟷</button>
+        </nav>
+
+        <header class="topbar">
+          <span class="bar-proj" id="proj-name" title="Current project — tap to rename">Untitled</span>
         </header>
 
         <aside class="panel" id="panel">
