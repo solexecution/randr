@@ -13,6 +13,7 @@ const COLORS = {
   grid: 0x2c3036,
   gridMajor: 0x3a4048,
   gridFine: 0x2a2f34,
+  gridCm: 0x4d90e1,
   model: 0x4dd0e1,
   edge: 0x1a1d21,
   plate: 0x202428,
@@ -1329,11 +1330,21 @@ export class Viewport {
     return v;
   }
 
-  // The fine 1 mm grid (only shows while the main grid is on).
+  // The fine 1 mm grid (only shows while the main grid is on). While it's on,
+  // the 10 mm (cm) lines turn blue so they read clearly over the fine mesh.
   toggleFineGrid() {
     this._fineWanted = !this._fineWanted;
     if (this.fineGrid) this.fineGrid.visible = this._fineWanted && this.grid.visible;
+    this._setCmLinesBlue(this._fineWanted);
     return this._fineWanted;
+  }
+
+  _setCmLinesBlue(blue) {
+    const m = this.grid && this.grid.material;
+    if (!m) return;
+    m.vertexColors = !blue;                                 // blue → uniform material colour on every cm line
+    m.color.set(blue ? COLORS.gridCm : 0xffffff);           // white lets the baked grey vertex colours show again
+    m.needsUpdate = true;
   }
 
   // Overhang analysis: recolour the result mesh so steep downward faces (which
