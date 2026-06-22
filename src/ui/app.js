@@ -466,9 +466,10 @@ export class App {
 
   // Reflect edit/result on the single top-bar toggle (◧ edit ⟷ ◨ result).
   _syncViewModeBtn() {
+    const result = this.viewMode === 'result';
+    document.body.classList.toggle('view-result', result); // the floating undo/redo hide in result view
     const t = this.root.querySelector('#view-mode-toggle');
     if (!t) return;
-    const result = this.viewMode === 'result';
     t.classList.toggle('on', result);
     t.textContent = result ? '◨' : '◧';
     t.title = result ? 'Showing result — tap to edit parts' : 'Editing parts — tap to show result';
@@ -3135,8 +3136,6 @@ export class App {
             </div>
           </div>
           <button class="rail-btn add-round" id="add-open" title="Add a shape, part, or ready-made object">＋</button>
-          <button class="rail-btn" id="v-undo" title="Undo (Ctrl+Z)">↶</button>
-          <button class="rail-btn" id="v-redo" title="Redo (Ctrl+Y)">↷</button>
           </div>
 
           <div class="rail-center">
@@ -3208,6 +3207,9 @@ export class App {
             </div>
           </div>
         </nav>
+
+        <button class="edit-fab" id="v-undo" title="Undo (Ctrl+Z)">↶</button>
+        <button class="edit-fab edit-fab-r" id="v-redo" title="Redo (Ctrl+Y)">↷</button>
 
         <aside class="panel" id="panel">
           <section id="pane-code" class="pane">
