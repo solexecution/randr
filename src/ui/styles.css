@@ -253,6 +253,7 @@ body {
 .card-head-acts { display: flex; gap: 2px; flex: none; }
 .card-ic { width: 26px; height: 26px; display: grid; place-items: center; font-size: 13px; color: var(--ink-dim); background: none; border: 1px solid transparent; border-radius: 6px; cursor: pointer; }
 .card-ic:hover { color: var(--cyan); border-color: var(--line); }
+.card-ic.on { color: var(--cyan); }
 .card-body { flex: 1; overflow-y: auto; overscroll-behavior: contain; padding: 8px 10px 12px; }
 .part-card.min .card-body { display: none; }
 /* tabbed panel: tab bar + main / edit columns (edit slides out as 2nd column) */

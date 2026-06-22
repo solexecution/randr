@@ -575,7 +575,7 @@ export class App {
     this._layout = layout === 'bottom' ? 'bottom' : 'inspector';
     document.body.classList.toggle('layout-bottom', this._layout === 'bottom');
     document.body.classList.toggle('layout-inspector', this._layout === 'inspector');
-    const b = this.root.querySelector('#layout-toggle');
+    const b = this.root.querySelector('#card-layout');
     if (b) {
       b.classList.toggle('on', this._layout === 'bottom');
       b.title = this._layout === 'bottom' ? 'Bottom bar — tap for side panel' : 'Side panel — tap for bottom bar';
@@ -2178,7 +2178,7 @@ export class App {
 
     // view controls
     $('#rail-home')?.addEventListener('click', () => this.viewport.homeView());
-    $('#layout-toggle')?.addEventListener('click', () => this._toggleLayout());
+    $('#card-layout')?.addEventListener('click', () => this._toggleLayout());
     $('#v-grid').addEventListener('click', (e) => e.currentTarget.classList.toggle('on', this.viewport.toggleGrid()));
     $('#v-mmgrid')?.addEventListener('click', (e) => e.currentTarget.classList.toggle('on', this.viewport.toggleFineGrid()));
     $('#v-theme')?.addEventListener('click', () => this._setTheme(!this._lightTheme));
@@ -3145,7 +3145,6 @@ export class App {
           <button class="rail-btn" id="cmd-open" title="Find a command (Ctrl+K)">⌕</button>
           <div class="rail-spacer"></div>
           <button class="rail-btn" id="parts-toggle" title="Show / hide the parts panel">▤</button>
-          <button class="rail-btn" id="layout-toggle" title="Switch layout — side panel / bottom bar">⟷</button>
         </nav>
 
         <header class="topbar">
@@ -3175,6 +3174,7 @@ export class App {
             <span class="card-grip" title="Drag to move · snaps to either edge">⠿</span>
             <span class="card-title" id="parts-count">Parts</span>
             <span class="card-head-acts">
+              <button id="card-layout" class="card-ic" title="Side panel / bottom bar">⟷</button>
               <button id="card-snap" class="card-ic" title="Dock left / right">▣</button>
               <button id="card-min" class="card-ic" title="Collapse">«</button>
             </span>
