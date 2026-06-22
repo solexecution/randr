@@ -543,7 +543,7 @@ export class App {
     const stage = this.root.querySelector('.stage');
     if (!stage) return;
     const build = this.mode === 'build';
-    const dock = this._cardDock || 'left';
+    const dock = this._cardDock || 'right';
     const collapsed = !!this._cardCollapsed;
     // the HUD / nav-cube only need to dodge an *expanded* side dock
     const sideDock = this._layout !== 'bottom'; // the bottom sheet doesn't push the HUD/cube
@@ -559,7 +559,7 @@ export class App {
   }
 
   _saveCardDock() {
-    try { localStorage.setItem('randr.cardDock', JSON.stringify({ mode: this._cardDock || 'left', collapsed: !!this._cardCollapsed })); } catch { /* quota */ }
+    try { localStorage.setItem('randr.cardDock', JSON.stringify({ mode: this._cardDock || 'right', collapsed: !!this._cardCollapsed })); } catch { /* quota */ }
   }
 
   _initLayout() {
@@ -2218,7 +2218,7 @@ export class App {
       // the ▣ button) to snap it to the other edge. Older 'float' state → left.
       let savedDock = null;
       try { savedDock = JSON.parse(localStorage.getItem('randr.cardDock')); } catch { /* ignore */ }
-      applyDock(savedDock?.mode === 'right' ? 'right' : 'left');
+      applyDock(savedDock?.mode === 'left' ? 'left' : 'right'); // editing docks right by default
       setCardCollapsed(!!savedDock?.collapsed);
 
       let sx = 0, sy = 0, ox = 0, oy = 0, moved = false;
@@ -3074,6 +3074,7 @@ export class App {
 
         <nav class="rail" id="rail" aria-label="Tools">
           <div class="rail-brand" title="R&amp;R">◆</div>
+          <span class="bar-proj" id="proj-name" title="Current project — tap to rename">Untitled</span>
           <div class="menu" id="app-menu">
             <button class="rail-btn" id="app-btn" title="Project · templates · export" aria-label="Menu">☰</button>
             <div class="menu-pop">
@@ -3147,10 +3148,6 @@ export class App {
           <button class="rail-btn" id="parts-toggle" title="Show / hide the parts panel">▤</button>
         </nav>
 
-        <header class="topbar">
-          <span class="bar-proj" id="proj-name" title="Current project — tap to rename">Untitled</span>
-        </header>
-
         <aside class="panel" id="panel">
           <section id="pane-code" class="pane">
             <div class="pane-title">model source</div>
@@ -3169,7 +3166,7 @@ export class App {
         </aside>
         <div id="panel-resize" title="Drag to resize the panel"></div>
 
-        <div id="part-card" class="part-card dock-left hidden" role="region" aria-label="Parts and tools">
+        <div id="part-card" class="part-card dock-right hidden" role="region" aria-label="Parts and tools">
           <div class="card-head" id="card-head">
             <span class="card-grip" title="Drag to move · snaps to either edge">⠿</span>
             <span class="card-title" id="parts-count">Parts</span>

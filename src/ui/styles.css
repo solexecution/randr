@@ -33,7 +33,7 @@
   --hl-str:      #8fd98f;
   --hl-kw:       #f778ba;
   --radius:    10px;
-  --rail-w:    52px;
+  --rail-w:    0px;   /* rail is a top bar now — no left inset for panels */
   --mono: 'IBM Plex Mono', ui-monospace, 'SF Mono', Menlo, monospace;
   --display: 'Space Grotesk', system-ui, sans-serif;
 }
@@ -100,13 +100,13 @@ body {
 
 /* left global rail (taskbar) — every global tool; selection tools stay contextual */
 .rail {
-  position: absolute; top: 0; left: 0; bottom: 0; z-index: 26;
-  width: var(--rail-w); display: flex; flex-direction: column; align-items: center;
-  gap: 4px; padding: 7px 0 10px;
+  position: absolute; top: 0; left: 0; right: 0; z-index: 26;
+  height: 46px; display: flex; flex-direction: row; align-items: center;
+  gap: 5px; padding: 0 10px;
   background: var(--overlay-bg); -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px);
-  border-right: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
 }
-.rail-brand { font-size: 18px; line-height: 1; color: var(--cyan); margin-bottom: 3px; flex: none; }
+.rail-brand { font-size: 18px; line-height: 1; color: var(--cyan); margin-right: 4px; flex: none; }
 .rail-btn {
   width: 38px; height: 38px; flex: none; display: grid; place-items: center;
   font-size: 16px; color: var(--ink); background: var(--btn-bg);
@@ -118,7 +118,7 @@ body {
 .rail-btn:disabled:hover { border-color: var(--line); color: var(--ink); }
 .rail-btn.add-btn { color: var(--bg); background: var(--cyan); border-color: var(--cyan); font-size: 22px; font-weight: 600; }
 .rail-btn.add-btn:hover { filter: brightness(1.08); color: var(--bg); }
-.rail-sep { width: 24px; height: 1px; background: var(--line); margin: 3px 0; flex: none; }
+.rail-sep { width: 1px; height: 24px; background: var(--line); margin: 0 3px; flex: none; }
 .rail-spacer { flex: 1 1 auto; }
 .topbar > * { pointer-events: auto; }
 .brand {
@@ -206,7 +206,7 @@ body {
 .icon-btn.hidden { display: none; }
 .menu-pop button[hidden] { display: none; }
 /* ☰ app menu + ⚙ gear sit at the left of the bar, so their pops anchor left */
-#app-menu .menu-pop, #gear-menu .menu-pop { left: calc(100% + 6px); top: 0; right: auto; min-width: 188px; } /* open to the right of the rail */
+#app-menu .menu-pop, #gear-menu .menu-pop { left: 0; top: calc(100% + 4px); right: auto; min-width: 188px; } /* open below the top bar */
 /* segmented controls (mode / level) reused inside the gear pop */
 .menu-pop .tabs, .menu-pop .tier-switch { width: 100%; margin: 1px 0 3px; }
 .menu-pop .tabs button, .menu-pop .tier-switch button { flex: 1; text-align: center; }
@@ -308,7 +308,7 @@ body {
 
 /* shift the right-hand readout + cube clear of a right-docked card (wide only) */
 @media (min-width: 601px) {
-  .stage.cardright .hud, .stage.cardright #nav-widget { right: 340px; }
+  .stage.cardright .hud { right: 340px; } /* dodge the right panel; cube is top-left now */
 }
 /* phone: the sidebar becomes a bottom sheet so the canvas keeps the width */
 @media (max-width: 600px) {
@@ -769,7 +769,7 @@ input[type=range]::-moz-range-thumb {
    The wrapper ignores pointer events so empty areas still orbit the scene;
    only the cube / axis / buttons capture taps. */
 #nav-widget {
-  position: absolute; top: 54px; right: 12px; z-index: 16;
+  position: absolute; top: 56px; left: 12px; z-index: 16;
   display: flex; flex-direction: column; align-items: center; gap: 2px;
   pointer-events: none; touch-action: manipulation;
 }
