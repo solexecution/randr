@@ -3088,8 +3088,7 @@ export class App {
         <canvas id="viewport-canvas"></canvas>
 
         <nav class="rail" id="rail" aria-label="Tools">
-          <div class="rail-brand" title="R&amp;R">◆</div>
-          <span class="bar-proj" id="proj-name" title="Current project — tap to rename">Untitled</span>
+          <div class="rail-left">
           <div class="menu" id="app-menu">
             <button class="rail-btn" id="app-btn" title="Project · templates · export" aria-label="Menu">☰</button>
             <div class="menu-pop">
@@ -3126,23 +3125,20 @@ export class App {
               <button id="help-btn">Code help</button>
             </div>
           </div>
-          <button class="rail-btn add-btn wide" id="add-open" title="Add a shape, part, or ready-made object">＋ Add</button>
-          <div class="rail-sep"></div>
+          <button class="rail-btn add-round" id="add-open" title="Add a shape, part, or ready-made object">＋</button>
           <button class="rail-btn" id="v-undo" title="Undo (Ctrl+Z)">↶</button>
           <button class="rail-btn" id="v-redo" title="Redo (Ctrl+Y)">↷</button>
-          <div class="rail-sep"></div>
+          </div>
+
+          <span class="bar-proj" id="proj-name" title="Current project — tap to rename">Untitled</span>
+
+          <div class="rail-right">
           <button class="rail-btn" id="rail-home" title="Home — frame the whole plate">⌂</button>
           <div class="rail-sep"></div>
-          <div class="menu" id="view-menu">
-            <button class="rail-btn wide" id="view-btn" title="Grid &amp; display">View ▾</button>
-            <div class="menu-pop">
-              <div class="menu-lab">Display</div>
-              <button id="v-grid" class="on">▦ Grid</button>
-              <button id="v-mmgrid">⊞ mm grid</button>
-              <button id="v-wire">◇ Wireframe</button>
-              <button id="v-snap" class="on">⌗ Snap to 1 mm</button>
-            </div>
-          </div>
+          <button class="rail-btn on" id="v-grid" title="Grid">▦</button>
+          <button class="rail-btn" id="v-mmgrid" title="mm grid">⊞</button>
+          <button class="rail-btn" id="v-wire" title="Wireframe">◇</button>
+          <button class="rail-btn on" id="v-snap" title="Snap to 1 mm">⌗</button>
           <button class="rail-btn" id="v-theme" title="Dark / light mode">◐</button>
           <button class="rail-btn wide" id="view-open" title="Print prep &amp; inspect">⤓ Prep</button>
           <div class="rail-sep"></div>
@@ -3164,8 +3160,8 @@ export class App {
             </div>
           </div>
           <button class="rail-btn" id="cmd-open" title="Find a command (Ctrl+K)">⌕</button>
-          <div class="rail-spacer"></div>
           <button class="rail-btn wide" id="parts-toggle" title="Show / hide the parts panel">▤ Parts</button>
+          </div>
         </nav>
 
         <aside class="panel" id="panel">
