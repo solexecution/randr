@@ -14,9 +14,58 @@ import { exportSTL, exportOBJ, export3MF, export3MFColored, triggerDownload } fr
 import { Viewport, BUILD_VOLUME } from './viewport.js';
 import { buildTreeToSource, buildColoredParts, effField, supportsClearance, isShellable, supportsFillet, isFastener, applyMetricSize, currentMetricSize, METRIC_SIZES, BuildTree, setNodeKind } from './buildtree.js';
 import { sourceToNodes } from './importBuild.js';
+import { shapeArt } from './shapeart.js';
 import { RECIPES } from './recipes.js';
 import gcodeHelp from '../help/gcode.md?raw';
 import * as Projects from './projects.js';
+
+// --- Add gallery -----------------------------------------------------------
+// Each tile is a labelled SVG picture of the shape/part. Items carry one of
+// add (data-add primitive), tpl (data-tpl template), or id (special action);
+// `art` picks the picture (defaults to the add/tpl key). Categories keep the
+// same data-cat values so tier gating + search keep working.
+const _esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+const _a = (add, label, art, title) => ({ add, label: label || add, art: art || add, title });
+const _t = (tpl, art, label) => ({ tpl, label: label || tpl, art });
+const ADD_GALLERY = [
+  ['draw', 'Draw', [{ id: 'add-sketch', art: 'sketch', label: 'sketch & extrude', title: 'Draw a 2D outline on the plate and pull it into 3D' }]],
+  ['basic', 'Basic shapes', [
+    _a('box'), _a('cylinder'), _a('sphere'), _a('cone'), _a('pyramid'), _a('prism'),
+    _a('gear'), _a('wedge'), _a('torus'), _a('dome'), _a('slot'), _a('star'),
+  ]],
+  ['rounded', 'Rounded & chamfered', [
+    _a('roundedBox', 'round box'), _a('roundedCylinder', 'round cyl'),
+    _a('chamferedBox', 'cham box'), _a('chamferedCylinder', 'cham cyl'), _a('tube'),
+  ]],
+  ['text', 'Text', [
+    _a('text'),
+    { id: 'engrave-text', art: 'engrave', label: 'on a face…' },
+  ]],
+  ['fasteners', 'Fasteners', [
+    _a('bolt'), _a('nut'), _a('thread', 'rod'),
+    _a('counterbore', "c'bore", 'counterbore', 'Counterbore hole (cap screw sits below)'),
+    _a('countersink', "c'sink", 'countersink', 'Countersink hole (flat-head sits flush)'),
+    _a('insertHole', 'insert', 'insertHole', 'Heat-set insert pocket'),
+    _a('nutTrap', 'nut trap', 'nutTrap', 'Captive nut trap (hex pocket + bolt shaft)'),
+    _a('keyhole', 'keyhole', 'keyhole', 'Keyhole slot — hang the print on a screw'),
+  ]],
+  ['ready', 'Ready-made · adjustable', [
+    _t('soap dish', 'soapDish'), _t('pen cup', 'penCup'), _t('coaster', 'coaster'),
+    _t('stacking bin', 'stackingBin'), _t('bolt & nut', 'bolt_nut'), _t('washer', 'washer'),
+    _t('L-bracket', 'lBracket'), _t('knob', 'knob'), _t('fit test', 'fitTest'),
+  ]],
+  ['import', 'Import', [{ id: 'modal-import', art: 'import', label: 'STL / OBJ / 3MF…' }]],
+];
+function _addTile(it) {
+  const attr = it.add ? ` data-add="${it.add}"` : it.tpl ? ` data-tpl="${_esc(it.tpl)}"` : it.id ? ` id="${it.id}"` : '';
+  const title = it.title ? ` title="${_esc(it.title)}"` : '';
+  return `<button class="add-tile"${attr}${title}><span class="tile-art">${shapeArt(it.art)}</span><span class="tile-lab">${_esc(it.label)}</span></button>`;
+}
+function addGalleryHTML() {
+  return ADD_GALLERY.map(([cat, title, items]) =>
+    `<section class="cat" data-cat="${cat}"><h4>${_esc(title)}</h4><div class="cat-grid">${items.map(_addTile).join('')}</div></section>`,
+  ).join('');
+}
 
 // --- code-editor syntax highlighting ---------------------------------------
 // Tokenise the mini-language for a colour layer behind the textarea. Keeps
@@ -390,7 +439,7 @@ export class App {
       this.viewport.setGhost(this._wantGhost() ? result : null);
     } else {
       this.viewport.setEditMode(false);
-      this.viewport.setModel(result || null);
+      this._renderResult();
       this.viewport.setGhost(null);
     }
 
@@ -446,6 +495,27 @@ export class App {
     return this.buildTree.nodes.some((n) => !n.hidden && n.group != null && n.groupMode && n.groupMode !== 'union');
   }
 
+  // Render the merged result solid. In build mode each top-level part keeps its
+  // own colour (compiled the same way coloured 3MF export does) so edit->result
+  // only cuts holes + locks parts rather than flipping everything to flat teal.
+  // Code mode (and any compile failure) falls back to the single teal solid.
+  _renderResult() {
+    if (this.mode === 'build' && this.currentModel) {
+      const parts = buildColoredParts(this.buildTree)
+        .map((p) => {
+          try { const m = compile(p.source, {}).result; return m ? { manifold: m, color: p.color } : null; }
+          catch { return null; }
+        })
+        .filter(Boolean);
+      if (parts.length) {
+        this.viewport.setColoredModel(parts);
+        for (const p of parts) { try { p.manifold.delete(); } catch { /* freed */ } }
+        return;
+      }
+    }
+    this.viewport.setModel(this.currentModel || null);
+  }
+
   // Toggle the build view: 'edit' (parts + result ghost) vs 'result' (the
   // combined solid). The toggle is how you get back to editing — no separate
   // enter-group step needed.
@@ -455,7 +525,7 @@ export class App {
     if (this.mode !== 'build') return;
     if (mode === 'result') {
       this.viewport.setEditMode(false);
-      this.viewport.setModel(this.currentModel || null);
+      this._renderResult();
       this.viewport.setGhost(null);
     } else {
       this.viewport.setEditMode(true);
@@ -3126,7 +3196,6 @@ export class App {
               <button id="help-btn">Code help</button>
             </div>
           </div>
-          <button class="rail-btn add-round" id="add-open" title="Add a shape, part, or ready-made object">＋</button>
           </div>
 
           <div class="rail-center">
@@ -3155,6 +3224,7 @@ export class App {
           <div class="rail-right">
           <button class="rail-btn" id="cmd-open" title="Find a command (Ctrl+K)">⌕</button>
           <button class="rail-btn wide" id="parts-toggle" title="Show / hide the parts panel">▤ Parts</button>
+          <button class="rail-btn add-round" id="add-open" title="Add a shape, part, or ready-made object">＋</button>
           </div>
         </nav>
 
@@ -3410,79 +3480,7 @@ export class App {
             <div class="modal-body">
               <input id="add-search" class="add-search" type="text" placeholder="🔍 Search shapes, parts, fasteners…" spellcheck="false" autocomplete="off">
               <div id="add-empty" class="add-empty-msg hidden">No matches</div>
-              <section class="cat" data-cat="draw">
-                <h4>Draw</h4>
-                <div class="cat-grid">
-                  <button id="add-sketch" title="Draw a 2D outline on the plate and pull it into 3D">✎ sketch &amp; extrude</button>
-                </div>
-              </section>
-              <section class="cat" data-cat="basic">
-                <h4>Basic shapes</h4>
-                <div class="cat-grid">
-                  <button data-add="box">□ box</button>
-                  <button data-add="cylinder">▮ cylinder</button>
-                  <button data-add="sphere">● sphere</button>
-                  <button data-add="cone">▲ cone</button>
-                  <button data-add="pyramid">◭ pyramid</button>
-                  <button data-add="prism">⬡ prism</button>
-                  <button data-add="gear">⚙ gear</button>
-                  <button data-add="wedge">◣ wedge</button>
-                  <button data-add="torus">◍ torus</button>
-                  <button data-add="dome">◗ dome</button>
-                  <button data-add="slot">▭ slot</button>
-                  <button data-add="star">★ star</button>
-                </div>
-              </section>
-              <section class="cat" data-cat="rounded">
-                <h4>Rounded &amp; chamfered</h4>
-                <div class="cat-grid">
-                  <button data-add="roundedBox">▢ round box</button>
-                  <button data-add="roundedCylinder">▯ round cyl</button>
-                  <button data-add="chamferedBox">◇ cham box</button>
-                  <button data-add="chamferedCylinder">⬢ cham cyl</button>
-                  <button data-add="tube">◎ tube</button>
-                </div>
-              </section>
-              <section class="cat" data-cat="text">
-                <h4>Text</h4>
-                <div class="cat-grid">
-                  <button data-add="text">T text</button>
-                  <button id="engrave-text">✎ on a face…</button>
-                </div>
-              </section>
-              <section class="cat" data-cat="fasteners">
-                <h4>Fasteners</h4>
-                <div class="cat-grid">
-                  <button data-add="bolt">🔩 bolt</button>
-                  <button data-add="nut">⬢ nut</button>
-                  <button data-add="thread">▎ rod</button>
-                  <button data-add="counterbore" title="Counterbore hole (cap screw sits below)">⌽ c'bore</button>
-                  <button data-add="countersink" title="Countersink hole (flat-head sits flush)">⌵ c'sink</button>
-                  <button data-add="insertHole" title="Heat-set insert pocket">◎ insert</button>
-                  <button data-add="nutTrap" title="Captive nut trap (hex pocket + bolt shaft)">⬡ nut trap</button>
-                  <button data-add="keyhole" title="Keyhole slot — hang the print on a screw">🔑 keyhole</button>
-                </div>
-              </section>
-              <section class="cat" data-cat="ready">
-                <h4>Ready-made · adjustable</h4>
-                <div class="cat-grid">
-                  <button data-tpl="soap dish">Soap dish</button>
-                  <button data-tpl="pen cup">Pen cup</button>
-                  <button data-tpl="coaster">Coaster</button>
-                  <button data-tpl="stacking bin">Stacking bin</button>
-                  <button data-tpl="bolt &amp; nut">Bolt &amp; nut</button>
-                  <button data-tpl="washer">Washer</button>
-                  <button data-tpl="L-bracket">L-bracket</button>
-                  <button data-tpl="knob">Knob</button>
-                  <button data-tpl="fit test">Fit test 📏</button>
-                </div>
-              </section>
-              <section class="cat" data-cat="import">
-                <h4>Import</h4>
-                <div class="cat-grid">
-                  <button id="modal-import">⬇ STL / OBJ / 3MF…</button>
-                </div>
-              </section>
+              ${addGalleryHTML()}
             </div>
           </div>
         </div>

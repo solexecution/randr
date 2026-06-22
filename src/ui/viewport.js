@@ -1026,14 +1026,23 @@ export class Viewport {
 
   // --- code mode: one merged solid -----------------------------------------
 
-  setModel(manifold, { showEdges = true } = {}) {
-    if (this._measure && this._measure.a) this._clearMeasure(); // points reference old geometry
-    this.clearHighlight(); // its geometry/material are ours to free before the wipe
+  // Empty modelGroup, freeing geometries and any per-mesh (non-shared)
+  // materials. Shared materials (model/overhang/edge) are kept — only the
+  // unique ones made by setColoredModel/highlightSolid get disposed.
+  _wipeModelGroup() {
     while (this.modelGroup.children.length) {
       const child = this.modelGroup.children.pop();
       child.geometry?.dispose();
+      const m = child.material;
+      if (m && m !== this.material && m !== this.overhangMaterial && m !== this.edgeMaterial) m.dispose();
       this.modelGroup.remove(child);
     }
+  }
+
+  setModel(manifold, { showEdges = true } = {}) {
+    if (this._measure && this._measure.a) this._clearMeasure(); // points reference old geometry
+    this.clearHighlight(); // its geometry/material are ours to free before the wipe
+    this._wipeModelGroup();
     if (!manifold) return;
 
     const geom = manifoldToGeometry(manifold);
@@ -1049,6 +1058,34 @@ export class Viewport {
     geom.computeBoundingBox();
     const bb = geom.boundingBox;
     this.modelGroup.position.y = -bb.min.y; // drop onto the plate
+  }
+
+  // Like setModel, but draws each top-level part in its own colour (build
+  // mode's result view) so toggling edit->result only cuts holes + locks the
+  // parts, instead of flipping everything to one flat teal. Holes are already
+  // subtracted per part. parts: [{ manifold, color }].
+  setColoredModel(parts, { showEdges = true } = {}) {
+    if (this._measure && this._measure.a) this._clearMeasure();
+    this.clearHighlight();
+    this._wipeModelGroup();
+    if (!parts || !parts.length) return;
+
+    let minY = Infinity;
+    for (const p of parts) {
+      if (!p || !p.manifold) continue;
+      const geom = manifoldToGeometry(p.manifold);
+      geom.rotateX(-Math.PI / 2); // Manifold Z-up -> scene Y-up
+      const mat = this.overhangView
+        ? this.overhangMaterial
+        : new THREE.MeshStandardMaterial({
+            color: p.color || COLORS.model, metalness: 0.1, roughness: 0.55,
+          });
+      this.modelGroup.add(new THREE.Mesh(geom, mat));
+      if (showEdges) this.modelGroup.add(new THREE.LineSegments(edgesGeometry(geom), this.edgeMaterial));
+      geom.computeBoundingBox();
+      if (geom.boundingBox.min.y < minY) minY = geom.boundingBox.min.y;
+    }
+    this.modelGroup.position.y = Number.isFinite(minY) ? -minY : 0; // drop onto the plate
   }
 
   // A translucent overlay of the combined result, shown over the editable parts

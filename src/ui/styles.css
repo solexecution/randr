@@ -596,15 +596,19 @@ input[type=range]::-moz-range-thumb {
 .modal-body { padding: 2px 14px 14px; overflow-y: auto; }
 .cat { margin-top: 7px; }
 .cat h4 { font-family: var(--mono); font-size: 9px; letter-spacing: .12em; text-transform: uppercase; color: var(--ink-dim); margin: 0 0 4px; font-weight: 600; }
-.cat-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(84px, 1fr)); gap: 5px; }
+.cat-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(92px, 1fr)); gap: 8px; }
 .cat-grid button {
-  display: flex; align-items: center; gap: 5px; min-height: 34px; /* compact but stays tap-friendly */
-  font-family: var(--mono); font-size: 10.5px; color: var(--ink); text-align: left; line-height: 1.2;
-  background: var(--surface-2); border: 1px solid var(--line); border-radius: 6px;
-  padding: 5px 7px; cursor: pointer; transition: border-color .12s, color .12s;
+  display: flex; flex-direction: column; align-items: center; justify-content: flex-start; gap: 6px;
+  font-family: var(--mono); font-size: 11px; color: var(--ink); text-align: center; line-height: 1.2;
+  background: var(--surface-2); border: 1px solid var(--line); border-radius: 9px;
+  padding: 10px 6px 8px; cursor: pointer; transition: border-color .12s, color .12s, background .12s;
   white-space: normal; /* wrap instead of clipping long labels */
 }
-.cat-grid button:hover { border-color: var(--cyan); color: var(--cyan); }
+.cat-grid button:hover { border-color: var(--cyan); color: var(--cyan); background: var(--surface); }
+/* picture tiles: the SVG sits above its label */
+.tile-art { display: flex; align-items: center; justify-content: center; width: 100%; height: 46px; pointer-events: none; }
+.shape-art { width: 54px; height: 46px; display: block; }
+.tile-lab { display: block; }
 
 /* Add-modal: wider panel packs more tiles per row (fewer rows = less scroll) */
 #add-modal .modal-panel { width: 560px; }
@@ -973,8 +977,10 @@ input[type=range]::-moz-range-thumb {
 .tier-simple #add-modal [data-cat="rounded"],
 .tier-simple #add-modal [data-cat="fasteners"],
 .tier-simple #add-modal [data-cat="import"] { display: none; }
-.tier-simple #add-modal .cat-grid { grid-template-columns: repeat(auto-fill, minmax(118px, 1fr)); gap: 8px; }
-.tier-simple #add-modal .cat-grid button { font-size: 13px; padding: 12px 11px; text-align: center; white-space: normal; }
+.tier-simple #add-modal .cat-grid { grid-template-columns: repeat(auto-fill, minmax(132px, 1fr)); gap: 10px; }
+.tier-simple #add-modal .cat-grid button { font-size: 13px; padding: 14px 10px 11px; text-align: center; white-space: normal; }
+.tier-simple #add-modal .tile-art { height: 60px; }
+.tier-simple #add-modal .shape-art { width: 72px; height: 60px; }
 
 @media (max-width: 720px) {
   .tier-switch button { padding: 5px 6px; font-size: 9px; }
