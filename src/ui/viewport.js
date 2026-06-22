@@ -1071,7 +1071,7 @@ export class Viewport {
     if (!parts || !parts.length) return;
 
     let minY = Infinity;
-    for (const p of parts) {
+    for (const [i, p] of parts.entries()) {
       if (!p || !p.manifold) continue;
       const geom = manifoldToGeometry(p.manifold);
       geom.rotateX(-Math.PI / 2); // Manifold Z-up -> scene Y-up
@@ -1080,6 +1080,16 @@ export class Viewport {
         : new THREE.MeshStandardMaterial({
             color: p.color || COLORS.model, metalness: 0.1, roughness: 0.55,
           });
+      // Parts can abut or overlap (e.g. a post resting on a slab). They are
+      // drawn as separate solids, so their coincident faces z-fight into a
+      // shimmering "uneven surface". A small per-part depth bias makes later
+      // parts win those ties consistently instead of flickering. Purely visual —
+      // geometry and exports are unchanged. (Overhang view shares one material.)
+      if (!this.overhangView && i > 0) {
+        mat.polygonOffset = true;
+        mat.polygonOffsetFactor = -i;
+        mat.polygonOffsetUnits = -i;
+      }
       this.modelGroup.add(new THREE.Mesh(geom, mat));
       if (showEdges) this.modelGroup.add(new THREE.LineSegments(edgesGeometry(geom), this.edgeMaterial));
       geom.computeBoundingBox();
