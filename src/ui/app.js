@@ -3129,7 +3129,28 @@ export class App {
           <button class="rail-btn" id="v-redo" title="Redo (Ctrl+Y)">↷</button>
           </div>
 
-          <span class="bar-proj" id="proj-name" title="Current project — tap to rename">Untitled</span>
+          <div class="rail-center">
+            <span class="bar-proj" id="proj-name" title="Current project — tap to rename">Untitled</span>
+            <div class="hud collapsed" id="hud">
+              <div class="hud-head">
+                <span class="hud-headline">
+                  <span id="status-dot" class="status-dot state-empty"></span>
+                  <span id="status-label">empty</span>
+                  <span class="hud-title">readout</span>
+                </span>
+                <button class="hud-x" id="hud-toggle" title="Show readout">⌄</button>
+              </div>
+              <div class="hud-body">
+                <div class="hud-row"><span class="hud-key">size</span><span id="hud-dims">—</span></div>
+                <div class="hud-row hidden" id="hud-sel-row"><span class="hud-key">select</span><span id="hud-sel">—</span></div>
+                <div class="hud-row"><span class="hud-key">volume</span><span id="hud-vol">—</span></div>
+                <div class="hud-row"><span class="hud-key">mesh</span><span id="hud-tris">—</span></div>
+                <div class="hud-row"><span class="hud-key">state</span><span id="hud-watertight" class="hud-ok">—</span></div>
+                <div class="hud-row"><span class="hud-key">fit</span><span id="hud-fit" class="hud-ok">—</span></div>
+                <div class="hud-row"><span class="hud-key">filament</span><span id="hud-filament" title="Solid PLA at 1.24 g/cm³ on 1.75 mm filament — sparse infill prints use less">—</span></div>
+              </div>
+            </div>
+          </div>
 
           <div class="rail-right">
           <button class="rail-btn" id="rail-home" title="Home — frame the whole plate">⌂</button>
@@ -3466,26 +3487,6 @@ export class App {
                 </div>
               </section>
             </div>
-          </div>
-        </div>
-
-        <div class="hud collapsed" id="hud">
-          <div class="hud-head">
-            <span class="hud-headline">
-              <span id="status-dot" class="status-dot state-empty"></span>
-              <span id="status-label">empty</span>
-              <span class="hud-title">readout</span>
-            </span>
-            <button class="hud-x" id="hud-toggle" title="Collapse">⌄</button>
-          </div>
-          <div class="hud-body">
-            <div class="hud-row"><span class="hud-key">size</span><span id="hud-dims">—</span></div>
-            <div class="hud-row hidden" id="hud-sel-row"><span class="hud-key">select</span><span id="hud-sel">—</span></div>
-            <div class="hud-row"><span class="hud-key">volume</span><span id="hud-vol">—</span></div>
-            <div class="hud-row"><span class="hud-key">mesh</span><span id="hud-tris">—</span></div>
-            <div class="hud-row"><span class="hud-key">state</span><span id="hud-watertight" class="hud-ok">—</span></div>
-            <div class="hud-row"><span class="hud-key">fit</span><span id="hud-fit" class="hud-ok">—</span></div>
-            <div class="hud-row"><span class="hud-key">filament</span><span id="hud-filament" title="Solid PLA at 1.24 g/cm³ on 1.75 mm filament — sparse infill prints use less">—</span></div>
           </div>
         </div>
 
