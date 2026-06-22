@@ -2087,6 +2087,8 @@ export class App {
     const appMenu = $('#app-menu');
     const gearMenu = $('#gear-menu');
     $('#app-btn').addEventListener('click', (e) => { e.stopPropagation(); this.root.querySelectorAll('.menu-fly.open').forEach((f) => f.classList.remove('open')); this._renderRecentMenu(); openMenu(appMenu); });
+    const viewMenu = $('#view-menu');
+    if (viewMenu) $('#view-btn').addEventListener('click', (e) => { e.stopPropagation(); openMenu(viewMenu); });
     $('#gear-btn').addEventListener('click', () => this._openModal('#settings-modal'));
     $('#settings-close')?.addEventListener('click', () => this._closeModal('#settings-modal'));
     const settingsModal = $('#settings-modal');
@@ -3110,20 +3112,25 @@ export class App {
               <button id="help-btn">Code help</button>
             </div>
           </div>
-          <button class="rail-btn add-btn" id="add-open" title="Add a shape, part, or ready-made object">+</button>
+          <button class="rail-btn add-btn wide" id="add-open" title="Add a shape, part, or ready-made object">＋ Add</button>
           <div class="rail-sep"></div>
           <button class="rail-btn" id="v-undo" title="Undo (Ctrl+Z)">↶</button>
           <button class="rail-btn" id="v-redo" title="Redo (Ctrl+Y)">↷</button>
           <div class="rail-sep"></div>
           <button class="rail-btn" id="rail-home" title="Home — frame the whole plate">⌂</button>
           <div class="rail-sep"></div>
-          <button class="rail-btn on" id="v-grid" title="Grid">▦</button>
-          <button class="rail-btn" id="v-mmgrid" title="mm grid">⊞</button>
-          <button class="rail-btn" id="v-wire" title="Wireframe">◇</button>
-          <button class="rail-btn on" id="v-snap" title="Snap to 1 mm">⌗</button>
+          <div class="menu" id="view-menu">
+            <button class="rail-btn wide" id="view-btn" title="Grid &amp; display">View ▾</button>
+            <div class="menu-pop">
+              <div class="menu-lab">Display</div>
+              <button id="v-grid" class="on">▦ Grid</button>
+              <button id="v-mmgrid">⊞ mm grid</button>
+              <button id="v-wire">◇ Wireframe</button>
+              <button id="v-snap" class="on">⌗ Snap to 1 mm</button>
+            </div>
+          </div>
           <button class="rail-btn" id="v-theme" title="Dark / light mode">◐</button>
-          <div class="rail-sep"></div>
-          <button class="rail-btn" id="view-open" title="Print prep &amp; inspect">⤓</button>
+          <button class="rail-btn wide" id="view-open" title="Print prep &amp; inspect">⤓ Prep</button>
           <div class="rail-sep"></div>
           <div class="menu" id="gear-menu">
             <button class="rail-btn" id="gear-btn" title="Mode · experience level" aria-label="Settings">⚙</button>
@@ -3145,7 +3152,7 @@ export class App {
           </div>
           <button class="rail-btn" id="cmd-open" title="Find a command (Ctrl+K)">⌕</button>
           <div class="rail-spacer"></div>
-          <button class="rail-btn" id="parts-toggle" title="Show / hide the parts panel">▤</button>
+          <button class="rail-btn wide" id="parts-toggle" title="Show / hide the parts panel">▤ Parts</button>
         </nav>
 
         <aside class="panel" id="panel">
