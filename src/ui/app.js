@@ -265,7 +265,7 @@ export class App {
   constructor(root) {
     this.root = root;
     this.mode = 'code';            // 'code' | 'build'
-    this.tier = 'maker';           // experience level (set for real by _initTier)
+    this.tier = 'pro';             // experience level (set for real by _initTier)
     this._sketchMode = 'extrude';  // sketch tool: 'extrude' | 'revolve'
     this.source = STARTER;
     this.overrides = {};
@@ -1189,20 +1189,21 @@ export class App {
     if (saved === 'simple' || saved === 'maker' || saved === 'pro') {
       this._setTier(saved);
     } else {
-      this._setTier('maker', { persist: false }); // sane default behind the chooser
+      this._setTier('simple', { persist: false }); // sane default behind the chooser
       this._openModal('#tier-modal');             // first run — let them pick
     }
   }
 
   _setTier(tier, { persist = true } = {}) {
-    if (tier !== 'simple' && tier !== 'maker' && tier !== 'pro') tier = 'maker';
+    if (tier === 'maker') tier = 'pro';               // Maker folded into Pro
+    if (tier !== 'simple' && tier !== 'pro') tier = 'pro';
     // Simple hides the code editor — move to the visual builder first, but never
     // strand a code-only design we can't represent as parts.
     if (tier === 'simple' && this.mode === 'code') {
       let convertible = true;
       try { sourceToNodes(this.source); } catch { convertible = false; }
       if (convertible) this._switchMode('build');
-      else { tier = 'maker'; this._toast('This design is code-only — opened in Maker so you can keep editing it.'); }
+      else { tier = 'pro'; this._toast('This design is code-only — opened in Pro so you can keep editing it.'); }
     }
     this.tier = tier;
     this.root.classList.remove('tier-simple', 'tier-maker', 'tier-pro');
@@ -1279,7 +1280,6 @@ export class App {
     add('Save project as…', '', 'Project', () => A._promptName('Save project as', A.project ? A.project.name : '', (n) => A._doSaveAs(n)));
     add('Open / manage projects…', '', 'Project', () => { A._renderProjectList(); A._openModal('#proj-modal'); });
     add('Switch to Simple level', 'pick & size', 'Level', () => A._setTier('simple'));
-    add('Switch to Maker level', 'build from parts', 'Level', () => A._setTier('maker'));
     add('Switch to Pro level', 'every tool', 'Level', () => A._setTier('pro'));
     return c;
   }
@@ -2044,7 +2044,7 @@ export class App {
       tierModal.querySelectorAll('[data-tier]').forEach((b) =>
         b.addEventListener('click', () => { this._setTier(b.dataset.tier); this._closeModal('#tier-modal'); }));
       tierModal.addEventListener('mousedown', (e) => {
-        if (e.target === tierModal) { this._setTier('maker'); this._closeModal('#tier-modal'); }
+        if (e.target === tierModal) { this._setTier('simple'); this._closeModal('#tier-modal'); }
       });
     }
 
@@ -2445,7 +2445,7 @@ export class App {
         if (ctx && !ctx.classList.contains('hidden')) { e.preventDefault(); ctx.classList.add('hidden'); return; }
         if (this.viewport && this.viewport._sketch?.on) { e.preventDefault(); this._cancelSketchUI(); return; }
         const tm = this.root.querySelector('#tier-modal');
-        if (tm && !tm.classList.contains('hidden')) { e.preventDefault(); this._setTier('maker'); tm.classList.add('hidden'); return; }
+        if (tm && !tm.classList.contains('hidden')) { e.preventDefault(); this._setTier('simple'); tm.classList.add('hidden'); return; }
         for (const sel of ['#part-modal', '#cmd-modal', '#view-modal', '#settings-modal', '#name-modal', '#proj-modal', '#add-modal', '#help-modal']) {
           const m = this.root.querySelector(sel);
           if (m && !m.classList.contains('hidden')) { e.preventDefault(); if (sel === '#name-modal') this._nameCb = null; m.classList.add('hidden'); return; }
@@ -3148,8 +3148,7 @@ export class App {
               <div class="menu-lab">Level</div>
               <div class="tier-switch" id="tier-switch" role="group" aria-label="Experience level">
                 <button data-tier="simple" title="Simple — pick a thing and size it">Simple</button>
-                <button data-tier="maker" title="Maker — build from parts, plus code">Maker</button>
-                <button data-tier="pro" title="Pro — every tool: measure, layers, full control">Pro</button>
+                <button data-tier="pro" title="Pro — build from parts, measure, code, every tool">Pro</button>
               </div>
               <div class="menu-sep"></div>
               <button id="panel-toggle">Show / hide code panel</button>
@@ -3374,15 +3373,10 @@ export class App {
                   <span class="tier-name">Simple</span>
                   <span class="tier-desc">Pick a thing, set the size, print. No clutter, nothing to break.</span>
                 </button>
-                <button class="tier-card" data-tier="maker">
-                  <span class="tier-emoji">🔵</span>
-                  <span class="tier-name">Maker</span>
-                  <span class="tier-desc">Build from parts — combine, align, fit, hollow. Code pane too.</span>
-                </button>
                 <button class="tier-card" data-tier="pro">
                   <span class="tier-emoji">🟣</span>
                   <span class="tier-name">Pro</span>
-                  <span class="tier-desc">Everything, plus measure, layer preview and the precision tools.</span>
+                  <span class="tier-desc">Build from parts, combine, align, code, measure — every tool.</span>
                 </button>
               </div>
             </div>

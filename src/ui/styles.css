@@ -311,7 +311,7 @@ body {
 
 /* shift the right-hand readout + cube clear of a right-docked card (wide only) */
 @media (min-width: 601px) {
-  .stage.cardright .hud { right: 340px; } /* dodge the right panel; cube is top-left now */
+  /* readout sits top-left under the cube now — no panel dodge needed */
 }
 /* phone: the sidebar becomes a bottom sheet so the canvas keeps the width */
 @media (max-width: 600px) {
@@ -794,7 +794,7 @@ input[type=range]::-moz-range-thumb {
 #nav-axis { width: 48px; height: 48px; cursor: pointer; pointer-events: auto; }
 
 .hud {
-  position: absolute; top: 8px; right: 12px; left: auto; z-index: 25;
+  position: absolute; top: 220px; left: 12px; right: auto; z-index: 25;
   background: var(--overlay-bg); backdrop-filter: blur(8px);
   border: 1px solid var(--line); border-radius: 10px;
   padding: 8px 12px 10px; min-width: 178px;
