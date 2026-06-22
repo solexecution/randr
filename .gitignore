@@ -6,3 +6,10 @@ Forge-CAD.html
 *.log
 .DS_Store
 Thumbs.db
+
+# test artifacts
+/test-results/
+/playwright-report/
+/playwright/.cache/
+/coverage/
+.vitest/
