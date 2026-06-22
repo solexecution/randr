@@ -2104,8 +2104,8 @@ export class App {
     const appMenu = $('#app-menu');
     const gearMenu = $('#gear-menu');
     $('#app-btn').addEventListener('click', (e) => { e.stopPropagation(); this.root.querySelectorAll('.menu-fly.open').forEach((f) => f.classList.remove('open')); this._renderRecentMenu(); openMenu(appMenu); });
-    const viewMenu = $('#view-menu');
-    if (viewMenu) $('#view-btn').addEventListener('click', (e) => { e.stopPropagation(); openMenu(viewMenu); });
+    const toolsMore = $('#tools-more');
+    if (toolsMore) $('#tools-more-btn').addEventListener('click', (e) => { e.stopPropagation(); openMenu(toolsMore); });
     $('#gear-btn').addEventListener('click', () => this._openModal('#settings-modal'));
     $('#settings-close')?.addEventListener('click', () => this._closeModal('#settings-modal'));
     const settingsModal = $('#settings-modal');
@@ -3163,21 +3163,6 @@ export class App {
           </div>
 
           <div class="rail-right">
-          <button class="rail-btn" id="rail-home" title="Home — frame the whole plate">⌂</button>
-          <div class="rail-sep"></div>
-          <button class="rail-btn on" id="v-grid" title="Grid">▦</button>
-          <button class="rail-btn" id="v-mmgrid" title="mm grid">⊞</button>
-          <button class="rail-btn" id="v-wire" title="Wireframe">◇</button>
-          <button class="rail-btn on" id="v-snap" title="Snap to 1 mm">⌗</button>
-          <button class="rail-btn" id="v-theme" title="Dark / light mode">◐</button>
-          <button class="rail-btn" id="view-mode-toggle" title="Editing parts — tap to show result">◧</button>
-          <button class="rail-btn prep" id="v-overhang" title="Overhang check">◣</button>
-          <button class="rail-btn prep" id="v-orient" title="Auto-orient for printing">⤓</button>
-          <button class="rail-btn prep" id="v-fit-plate" title="Scale to fit the plate">⤡</button>
-          <button class="rail-btn prep" id="v-cut" title="Cut in half">✂</button>
-          <button class="rail-btn prep" id="v-measure" title="Measure distance">📏</button>
-          <button class="rail-btn prep" id="v-layers" title="Layer preview">≣</button>
-          <div class="rail-sep"></div>
           <div class="menu" id="gear-menu">
             <button class="rail-btn" id="gear-btn" title="Mode · experience level" aria-label="Settings">⚙</button>
             <div class="menu-pop">
@@ -3197,6 +3182,30 @@ export class App {
           </div>
           <button class="rail-btn" id="cmd-open" title="Find a command (Ctrl+K)">⌕</button>
           <button class="rail-btn wide" id="parts-toggle" title="Show / hide the parts panel">▤ Parts</button>
+          </div>
+        </nav>
+
+        <nav class="toolbar" id="tools" aria-label="View and build tools">
+          <button class="rail-btn" id="rail-home" title="Home — frame the whole plate">⌂</button>
+          <button class="rail-btn" id="view-mode-toggle" title="Editing parts — tap to show result">◧</button>
+          <div class="rail-sep"></div>
+          <button class="rail-btn on" id="v-grid" title="Grid">▦</button>
+          <button class="rail-btn on" id="v-snap" title="Snap to 1 mm">⌗</button>
+          <button class="rail-btn" id="v-theme" title="Dark / light mode">◐</button>
+          <div class="menu" id="tools-more">
+            <button class="rail-btn" id="tools-more-btn" title="More view &amp; print tools">⋯</button>
+            <div class="menu-pop">
+              <div class="menu-lab">Display</div>
+              <button id="v-mmgrid">⊞ mm grid</button>
+              <button id="v-wire">◇ Wireframe</button>
+              <div class="menu-lab">Inspect &amp; print</div>
+              <button id="v-measure" class="prep">📏 Measure</button>
+              <button id="v-layers" class="prep">≣ Layer preview</button>
+              <button id="v-overhang" class="prep">◣ Overhang check</button>
+              <button id="v-orient" class="prep">⤓ Auto-orient</button>
+              <button id="v-fit-plate" class="prep">⤡ Fit to plate</button>
+              <button id="v-cut" class="prep">✂ Cut in half</button>
+            </div>
           </div>
         </nav>
 
