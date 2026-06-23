@@ -15,7 +15,7 @@ import { Viewport, BUILD_VOLUME } from './viewport.js';
 import { buildTreeToSource, buildColoredParts, effField, supportsClearance, isShellable, supportsFillet, isFastener, applyMetricSize, currentMetricSize, METRIC_SIZES, BuildTree, setNodeKind } from './buildtree.js';
 import { sourceToNodes } from './importBuild.js';
 import { shapeArt } from './shapeart.js';
-import { Toolbar } from './toolbar.js';
+import { Toolbar, toolbarSeedHTML } from './toolbar.js';
 import { RECIPES } from './recipes.js';
 import gcodeHelp from '../help/gcode.md?raw';
 import * as Projects from './projects.js';
@@ -3160,29 +3160,11 @@ export class App {
             <span class="grip-dots" aria-hidden="true">⠿</span>
             <button class="toolbar-edit" id="tools-edit" title="Customize toolbar — add or group tools">✎</button>
           </div>
+          <!-- tool buttons are generated from the TOOLBAR_TOOLS registry; the
+               toolbar then parks them and lays out the bar per the saved/default
+               layout (see toolbar.js) — so this seed is just a flat parking lot -->
           <div class="toolbar-body" id="tools-body">
-          <button class="rail-btn" id="rail-home" title="Home — frame the whole plate">⌂</button>
-          <button class="rail-btn" id="view-mode-toggle" title="Editing parts — tap to show result">◧</button>
-          <div class="rail-sep"></div>
-          <button class="rail-btn on" id="v-grid" title="Grid">▦</button>
-          <button class="rail-btn on" id="v-snap" title="Snap to 1 mm">⌗</button>
-          <button class="rail-btn" id="v-theme" title="Dark / light mode">◐</button>
-          <div class="menu" id="tools-more">
-            <button class="rail-btn" id="tools-more-btn" title="More view &amp; print tools">⋯</button>
-            <div class="menu-pop">
-              <button class="rail-btn" id="v-mmgrid" title="mm grid">⊞</button>
-              <button class="rail-btn" id="v-wire" title="Wireframe">◇</button>
-              <button class="rail-btn" id="v-measure" title="Measure">📏</button>
-              <button class="rail-btn" id="v-layers" title="Layer preview">≣</button>
-              <button class="rail-btn" id="v-overhang" title="Overhang check">◣</button>
-              <button class="rail-btn" id="v-orient" title="Auto-orient">⤓</button>
-              <button class="rail-btn" id="v-fit-plate" title="Fit to plate">⤡</button>
-              <button class="rail-btn" id="v-cut" title="Cut in half">✂</button>
-              <button class="rail-btn" id="mode-toggle" title="Build mode — tap for code">⬓</button>
-              <button class="rail-btn" id="v-quality" title="Curve quality: Smooth — tap to cycle">◕</button>
-              <button class="rail-btn" id="panel-toggle" title="Code panel — show / hide">⌨</button>
-            </div>
-          </div>
+          ${toolbarSeedHTML()}
           </div>
         </nav>
 

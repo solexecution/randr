@@ -4,10 +4,10 @@
 // Selectors verified against src/ui/app.js:
 //   - boot ready          → #boot.gone (helper waits on it)
 //   - command palette      → #cmd-open ▸ #cmd-modal / #cmd-input / #cmd-list
-//                            (#cmd-open is Pro-only; _openCmd() no-ops in Simple)
+//                            (#cmd-open opens the palette; Ctrl+K also works)
 //   - undo / redo          → #v-undo / #v-redo (always-present FABs)
 //   - grid / theme         → #v-grid (.on class) / #v-theme (html.theme-light + randr.theme)
-//   - measure / layers / cut → live in the #tools-more menu (open #tools-more-btn first):
+//   - measure / layers / cut → live in the customizable "More" group (.tb-group):
 //                            #v-measure→app.measureMode, #v-layers→#layer-bar, #v-cut→app.printCut
 //   - mode toggle          → #mode-toggle button on the bar → app.mode (code/build)
 //   - curve quality        → #v-quality button cycles app.curveQuality (24/48/64/128)

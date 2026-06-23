@@ -123,7 +123,6 @@ body {
 .toolbar-edit { width: 22px; height: 20px; display: grid; place-items: center; font-size: 12px; color: var(--ink-dim); background: none; border: 1px solid transparent; border-radius: 6px; cursor: pointer; }
 .toolbar-edit:hover { color: var(--cyan); border-color: var(--line); }
 .toolbar-body { display: flex; flex-direction: column; align-items: center; gap: 5px; }
-.toolbar .rail-sep { width: 24px; height: 1px; margin: 2px 0; }
 .tb-group { position: relative; }
 .tb-group .menu-pop { left: calc(100% + 6px); top: 0; right: auto; min-width: 168px; }
 /* docked to the right edge → group menus open to the LEFT so they stay on-screen */

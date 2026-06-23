@@ -26,26 +26,28 @@ export const QUALITY_LEVELS = [
   { v: 128, name: 'Ultra',    glyph: '●' },
 ];
 
-// Every tool that can live on the bar. A `tool` is a single icon button (its
-// node is re-parented as-is); an `opener` is a whole compound .menu container
-// moved intact.
+// Every tool that can live on the bar — the single source of truth for both the
+// seed DOM (toolbarSeedHTML) and the runtime layout. A `tool` is a single icon
+// button (its node is re-parented as-is); an `opener` is a whole compound .menu
+// container moved intact. `title` is the button tooltip; `label` is the shorter
+// name the customise modal shows; `on` seeds a button that starts active.
 const TOOLBAR_TOOLS = [
-  { id: 'rail-home', glyph: '⌂', label: 'Home', cat: 'View' },
-  { id: 'view-mode-toggle', glyph: '◧', label: 'Edit / Result', cat: 'View' },
-  { id: 'v-grid', glyph: '▦', label: 'Grid', cat: 'View' },
-  { id: 'v-snap', glyph: '⌗', label: 'Snap 1 mm', cat: 'View' },
-  { id: 'v-theme', glyph: '◐', label: 'Light / dark', cat: 'View' },
-  { id: 'v-mmgrid', glyph: '⊞', label: 'mm grid', cat: 'View' },
-  { id: 'v-wire', glyph: '◇', label: 'Wireframe', cat: 'View' },
-  { id: 'v-measure', glyph: '📏', label: 'Measure', cat: 'Inspect & print' },
-  { id: 'v-layers', glyph: '≣', label: 'Layer preview', cat: 'Inspect & print' },
-  { id: 'v-overhang', glyph: '◣', label: 'Overhang', cat: 'Inspect & print' },
-  { id: 'v-orient', glyph: '⤓', label: 'Auto-orient', cat: 'Inspect & print' },
-  { id: 'v-fit-plate', glyph: '⤡', label: 'Fit to plate', cat: 'Inspect & print' },
-  { id: 'v-cut', glyph: '✂', label: 'Cut in half', cat: 'Inspect & print' },
-  { id: 'mode-toggle', glyph: '⬓', label: 'Mode · code / build', cat: 'Mode' },
-  { id: 'v-quality', glyph: '◕', label: 'Curve quality', cat: 'View' },
-  { id: 'panel-toggle', glyph: '⌨', label: 'Code panel', cat: 'Mode' },
+  { id: 'rail-home', glyph: '⌂', label: 'Home', title: 'Home — frame the whole plate', cat: 'View' },
+  { id: 'view-mode-toggle', glyph: '◧', label: 'Edit / Result', title: 'Editing parts — tap to show result', cat: 'View' },
+  { id: 'v-grid', glyph: '▦', label: 'Grid', title: 'Grid', cat: 'View', on: true },
+  { id: 'v-snap', glyph: '⌗', label: 'Snap 1 mm', title: 'Snap to 1 mm', cat: 'View', on: true },
+  { id: 'v-theme', glyph: '◐', label: 'Light / dark', title: 'Dark / light mode', cat: 'View' },
+  { id: 'v-mmgrid', glyph: '⊞', label: 'mm grid', title: 'mm grid', cat: 'View' },
+  { id: 'v-wire', glyph: '◇', label: 'Wireframe', title: 'Wireframe', cat: 'View' },
+  { id: 'v-measure', glyph: '📏', label: 'Measure', title: 'Measure', cat: 'Inspect & print' },
+  { id: 'v-layers', glyph: '≣', label: 'Layer preview', title: 'Layer preview', cat: 'Inspect & print' },
+  { id: 'v-overhang', glyph: '◣', label: 'Overhang', title: 'Overhang check', cat: 'Inspect & print' },
+  { id: 'v-orient', glyph: '⤓', label: 'Auto-orient', title: 'Auto-orient', cat: 'Inspect & print' },
+  { id: 'v-fit-plate', glyph: '⤡', label: 'Fit to plate', title: 'Fit to plate', cat: 'Inspect & print' },
+  { id: 'v-cut', glyph: '✂', label: 'Cut in half', title: 'Cut in half', cat: 'Inspect & print' },
+  { id: 'mode-toggle', glyph: '⬓', label: 'Mode · code / build', title: 'Build mode — tap for code', cat: 'Mode' },
+  { id: 'v-quality', glyph: '◕', label: 'Curve quality', title: 'Curve quality: Smooth — tap to cycle', cat: 'View' },
+  { id: 'panel-toggle', glyph: '⌨', label: 'Code panel', title: 'Code panel — show / hide', cat: 'Mode' },
 ];
 const TOOLBAR_DEFAULT = [
   { type: 'tool', id: 'rail-home' },
@@ -58,6 +60,17 @@ const TOOLBAR_DEFAULT = [
   { type: 'tool', id: 'v-quality' },
   { type: 'tool', id: 'panel-toggle' },
 ];
+
+// Seed markup for the bar, generated from the registry so the static DOM never
+// drifts from the runtime model. Buttons land flat in #tools-body; init() then
+// parks them and lays the bar out per the saved/default layout — so the order
+// and grouping here don't matter, only that every managed tool is present for
+// App to wire (by id) and for render() to place.
+export function toolbarSeedHTML() {
+  return TOOLBAR_TOOLS
+    .map((t) => `<button class="rail-btn${t.on ? ' on' : ''}" id="${t.id}" title="${_esc(t.title || t.label)}">${t.glyph}</button>`)
+    .join('\n          ');
+}
 
 export class Toolbar {
   constructor(root) {
@@ -105,7 +118,6 @@ export class Toolbar {
     el.appendChild(store);
     this._store = store;
     for (const id in this._nodes) store.appendChild(this._nodes[id]); // park; render places them
-    this.root.querySelector('#tools-more')?.remove(); // legacy ⋯ husk — its tools are managed individually now
 
     this.layout = Array.isArray(saved?.layout) && saved.layout.length
       ? saved.layout
