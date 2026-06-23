@@ -3525,16 +3525,14 @@ export class App {
           <div class="menu" id="tools-more">
             <button class="rail-btn" id="tools-more-btn" title="More view &amp; print tools">⋯</button>
             <div class="menu-pop">
-              <div class="menu-lab">Display</div>
-              <button id="v-mmgrid">⊞ mm grid</button>
-              <button id="v-wire">◇ Wireframe</button>
-              <div class="menu-lab">Inspect &amp; print</div>
-              <button id="v-measure" class="prep">📏 Measure</button>
-              <button id="v-layers" class="prep">≣ Layer preview</button>
-              <button id="v-overhang" class="prep">◣ Overhang check</button>
-              <button id="v-orient" class="prep">⤓ Auto-orient</button>
-              <button id="v-fit-plate" class="prep">⤡ Fit to plate</button>
-              <button id="v-cut" class="prep">✂ Cut in half</button>
+              <button class="rail-btn" id="v-mmgrid" title="mm grid">⊞</button>
+              <button class="rail-btn" id="v-wire" title="Wireframe">◇</button>
+              <button class="rail-btn prep" id="v-measure" title="Measure">📏</button>
+              <button class="rail-btn prep" id="v-layers" title="Layer preview">≣</button>
+              <button class="rail-btn prep" id="v-overhang" title="Overhang check">◣</button>
+              <button class="rail-btn prep" id="v-orient" title="Auto-orient">⤓</button>
+              <button class="rail-btn prep" id="v-fit-plate" title="Fit to plate">⤡</button>
+              <button class="rail-btn prep" id="v-cut" title="Cut in half">✂</button>
             </div>
           </div>
           <div class="menu" id="gear-menu">

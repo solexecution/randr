@@ -144,3 +144,19 @@ test('an empty or all-tier-hidden group is not shown on the bar (no stranded box
   await page.evaluate(() => window.__forgeApp._setTier('pro'));
   await expect(page.locator('#tools-body .tb-group')).toHaveCount(1);
 });
+
+test('an opened group is a compact icon grid, not a tall text list', async ({ page }) => {
+  await gotoApp(page); // pro → the default "More" group has all 8 print tools
+  await ensureBuildMode(page);
+  const group = page.locator('#tools-body .tb-group');
+  await group.locator('.rail-btn').first().click();
+  await expect(group).toHaveClass(/open/);
+
+  const pop = group.locator('.menu-pop');
+  // tools render as icon buttons (~38px), not full-width text rows (the bug: ~142px)
+  const w = await pop.locator('#v-measure').evaluate((el) => el.getBoundingClientRect().width);
+  expect(w).toBeLessThan(60);
+  // and the popup stays compact rather than a tall list that overflows the viewport
+  const h = await pop.evaluate((el) => el.getBoundingClientRect().height);
+  expect(h).toBeLessThan(220);
+});
