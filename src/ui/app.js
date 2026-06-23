@@ -15,7 +15,7 @@ import { Viewport, BUILD_VOLUME } from './viewport.js';
 import { buildTreeToSource, buildColoredParts, effField, supportsClearance, isShellable, supportsFillet, isFastener, applyMetricSize, currentMetricSize, METRIC_SIZES, BuildTree, setNodeKind } from './buildtree.js';
 import { sourceToNodes } from './importBuild.js';
 import { shapeArt } from './shapeart.js';
-import { Toolbar, toolbarSeedHTML } from './toolbar.js';
+import { Toolbar, toolbarSeedHTML, toggleMenu, QUALITY_LEVELS } from './toolbar.js';
 import { RECIPES } from './recipes.js';
 import gcodeHelp from '../help/gcode.md?raw';
 import * as Projects from './projects.js';
@@ -1316,8 +1316,8 @@ export class App {
     add('Export for Bambu Studio', '3MF', 'Export', () => { if (A.currentModel) { triggerDownload(A._build3MF(), 'model.3mf'); A._toast('Saved model.3mf — open it in Bambu Studio'); } });
     add('Export 3MF', 'units + colour', 'Export', () => { if (A.currentModel) triggerDownload(A._build3MF(), 'part.3mf'); });
     add('Export OBJ', 'mesh', 'Export', () => { if (A.currentModel) triggerDownload(exportOBJ(A.currentModel), 'part.obj'); });
-    [['Draft', 24], ['Standard', 48], ['Smooth', 64], ['Ultra', 128]].forEach(([n, v]) =>
-      add(`Quality: ${n}`, 'curve smoothness', 'Quality', () => A._setQuality(v)));
+    QUALITY_LEVELS.forEach((q) =>
+      add(`Quality: ${q.name}`, 'curve smoothness', 'Quality', () => A._setQuality(q.v)));
     add('New project', '', 'Project', () => A._newProject());
     add('Save project', 'Ctrl+S', 'Project', () => A._saveProject());
     add('Save project as…', '', 'Project', () => A._promptName('Save project as', A.project ? A.project.name : '', (n) => A._doSaveAs(n)));
@@ -2105,9 +2105,8 @@ export class App {
 
     // top-bar menu: ☰ app menu (project / templates / export). Open it; any
     // click elsewhere closes it.
-    const openMenu = (m) => { const was = m.classList.contains('open'); this.root.querySelectorAll('.menu.open').forEach((o) => o.classList.remove('open')); if (!was) m.classList.add('open'); };
     const appMenu = $('#app-menu');
-    $('#app-btn').addEventListener('click', (e) => { e.stopPropagation(); this.root.querySelectorAll('.menu-fly.open').forEach((f) => f.classList.remove('open')); this._renderRecentMenu(); openMenu(appMenu); });
+    $('#app-btn').addEventListener('click', (e) => { e.stopPropagation(); this.root.querySelectorAll('.menu-fly.open').forEach((f) => f.classList.remove('open')); this._renderRecentMenu(); toggleMenu(this.root, appMenu); });
     document.addEventListener('click', () => this.root.querySelectorAll('.menu.open').forEach((m) => m.classList.remove('open')));
     // Templates / Export fly-out submenus inside the app menu (tap to open on touch)
     this.root.querySelectorAll('.menu-fly-btn').forEach((b) => b.addEventListener('click', (e) => {

@@ -61,6 +61,49 @@ const TOOLBAR_DEFAULT = [
   { type: 'tool', id: 'panel-toggle' },
 ];
 
+// Bump when the default layout gains a tool, and add a matching step in
+// migrateToolbar so older saved layouts surface it. Pre-versioned blobs read as v1.
+const TOOLBAR_VERSION = 3;
+const KNOWN_IDS = new Set(TOOLBAR_TOOLS.map((t) => t.id));
+
+function defaultToolbarState() {
+  return { version: TOOLBAR_VERSION, dock: 'left', x: 80, y: 110, layout: JSON.parse(JSON.stringify(TOOLBAR_DEFAULT)) };
+}
+
+// The single place that brings a persisted toolbar blob (any older version, or
+// null / garbage) up to the current schema: drop entries whose tool no longer
+// exists, then run the version steps that surface tools introduced after the
+// blob was saved. New default tool? Bump TOOLBAR_VERSION and add one step here —
+// don't scatter fresh `if (!layout.some(...))` checks back into init().
+function migrateToolbar(saved) {
+  if (!saved || typeof saved !== 'object' || !Array.isArray(saved.layout) || !saved.layout.length) {
+    return defaultToolbarState();
+  }
+  const version = Number.isInteger(saved.version) ? saved.version : 1;
+  let layout = saved.layout
+    .map((e) => (e.type === 'group' ? { ...e, items: (e.items || []).filter((id) => KNOWN_IDS.has(id)) } : e))
+    .filter((e) => e.type === 'group' || KNOWN_IDS.has(e.id));
+  const has = (id) => layout.some((e) => (e.type === 'group' ? (e.items || []).includes(id) : e.id === id));
+  const surface = (...ids) => ids.forEach((id) => { if (KNOWN_IDS.has(id) && !has(id)) layout.push({ type: 'tool', id }); });
+  if (version < 2) surface('mode-toggle');                // v2: single code/build toggle on the bar
+  if (version < 3) surface('v-quality', 'panel-toggle');  // v3: gear-menu controls became bar buttons
+  return {
+    version: TOOLBAR_VERSION,
+    dock: saved.dock === 'right' || saved.dock === 'float' ? saved.dock : 'left',
+    x: Number.isFinite(saved.x) ? saved.x : 80,
+    y: Number.isFinite(saved.y) ? saved.y : 110,
+    layout,
+  };
+}
+
+// Open `menu` (a .menu element), closing any other open one — the single
+// open-at-a-time behavior shared by the toolbar groups and the ☰ app menu.
+export function toggleMenu(root, menu) {
+  const was = menu.classList.contains('open');
+  root.querySelectorAll('.menu.open').forEach((o) => o.classList.remove('open'));
+  if (!was) menu.classList.add('open');
+}
+
 // Seed markup for the bar, generated from the registry so the static DOM never
 // drifts from the runtime model. Buttons land flat in #tools-body; init() then
 // parks them and lays the bar out per the saved/default layout — so the order
@@ -101,9 +144,8 @@ export class Toolbar {
 
     let saved = null;
     try { saved = JSON.parse(localStorage.getItem('randr.toolbar')); } catch { /* ignore */ }
-    this.dock = saved?.dock === 'right' || saved?.dock === 'float' ? saved.dock : 'left';
-    this.x = Number.isFinite(saved?.x) ? saved.x : 80;
-    this.y = Number.isFinite(saved?.y) ? saved.y : 110;
+    const tb = migrateToolbar(saved); // one place handles defaults, pruning, and version upgrades
+    this.dock = tb.dock; this.x = tb.x; this.y = tb.y; this.layout = tb.layout;
     this._applyDock();
 
     // managed tool nodes → a hidden store; the bar is then rendered from layout.
@@ -119,33 +161,11 @@ export class Toolbar {
     this._store = store;
     for (const id in this._nodes) store.appendChild(this._nodes[id]); // park; render places them
 
-    this.layout = Array.isArray(saved?.layout) && saved.layout.length
-      ? saved.layout
-      : JSON.parse(JSON.stringify(TOOLBAR_DEFAULT));
-    // drop tools that no longer exist (e.g. the removed Simple/Pro toggle)
-    this.layout = this.layout
-      .map((e) => (e.type === 'group' ? { ...e, items: (e.items || []).filter((id) => this._nodes[id]) } : e))
-      .filter((e) => e.type === 'group' || !!this._nodes[e.id]);
-    // migration: surface the mode toggle on older saved layouts
-    if (!this._inLayout('mode-toggle') && this._nodes['mode-toggle']) {
-      this.layout.push({ type: 'tool', id: 'mode-toggle' });
-    }
-    // migration: the old ⚙ menu's controls are now plain buttons — surface them
-    // on saved layouts that predate them (any stale gear-menu entry was already
-    // dropped by the prune above, since it matches no known tool node)
-    for (const id of ['v-quality', 'panel-toggle']) {
-      if (this._nodes[id] && !this._inLayout(id)) this.layout.push({ type: 'tool', id });
-    }
     this.render();
 
     this._wireDrag(el, grip);
     this._wireButtons();
     this._wireModal();
-  }
-
-  // is `id` placed anywhere in the layout (top-level or inside a group)?
-  _inLayout(id) {
-    return this.layout.some((e) => (e.type === 'group' ? (e.items || []).includes(id) : e.id === id));
   }
 
   // Drag the strip by its grip → float + clamp to the viewport; on release snap
@@ -234,7 +254,7 @@ export class Toolbar {
 
   _save() {
     try {
-      localStorage.setItem('randr.toolbar', JSON.stringify({ dock: this.dock, x: this.x, y: this.y, layout: this.layout }));
+      localStorage.setItem('randr.toolbar', JSON.stringify({ version: TOOLBAR_VERSION, dock: this.dock, x: this.x, y: this.y, layout: this.layout }));
     } catch { /* quota */ }
   }
 
@@ -267,12 +287,7 @@ export class Toolbar {
         for (const id of (entry.items || [])) place(id, pop);
         menu.append(btn, pop);
         body.appendChild(menu);
-        btn.addEventListener('click', (e) => {
-          e.stopPropagation();
-          const was = menu.classList.contains('open');
-          this.root.querySelectorAll('.menu.open').forEach((o) => o.classList.remove('open'));
-          if (!was) menu.classList.add('open');
-        });
+        btn.addEventListener('click', (e) => { e.stopPropagation(); toggleMenu(this.root, menu); });
       } else {
         place(entry.id, body); // a top-level tool button
       }
