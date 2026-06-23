@@ -3196,6 +3196,9 @@ export class App {
               <button id="help-btn">Code help</button>
             </div>
           </div>
+          <div class="rail-sep"></div>
+          <button class="rail-btn" id="v-undo" title="Undo (Ctrl+Z)">↶</button>
+          <button class="rail-btn" id="v-redo" title="Redo (Ctrl+Y)">↷</button>
           </div>
 
           <div class="rail-center">
@@ -3277,9 +3280,6 @@ export class App {
             </div>
           </div>
         </nav>
-
-        <button class="edit-fab" id="v-undo" title="Undo (Ctrl+Z)">↶</button>
-        <button class="edit-fab edit-fab-r" id="v-redo" title="Redo (Ctrl+Y)">↷</button>
 
         <aside class="panel" id="panel">
           <section id="pane-code" class="pane">

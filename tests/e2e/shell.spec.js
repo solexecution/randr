@@ -101,6 +101,15 @@ test('undo and redo step the build tree back and forth', async ({ page }) => {
   await gotoApp(page);
   await ensureBuildMode(page);
 
+  // The buttons live in the top-left rail (one each — no leftover floating dupes).
+  const placement = await page.evaluate(() => ({
+    undoInLeft: !!document.querySelector('.rail-left #v-undo'),
+    redoInLeft: !!document.querySelector('.rail-left #v-redo'),
+    undos: document.querySelectorAll('#v-undo').length,
+    redos: document.querySelectorAll('#v-redo').length,
+  }));
+  expect(placement).toEqual({ undoInLeft: true, redoInLeft: true, undos: 1, redos: 1 });
+
   const before = await partCount(page);
   await addShape(page, 'box');
   expect(await partCount(page)).toBe(before + 1);
