@@ -236,6 +236,24 @@ export class Viewport {
     return hits.length ? hits[0] : null;
   }
 
+  // World point under the pointer — the camera dollies toward this when zooming.
+  // Prefers real geometry, then the ground plane, then the focal plane through
+  // the target, so there is always a sensible point (even over empty space).
+  _pointUnderCursor(clientX, clientY) {
+    this._raycaster.setFromCamera(this._ndcFrom(clientX, clientY), this.camera);
+    const targets = [];
+    if (this.editActive) for (const e of this.editMeshes) targets.push(e.mesh);
+    for (const c of this.modelGroup.children) if (c.isMesh) targets.push(c);
+    const hits = this._raycaster.intersectObjects(targets, false);
+    if (hits.length) return hits[0].point.clone();
+    const p = new THREE.Vector3();
+    const ground = this._groundPlane || (this._groundPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0));
+    if (this._raycaster.ray.intersectPlane(ground, p)) return p;
+    const focal = new THREE.Plane().setFromNormalAndCoplanarPoint(
+      this.camera.getWorldDirection(new THREE.Vector3()), this._target || new THREE.Vector3());
+    return this._raycaster.ray.intersectPlane(focal, p) ? p : null;
+  }
+
   // --- measure tool ---------------------------------------------------------
   // Click two surface points (vertex-snapped) for a live distance + ΔX/Y/Z
   // readout. Works in build (per-shape meshes) and result/code (merged mesh).
@@ -569,7 +587,16 @@ export class Viewport {
       }
       apply();
     };
-    const zoom = (delta) => { radius = Math.max(20, Math.min(1200, radius * (1 + delta * 0.001))); apply(); };
+    const zoom = (delta, cx, cy) => {
+      const next = Math.max(20, Math.min(1200, radius * (1 + delta * 0.001)));
+      const f = next / radius;
+      if (cx != null && f !== 1) {
+        const p = this._pointUnderCursor(cx, cy);
+        if (p) target.lerp(p, 1 - f); // dolly toward the point under the pointer (keeps it fixed on screen)
+      }
+      radius = next;
+      apply();
+    };
 
     const beginShapeDrag = (hit, additive) => {
       const idx = hit.object.userData.index;
@@ -706,7 +733,7 @@ export class Viewport {
     window.addEventListener('mousemove', (e) => { if (dragging || shapeDrag) { this._magnetSuppressed = e.altKey; onMove(e.clientX, e.clientY); } });
     c.addEventListener('mousemove', (e) => { if (this._sketch.on) this._sketchHover(e.clientX, e.clientY); }); // sketch rubber-band
     window.addEventListener('mouseup', onUp);
-    c.addEventListener('wheel', (e) => { e.preventDefault(); zoom(e.deltaY); }, { passive: false });
+    c.addEventListener('wheel', (e) => { e.preventDefault(); zoom(e.deltaY, e.clientX, e.clientY); }, { passive: false });
     c.addEventListener('contextmenu', (e) => {
       e.preventDefault();
       if (moved > 4) return; // it was a right-drag (pan), not a click
@@ -734,7 +761,9 @@ export class Viewport {
         const d = Math.hypot(
           e.touches[0].clientX - e.touches[1].clientX,
           e.touches[0].clientY - e.touches[1].clientY);
-        zoom((pinchDist - d) * 2);
+        zoom((pinchDist - d) * 2,
+             (e.touches[0].clientX + e.touches[1].clientX) / 2,
+             (e.touches[0].clientY + e.touches[1].clientY) / 2);
         pinchDist = d;
         moveOrbit((e.touches[0].clientX + e.touches[1].clientX) / 2,
                   (e.touches[0].clientY + e.touches[1].clientY) / 2);
