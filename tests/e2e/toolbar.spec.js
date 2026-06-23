@@ -77,33 +77,33 @@ test('customize modal edits the bar and persists', async ({ page }) => {
   await expect(page.locator('#tools-body #v-theme')).toHaveCount(0);
 
   // new group → one more group in the layout
-  const gBefore = await page.evaluate(() => window.__forgeApp._toolbar.layout.filter((e) => e.type === 'group').length);
+  const gBefore = await page.evaluate(() => window.__forgeApp.toolbar.layout.filter((e) => e.type === 'group').length);
   await page.locator('.tbm-newgroup').click();
   await expect
-    .poll(() => page.evaluate(() => window.__forgeApp._toolbar.layout.filter((e) => e.type === 'group').length))
+    .poll(() => page.evaluate(() => window.__forgeApp.toolbar.layout.filter((e) => e.type === 'group').length))
     .toBe(gBefore + 1);
 
   // assign a tool into the new group
   const newGid = await page.evaluate(() => {
-    const gs = window.__forgeApp._toolbar.layout.filter((e) => e.type === 'group');
+    const gs = window.__forgeApp.toolbar.layout.filter((e) => e.type === 'group');
     return gs[gs.length - 1].gid;
   });
   await page.locator('.tbm-place[data-id="v-grid"]').selectOption('g:' + newGid);
   await expect
-    .poll(() => page.evaluate((gid) => window.__forgeApp._toolbar.layout.find((e) => e.gid === gid)?.items.includes('v-grid'), newGid))
+    .poll(() => page.evaluate((gid) => window.__forgeApp.toolbar.layout.find((e) => e.gid === gid)?.items.includes('v-grid'), newGid))
     .toBe(true);
 
   // persists across reload
   await page.reload();
   await page.waitForFunction(() => !!window.__forgeApp && document.querySelector('#boot')?.classList.contains('gone'));
   await expect(page.locator('#tools-body > #v-theme')).toHaveCount(0);
-  expect(await page.evaluate(() => window.__forgeApp._toolbar.layout.some((e) => e.type === 'group' && (e.items || []).includes('v-grid')))).toBe(true);
+  expect(await page.evaluate(() => window.__forgeApp.toolbar.layout.some((e) => e.type === 'group' && (e.items || []).includes('v-grid')))).toBe(true);
 
   // reset restores the default bar
   await page.click('#tools-edit');
   await page.click('#toolbar-reset');
   await expect(page.locator('#tools-body > #v-theme')).toHaveCount(1);
-  expect(await page.evaluate(() => window.__forgeApp._toolbar.layout.some((e) => e.gid === 'g-more'))).toBe(true);
+  expect(await page.evaluate(() => window.__forgeApp.toolbar.layout.some((e) => e.gid === 'g-more'))).toBe(true);
 
   expect(errors, errors.join('\n')).toEqual([]);
 });
@@ -115,11 +115,11 @@ test('an empty group is not shown on the bar (no stranded box)', async ({ page }
   // an empty group must not render a button or a stray menu-pop
   await page.evaluate(() => {
     const a = window.__forgeApp;
-    a._toolbar.layout = [
+    a.toolbar.layout = [
       { type: 'tool', id: 'rail-home' },
       { type: 'group', gid: 'gx', label: 'More', glyph: '⋯', items: [] },
     ];
-    a._renderToolbar();
+    a.toolbar.render();
   });
   await expect(page.locator('#tools-body .tb-group')).toHaveCount(0);
   await expect(page.locator('#tools-body .menu-pop')).toHaveCount(0);
