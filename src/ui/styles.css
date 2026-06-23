@@ -372,7 +372,7 @@ body.layout-bottom .part-card.float {
 body.layout-bottom .part-card.collapsed { transform: translateY(100%); }
 body.layout-bottom #card-snap { display: none; } /* dock L/R is meaningless at the bottom */
 
-/* left drawer — a collapsible blade that overlays the full-bleed canvas */
+/* code panel — a right-docked collapsible blade that overlays the canvas */
 .panel {
   position: absolute; top: 46px; left: auto; right: 0; bottom: 0; z-index: 18;
   width: var(--panel-w, 320px); max-width: 92vw;
@@ -483,7 +483,7 @@ input[type=range]::-moz-range-thumb {
 
 /* Floating build-tools dock (Concepts-style): the tools live in a button at the
    bottom-right of the canvas and expand on demand, so the canvas stays clean and
-   the left panel is just the parts list. */
+   the panel is just the parts list. */
 .tools-fab {
   position: absolute; right: 18px; bottom: 18px; z-index: 22;
   display: flex; align-items: center; gap: 8px;

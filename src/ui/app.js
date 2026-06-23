@@ -639,7 +639,7 @@ export class App {
     const vmt = this.root.querySelector('#view-mode-toggle'); if (vmt) vmt.hidden = !build; // edit/result is build-only
     const card = this.root.querySelector('#part-card');
     if (card) card.classList.toggle('hidden', !show);
-    this._setPanel(!build); // the code editor (left panel) shows only in code mode
+    this._setPanel(!build); // the code editor panel shows only in code mode
     this._applyCardLayout();
   }
 
@@ -2282,7 +2282,6 @@ export class App {
 
     // ── unified panel: fold the Add gallery + settings into their tabs ──
     // (move the existing markup so all ids / handlers keep working)
-    // mode / level / quality live in the ⚙ gear flyout on the toolbar — no relocation
     // panel tabs (Parts · Shapes · Settings · Edit)
     this.root.querySelectorAll('.ptab').forEach((b) => b.addEventListener('click', () => this._setPanelTab(b.dataset.ptab)));
 
@@ -2494,7 +2493,7 @@ export class App {
     });
   }
 
-  // Open/close the left drawer. _setPanel() toggles; _setPanel(true|false) forces.
+  // Open/close the code panel (right-docked). _setPanel() toggles; _setPanel(true|false) forces.
   _setPanel(open) {
     const panel = this.root.querySelector('#panel');
     const collapse = open === undefined ? !panel.classList.contains('collapsed') : !open;

@@ -27,10 +27,10 @@ export const QUALITY_LEVELS = [
 ];
 
 // Every tool that can live on the bar — the single source of truth for both the
-// seed DOM (toolbarSeedHTML) and the runtime layout. A `tool` is a single icon
-// button (its node is re-parented as-is); an `opener` is a whole compound .menu
-// container moved intact. `title` is the button tooltip; `label` is the shorter
-// name the customise modal shows; `on` seeds a button that starts active.
+// seed DOM (toolbarSeedHTML) and the runtime layout. Each is a single icon
+// button whose node is re-parented as-is. `title` is the button tooltip;
+// `label` is the shorter name the customise modal shows; `on` seeds a button
+// that starts active.
 const TOOLBAR_TOOLS = [
   { id: 'rail-home', glyph: '⌂', label: 'Home', title: 'Home — frame the whole plate', cat: 'View' },
   { id: 'view-mode-toggle', glyph: '◧', label: 'Edit / Result', title: 'Editing parts — tap to show result', cat: 'View' },
@@ -130,8 +130,9 @@ export class Toolbar {
     if (!this._inLayout('mode-toggle') && this._nodes['mode-toggle']) {
       this.layout.push({ type: 'tool', id: 'mode-toggle' });
     }
-    // migration: the ⚙ menu's controls are now plain buttons — surface them on
-    // older saved layouts (the gear-menu opener is auto-pruned above as a non-tool)
+    // migration: the old ⚙ menu's controls are now plain buttons — surface them
+    // on saved layouts that predate them (any stale gear-menu entry was already
+    // dropped by the prune above, since it matches no known tool node)
     for (const id of ['v-quality', 'panel-toggle']) {
       if (this._nodes[id] && !this._inLayout(id)) this.layout.push({ type: 'tool', id });
     }
@@ -273,7 +274,7 @@ export class Toolbar {
           if (!was) menu.classList.add('open');
         });
       } else {
-        place(entry.id, body); // 'tool' or 'opener'
+        place(entry.id, body); // a top-level tool button
       }
     }
     this._reflect();
@@ -333,8 +334,7 @@ export class Toolbar {
   _tbPlace(id, dest) {
     this._tbRemove(id);
     if (dest === 'bar') {
-      const t = this._tbTool(id);
-      this.layout.push({ type: t?.opener ? 'opener' : 'tool', id });
+      this.layout.push({ type: 'tool', id });
     } else if (dest && dest.startsWith('g:')) {
       const gid = dest.slice(2);
       const g = this.layout.find((e) => e.type === 'group' && e.gid === gid);
@@ -373,9 +373,8 @@ export class Toolbar {
     const L = this.layout;
     const groups = L.filter((e) => e.type === 'group');
     const sel = (id, current) => {
-      const t = this._tbTool(id);
       const o = [`<option value="bar"${current === 'bar' ? ' selected' : ''}>Button</option>`];
-      if (!t?.opener) for (const g of groups) o.push(`<option value="g:${g.gid}"${current === 'g:' + g.gid ? ' selected' : ''}>In “${_esc(g.label)}”</option>`);
+      for (const g of groups) o.push(`<option value="g:${g.gid}"${current === 'g:' + g.gid ? ' selected' : ''}>In “${_esc(g.label)}”</option>`);
       o.push(`<option value="off"${current === 'off' ? ' selected' : ''}>Off</option>`);
       return `<select class="tbm-place" data-id="${id}">${o.join('')}</select>`;
     };
