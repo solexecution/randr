@@ -134,16 +134,8 @@ body {
 .menu.tb-group.open .menu-pop { display: grid; grid-template-columns: repeat(3, 38px); }
 .tb-group .menu-pop { min-width: 0; gap: 5px; padding: 6px; }
 .tb-group .menu-pop .rail-btn { width: 38px; height: 38px; padding: 0; display: grid; place-items: center; font-size: 16px; color: var(--ink); background: var(--btn-bg); border: 1px solid var(--line); border-radius: 9px; }
-.tb-group .menu-pop .tb-seg { grid-column: 1 / -1; } /* a segmented toggle spans its own row */
 .tb-group .menu-pop .rail-btn:hover { border-color: var(--cyan); color: var(--cyan); }
 .tb-group .menu-pop .rail-btn.on { background: var(--surface-2); border-color: var(--cyan); color: var(--cyan); }
-/* Code/Build and Simple/Pro segmented toggles on the toolbar — own class so the
-   Simple-tier `.tabs { display:none }` rule doesn't also hide the tier switch */
-.tb-seg { display: flex; gap: 3px; width: auto; padding: 3px; background: var(--inset-bg); border: 1px solid var(--line); border-radius: 8px; }
-.tb-seg button { font-family: var(--mono); font-size: 10px; letter-spacing: .03em; color: var(--ink-dim); background: none; border: 0; padding: 4px 8px; border-radius: 6px; cursor: pointer; }
-.tb-seg button:hover { color: var(--ink); }
-.tb-seg button.active { background: var(--surface-2); color: var(--cyan); }
-.tier-simple #mode-toggle { display: none; } /* no code mode in Simple → hide the mode toggle */
 /* customize-toolbar modal */
 .toolbar-panel { width: min(460px, 94vw); max-height: 84vh; }
 #toolbar-edit-body { overflow: auto; }
@@ -275,9 +267,6 @@ body {
 /* ☰ app menu + ⚙ gear sit at the left of the bar, so their pops anchor left */
 #app-menu .menu-pop { left: 0; top: calc(100% + 4px); right: auto; min-width: 188px; } /* opens below the top bar */
 #gear-menu .menu-pop { left: calc(100% + 6px); top: 0; right: auto; min-width: 210px; } /* gear lives in the left toolbar — opens to the right */
-/* segmented controls (mode / level) reused inside the gear pop */
-.menu-pop .tabs, .menu-pop .tier-switch { width: 100%; margin: 1px 0 3px; }
-.menu-pop .tabs button, .menu-pop .tier-switch button { flex: 1; text-align: center; }
 /* Templates / Export fly-out submenus */
 .menu-fly { position: relative; }
 .menu-fly-btn { display: flex; align-items: center; justify-content: space-between; width: 100%; }
@@ -928,108 +917,7 @@ input[type=range]::-moz-range-thumb {
 
 :focus-visible { outline: 2px solid var(--cyan); outline-offset: 2px; }
 
-/* ===== experience levels (Simple / Maker / Pro) ============================
-   Progressive disclosure via .tier-simple / .tier-maker / .tier-pro on #root.
-   Pro shows everything (no rules here). Maker hides only the precision tools.
-   Simple is the clutter-free "pick a thing and size it" mode: no code pane,
-   no booleans, no coordinate fields. */
-
-/* the topbar level switcher */
-.tier-switch {
-  display: flex; gap: 2px; background: var(--inset-bg);
-  padding: 3px; border-radius: 8px; border: 1px solid var(--line); flex-shrink: 0;
-}
-.tier-switch button {
-  font-family: var(--mono); font-size: 10px; letter-spacing: .04em;
-  color: var(--ink-dim); background: none; border: 0; border-radius: 6px;
-  padding: 5px 9px; cursor: pointer; transition: .12s; white-space: nowrap;
-}
-.tier-switch button:hover { color: var(--ink); }
-.tier-switch button.on { background: var(--surface-2); color: var(--cyan); }
-
-/* first-run chooser cards */
-.tier-panel { width: 460px; }
-.tier-sub { font-size: 12.5px; color: var(--ink-dim); margin: 4px 2px 13px; line-height: 1.5; }
-.tier-sub b { color: var(--ink); }
-.tier-cards { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
-.tier-card {
-  display: flex; flex-direction: column; gap: 6px; text-align: left;
-  background: var(--surface-2); border: 1px solid var(--line); border-radius: 10px;
-  padding: 14px 13px; cursor: pointer; transition: .14s;
-}
-.tier-card:hover { border-color: var(--cyan); transform: translateY(-2px); }
-.tier-emoji { font-size: 22px; }
-.tier-name { font-family: var(--mono); font-size: 13px; letter-spacing: .06em; color: var(--ink); }
-.tier-card:hover .tier-name { color: var(--cyan); }
-.tier-desc { font-size: 11.5px; color: var(--ink-dim); line-height: 1.45; }
-
-/* MAKER + SIMPLE — measure + layer preview are Pro-only precision tools */
-.tier-simple [data-vcat="inspect"],
-.tier-maker [data-vcat="inspect"] { display: none; }
-
-/* ---------- SIMPLE: hide everything but pick & size ---------- */
-/* topbar + view modal: no code, no advanced display / prep / help */
-.tier-simple .tabs,
-.tier-simple #mode-lab,
-.tier-simple #v-wire,
-.tier-simple #v-snap,
-.tier-simple .vquality,
-.tier-simple [data-vcat="prep"],
-.tier-simple [data-vcat="help"],
-.tier-simple #tpl-fly,
-.tier-simple #btn-obj { display: none; }
-
-/* tools dock: keep move/turn/size, drop the power bars */
-.tier-simple #viewbar,
-.tier-simple #wpbar,
-.tier-simple #opsbar,
-.tier-simple #arraybar,
-.tier-simple #alignbar,
-.tier-simple #groupbar,
-.tier-simple #multi-toggle { display: none !important; }
-
-/* readout: keep size, fits-on-plate and plastic-used; drop the technical rows */
-.tier-simple #hud-sel-row,
-.tier-simple .hud-row:has(#hud-vol),
-.tier-simple .hud-row:has(#hud-tris),
-.tier-simple .hud-row:has(#hud-watertight) { display: none; }
-
-/* build pane: drop the power-user hint + collapse-all */
-.tier-simple #part-card .hint,
-.tier-simple #collapse-all { display: none; }
-
-/* part cards: shape + colour + size + duplicate/delete only */
-.tier-simple .bn-collapse,
-.tier-simple .bn-grp,
-.tier-simple .bn-op,
-.tier-simple .bn-toolbar [data-lock],
-.tier-simple .bn-toolbar [data-hide],
-.tier-simple .bn-xyz,
-.tier-simple .bn-size,
-.tier-simple .bn-clear { display: none !important; }
-.tier-simple .bn-toolbar { justify-content: flex-end; margin-bottom: 4px; }
-.tier-simple .bn-fields { grid-template-columns: repeat(3, 1fr); gap: 8px; max-width: none; }
-.tier-simple .bn-fields label { font-size: 10px; }
-.tier-simple .bn-fields input { font-size: 14px; padding: 7px 8px; }
-.tier-simple .build-node { padding: 9px 10px; }
-
-/* the Add gallery becomes a friendly "make" picker: ready-mades first, big
-   tiles, advanced groups hidden */
-.tier-simple #add-modal .modal-body { display: flex; flex-direction: column; }
-.tier-simple #add-modal [data-cat="ready"] { order: 1; }
-.tier-simple #add-modal [data-cat="basic"] { order: 2; }
-.tier-simple #add-modal [data-cat="text"]  { order: 3; }
-.tier-simple #add-modal [data-cat="rounded"],
-.tier-simple #add-modal [data-cat="fasteners"],
-.tier-simple #add-modal [data-cat="import"] { display: none; }
-.tier-simple #add-modal .cat-grid { grid-template-columns: repeat(auto-fill, minmax(132px, 1fr)); gap: 10px; }
-.tier-simple #add-modal .cat-grid button { font-size: 13px; padding: 14px 10px 11px; text-align: center; white-space: normal; }
-.tier-simple #add-modal .tile-art { height: 60px; }
-.tier-simple #add-modal .shape-art { width: 72px; height: 60px; }
-
 @media (max-width: 720px) {
-  .tier-switch button { padding: 5px 6px; font-size: 9px; }
-  .tier-cards { grid-template-columns: 1fr; }
   .bar-proj { display: none; }
 }
 
@@ -1054,9 +942,6 @@ input[type=range]::-moz-range-thumb {
 .cmd-label { font-size: 13px; color: var(--ink); flex: 1; }
 .cmd-hint { font-family: var(--mono); font-size: 10px; color: var(--ink-dim); flex: none; }
 .cmd-empty { padding: 22px; text-align: center; color: var(--ink-dim); font-family: var(--mono); font-size: 12px; }
-
-/* the palette is a Maker / Pro power tool — Simple stays clutter-free */
-.tier-simple #cmd-open, .tier-simple .prep, .tier-simple #view-mode-toggle { display: none; } /* palette + prep/inspect + edit/result are Pro */
 
 /* ===== view & tools modal (declutters the top bar) ========================*/
 .view-panel { width: 460px; }
@@ -1085,7 +970,6 @@ input[type=range]::-moz-range-thumb {
    shrink the level switch so the whole bar fits without clipping. */
 @media (max-width: 1040px) {
   .m-lab { display: none; }
-  .tier-switch button { padding: 5px 7px; font-size: 9px; letter-spacing: 0; }
   .topbar { gap: 6px; padding: 0 6px; }
   .tabs button { padding: 5px 9px; }
 }
@@ -1114,9 +998,6 @@ input[type=range]::-moz-range-thumb {
 .sketch-bar button:hover { border-color: var(--cyan); color: var(--cyan); }
 .sketch-bar .sketch-go { background: var(--cyan); color: var(--bg); border-color: var(--cyan); font-weight: 600; }
 .sketch-bar .sketch-go:hover { color: var(--bg); filter: brightness(1.08); }
-
-/* sketching is a Maker / Pro builder feature — Simple stays pick-and-size */
-.tier-simple [data-cat="draw"] { display: none; }
 
 @media (max-width: 720px) {
   .sketch-bar { flex-wrap: wrap; max-width: 92vw; justify-content: center; }

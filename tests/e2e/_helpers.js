@@ -5,24 +5,23 @@
 //   - window.__dbg / __forgeExport / __recipes → scripting/test hooks (app.js:353-355)
 //   - boot ready signal        → #boot gains class "gone" once the kernel loads (app.js:364)
 //   - service worker           → only registers in PROD, so dev runs are SW-free
-//   - localStorage namespace   → randr.* (tier/theme/layout/projects)
+//   - localStorage namespace   → randr.* (theme/layout/projects)
 //
 // State lives on window.__forgeApp:
-//   .mode 'code'|'build' · .tier 'simple'|'pro' · .viewMode 'edit'|'result'
+//   .mode 'code'|'build' · .tier 'pro' (Pro-only) · .viewMode 'edit'|'result'
 //   .buildTree.nodes[] (each: kind, op 'solid'|'hole', pos[3], rot[3], scale[3],
 //                       color, locked, hidden, group, groupMode, fields[])
 //   .selectedNodes[] · .selectedNode · .currentModel
 //   ._selectNode(i, additive) · .recompile()
 import { expect } from '@playwright/test';
 
-const SEED = { tier: 'pro', theme: 'dark', layout: 'inspector' };
+const SEED = { theme: 'dark', layout: 'inspector' };
 
 /** Seed deterministic settings, open the app, and wait until the kernel is ready. */
 export async function gotoApp(page, opts = {}) {
   const seed = { ...SEED, ...opts };
   await page.addInitScript((s) => {
     try {
-      localStorage.setItem('randr.tier', s.tier);
       localStorage.setItem('randr.theme', s.theme);
       localStorage.setItem('randr.layout', s.layout);
     } catch { /* storage may be unavailable */ }

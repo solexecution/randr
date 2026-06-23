@@ -23,8 +23,8 @@ import * as Projects from './projects.js';
 // --- Add gallery -----------------------------------------------------------
 // Each tile is a labelled SVG picture of the shape/part. Items carry one of
 // add (data-add primitive), tpl (data-tpl template), or id (special action);
-// `art` picks the picture (defaults to the add/tpl key). Categories keep the
-// same data-cat values so tier gating + search keep working.
+// `art` picks the picture (defaults to the add/tpl key). Categories keep their
+// data-cat values so gallery search keeps working.
 const _esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 const _a = (add, label, art, title) => ({ add, label: label || add, art: art || add, title });
 const _t = (tpl, art, label) => ({ tpl, label: label || tpl, art });
@@ -309,13 +309,11 @@ union() {
 `,
 };
 
-const TIER_KEY = 'randr.tier'; // saved experience level: 'simple' | 'maker' | 'pro'
-
 export class App {
   constructor(root) {
     this.root = root;
     this.mode = 'code';            // 'code' | 'build'
-    this.tier = 'pro';             // experience level (set for real by _initTier)
+    this.tier = 'pro';             // Pro-only app — Simple/Maker tiers removed; a permanent invariant
     this._sketchMode = 'extrude';  // sketch tool: 'extrude' | 'revolve'
     this.source = STARTER;
     this.overrides = {};
@@ -362,7 +360,6 @@ export class App {
     this.recompile(true);
     this._pushHistory();
     this._initProjects(); // restore last project (or adopt the starter as the first)
-    this._initTier();     // apply the saved experience level, or show the first-run chooser
     this.viewport.homeView(); // open framed on the whole plate, from the front
     this.root.querySelector('#boot').classList.add('gone');
   }
@@ -376,7 +373,7 @@ export class App {
     this.toolbar.onModeToggle = () => this._switchMode(this.mode === 'code' ? 'build' : 'code');
     this.toolbar.onPanelToggle = () => this._setPanel();
     this.toolbar.onQualityChange = (lvl) => { this._setQuality(lvl.v); this._toast(`Curve quality: ${lvl.name}`); };
-    this.toolbar.init({ tier: this.tier, mode: this.mode, curveQuality: this.curveQuality });
+    this.toolbar.init({ mode: this.mode, curveQuality: this.curveQuality });
   }
 
   // Reflect the live mode + curve-quality on the toolbar's shell buttons.
@@ -1288,64 +1285,6 @@ export class App {
     this._syncToolbar();
   }
 
-  // --- experience level (Simple / Maker / Pro) ------------------------------
-  // Progressive disclosure: one class on the root shows/hides tools per tier.
-  // Pro = the full app; Maker hides only the precision tools (measure, layers);
-  // Simple is the clutter-free "pick a thing and size it" mode — no code pane,
-  // no booleans, no coordinate fields.
-  _initTier() {
-    this._setTier('pro'); // Pro is the only experience level now (Simple removed)
-  }
-
-  _setTier(tier, { persist = true } = {}) {
-    if (tier === 'maker') tier = 'pro';               // Maker folded into Pro
-    if (tier !== 'simple' && tier !== 'pro') tier = 'pro';
-    // Simple hides the code editor — move to the visual builder first, but never
-    // strand a code-only design we can't represent as parts.
-    if (tier === 'simple' && this.mode === 'code') {
-      let convertible = true;
-      try { sourceToNodes(this.source); } catch { convertible = false; }
-      if (convertible) this._switchMode('build');
-      else { tier = 'pro'; this._toast('This design is code-only — opened in Pro so you can keep editing it.'); }
-    }
-    this.tier = tier;
-    this.root.classList.remove('tier-simple', 'tier-maker', 'tier-pro');
-    this.root.classList.add('tier-' + tier);
-    this.root.querySelectorAll('#tier-switch [data-tier]').forEach((b) =>
-      b.classList.toggle('on', b.dataset.tier === tier));
-    this._resetViewsForTier(tier);
-    this.toolbar?.setTier(tier); // re-hide any group whose tools are all hidden in this tier
-    this._syncToolbar();
-    if (tier === 'simple' && this.viewport && !this.viewport.snap) {
-      this.viewport.setSnap(true);
-      this.root.querySelector('#v-snap')?.classList.add('on');
-    }
-    if (persist) { try { localStorage.setItem(TIER_KEY, tier); } catch { /* quota */ } }
-  }
-
-  // Turn off any view mode whose toggle the new tier hides, so nothing gets
-  // stuck on with no control to switch it back off.
-  _resetViewsForTier(tier) {
-    if (!this.viewport) return;
-    if (tier !== 'pro') { // measure + layer preview are Pro-only
-      if (this.measureMode) {
-        this.measureMode = false;
-        this.viewport.setMeasureMode(false);
-        this.root.querySelector('#v-measure')?.classList.remove('on');
-      }
-      if (this._layerMode) this._exitLayers();
-    }
-    if (tier === 'simple') { // Simple also hides the print-prep cluster
-      if (this.overhangMode) {
-        this.overhangMode = false;
-        this.viewport.setOverhangView(false);
-        this.root.querySelector('#v-overhang')?.classList.remove('on');
-      }
-      this.root.querySelector('#prep-grp')?.classList.remove('open');
-      this.root.querySelector('#prep-toggle')?.classList.remove('on');
-    }
-  }
-
   // --- command palette (Ctrl+K) ---------------------------------------------
   // A searchable index of every tool/op, built fresh each open so it reflects
   // current state. Reuses the existing handlers (and a few button .click()s) so
@@ -1385,13 +1324,10 @@ export class App {
     add('Save project', 'Ctrl+S', 'Project', () => A._saveProject());
     add('Save project as…', '', 'Project', () => A._promptName('Save project as', A.project ? A.project.name : '', (n) => A._doSaveAs(n)));
     add('Open / manage projects…', '', 'Project', () => { A._renderProjectList(); A._openModal('#proj-modal'); });
-    add('Switch to Simple level', 'pick & size', 'Level', () => A._setTier('simple'));
-    add('Switch to Pro level', 'every tool', 'Level', () => A._setTier('pro'));
     return c;
   }
 
   _openCmd() {
-    if (this.tier === 'simple') return; // a power tool — Maker / Pro only
     this._cmdAll = this._commands();
     this._openModal('#cmd-modal');
     const input = this.root.querySelector('#cmd-input');
@@ -2141,19 +2077,6 @@ export class App {
       tab.addEventListener('click', () => this._switchMode(tab.dataset.mode));
     });
 
-    // experience level (Simple / Maker / Pro) — progressive disclosure
-    this.root.querySelectorAll('#tier-switch [data-tier]').forEach((b) =>
-      b.addEventListener('click', () => this._setTier(b.dataset.tier)));
-    // first-run level chooser: a card picks + saves; backdrop = Maker (sensible default)
-    const tierModal = $('#tier-modal');
-    if (tierModal) {
-      tierModal.querySelectorAll('[data-tier]').forEach((b) =>
-        b.addEventListener('click', () => { this._setTier(b.dataset.tier); this._closeModal('#tier-modal'); }));
-      tierModal.addEventListener('mousedown', (e) => {
-        if (e.target === tierModal) { this._setTier('simple'); this._closeModal('#tier-modal'); }
-      });
-    }
-
     // sketch → extrude / revolve
     $('#add-sketch')?.addEventListener('click', () => this._startSketch());
     $('#sketch-finish')?.addEventListener('click', () => this._finishSketchUI());
@@ -2534,8 +2457,6 @@ export class App {
         const ctx = this.root.querySelector('#ctx-menu');
         if (ctx && !ctx.classList.contains('hidden')) { e.preventDefault(); ctx.classList.add('hidden'); return; }
         if (this.viewport && this.viewport._sketch?.on) { e.preventDefault(); this._cancelSketchUI(); return; }
-        const tm = this.root.querySelector('#tier-modal');
-        if (tm && !tm.classList.contains('hidden')) { e.preventDefault(); this._setTier('simple'); tm.classList.add('hidden'); return; }
         for (const sel of ['#part-modal', '#cmd-modal', '#view-modal', '#settings-modal', '#name-modal', '#proj-modal', '#add-modal', '#help-modal']) {
           const m = this.root.querySelector(sel);
           if (m && !m.classList.contains('hidden')) { e.preventDefault(); if (sel === '#name-modal') this._nameCb = null; m.classList.add('hidden'); return; }
@@ -3262,12 +3183,12 @@ export class App {
             <div class="menu-pop">
               <button class="rail-btn" id="v-mmgrid" title="mm grid">⊞</button>
               <button class="rail-btn" id="v-wire" title="Wireframe">◇</button>
-              <button class="rail-btn prep" id="v-measure" title="Measure">📏</button>
-              <button class="rail-btn prep" id="v-layers" title="Layer preview">≣</button>
-              <button class="rail-btn prep" id="v-overhang" title="Overhang check">◣</button>
-              <button class="rail-btn prep" id="v-orient" title="Auto-orient">⤓</button>
-              <button class="rail-btn prep" id="v-fit-plate" title="Fit to plate">⤡</button>
-              <button class="rail-btn prep" id="v-cut" title="Cut in half">✂</button>
+              <button class="rail-btn" id="v-measure" title="Measure">📏</button>
+              <button class="rail-btn" id="v-layers" title="Layer preview">≣</button>
+              <button class="rail-btn" id="v-overhang" title="Overhang check">◣</button>
+              <button class="rail-btn" id="v-orient" title="Auto-orient">⤓</button>
+              <button class="rail-btn" id="v-fit-plate" title="Fit to plate">⤡</button>
+              <button class="rail-btn" id="v-cut" title="Cut in half">✂</button>
               <button class="rail-btn" id="mode-toggle" title="Build mode — tap for code">⬓</button>
               <button class="rail-btn" id="v-quality" title="Curve quality: Smooth — tap to cycle">◕</button>
               <button class="rail-btn" id="panel-toggle" title="Code panel — show / hide">⌨</button>
@@ -3451,29 +3372,6 @@ export class App {
             <input id="cmd-input" class="cmd-input" type="text" spellcheck="false" autocomplete="off"
                    placeholder="Type a command…  e.g. add box · export STL · auto-orient · simple">
             <div id="cmd-list" class="cmd-list" role="listbox"></div>
-          </div>
-        </div>
-
-        <div id="tier-modal" class="modal-overlay center hidden">
-          <div class="modal-panel tier-panel" role="dialog" aria-label="Choose your level">
-            <div class="modal-head">
-              <span class="modal-title">Welcome to R&amp;R — pick how you want to work</span>
-            </div>
-            <div class="modal-body">
-              <p class="tier-sub">Not sure? Start with <b>Simple</b>. You can switch anytime from the bar up top.</p>
-              <div class="tier-cards">
-                <button class="tier-card" data-tier="simple">
-                  <span class="tier-emoji">🟢</span>
-                  <span class="tier-name">Simple</span>
-                  <span class="tier-desc">Pick a thing, set the size, print. No clutter, nothing to break.</span>
-                </button>
-                <button class="tier-card" data-tier="pro">
-                  <span class="tier-emoji">🟣</span>
-                  <span class="tier-name">Pro</span>
-                  <span class="tier-desc">Build from parts, combine, align, code, measure — every tool.</span>
-                </button>
-              </div>
-            </div>
           </div>
         </div>
 

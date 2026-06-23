@@ -12,9 +12,8 @@
 // App owns the wiring:
 //   this.toolbar = new Toolbar(root)
 //   this.toolbar.onModeToggle / onPanelToggle / onQualityChange = …
-//   this.toolbar.init({ tier, mode, curveQuality })
+//   this.toolbar.init({ mode, curveQuality })
 //   this.toolbar.syncState({ mode, curveQuality })  // reflect app state on buttons
-//   this.toolbar.setTier(tier)                       // re-gate pro tools + re-render
 
 const _esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 
@@ -29,22 +28,21 @@ export const QUALITY_LEVELS = [
 
 // Every tool that can live on the bar. A `tool` is a single icon button (its
 // node is re-parented as-is); an `opener` is a whole compound .menu container
-// moved intact. `pro` tools are CSS-hidden in Simple tier — the class rides
-// along with the moved node, so gating keeps working automatically.
+// moved intact.
 const TOOLBAR_TOOLS = [
   { id: 'rail-home', glyph: '⌂', label: 'Home', cat: 'View' },
-  { id: 'view-mode-toggle', glyph: '◧', label: 'Edit / Result', cat: 'View', pro: true },
+  { id: 'view-mode-toggle', glyph: '◧', label: 'Edit / Result', cat: 'View' },
   { id: 'v-grid', glyph: '▦', label: 'Grid', cat: 'View' },
   { id: 'v-snap', glyph: '⌗', label: 'Snap 1 mm', cat: 'View' },
   { id: 'v-theme', glyph: '◐', label: 'Light / dark', cat: 'View' },
   { id: 'v-mmgrid', glyph: '⊞', label: 'mm grid', cat: 'View' },
-  { id: 'v-wire', glyph: '◇', label: 'Wireframe', cat: 'View', pro: true },
-  { id: 'v-measure', glyph: '📏', label: 'Measure', cat: 'Inspect & print', pro: true },
-  { id: 'v-layers', glyph: '≣', label: 'Layer preview', cat: 'Inspect & print', pro: true },
-  { id: 'v-overhang', glyph: '◣', label: 'Overhang', cat: 'Inspect & print', pro: true },
-  { id: 'v-orient', glyph: '⤓', label: 'Auto-orient', cat: 'Inspect & print', pro: true },
-  { id: 'v-fit-plate', glyph: '⤡', label: 'Fit to plate', cat: 'Inspect & print', pro: true },
-  { id: 'v-cut', glyph: '✂', label: 'Cut in half', cat: 'Inspect & print', pro: true },
+  { id: 'v-wire', glyph: '◇', label: 'Wireframe', cat: 'View' },
+  { id: 'v-measure', glyph: '📏', label: 'Measure', cat: 'Inspect & print' },
+  { id: 'v-layers', glyph: '≣', label: 'Layer preview', cat: 'Inspect & print' },
+  { id: 'v-overhang', glyph: '◣', label: 'Overhang', cat: 'Inspect & print' },
+  { id: 'v-orient', glyph: '⤓', label: 'Auto-orient', cat: 'Inspect & print' },
+  { id: 'v-fit-plate', glyph: '⤡', label: 'Fit to plate', cat: 'Inspect & print' },
+  { id: 'v-cut', glyph: '✂', label: 'Cut in half', cat: 'Inspect & print' },
   { id: 'mode-toggle', glyph: '⬓', label: 'Mode · code / build', cat: 'Mode' },
   { id: 'v-quality', glyph: '◕', label: 'Curve quality', cat: 'View' },
   { id: 'panel-toggle', glyph: '⌨', label: 'Code panel', cat: 'Mode' },
@@ -68,8 +66,7 @@ export class Toolbar {
     this.onModeToggle = null;    // mode button tapped (code ⇄ build)
     this.onPanelToggle = null;   // code-panel show/hide tapped
     this.onQualityChange = null; // (level) => {} — quality cycled to `level`
-    // pro-gating + the app state the shell buttons reflect (App pushes these in):
-    this.tier = 'pro';
+    // the app state the shell buttons reflect (App pushes these in via syncState):
     this._st = { mode: 'code', curveQuality: 64 };
     // placement, persisted in randr.toolbar:
     this.dock = 'left'; this.x = 80; this.y = 110;
@@ -82,12 +79,11 @@ export class Toolbar {
   // Find the strip, restore saved placement + layout, park every managed node,
   // render the bar from layout, then wire drag/dock, the shell buttons, and the
   // customise modal. No-op if the markup isn't present.
-  init({ tier = 'pro', mode = 'code', curveQuality = 64 } = {}) {
+  init({ mode = 'code', curveQuality = 64 } = {}) {
     const el = this.root.querySelector('#tools');
     const grip = this.root.querySelector('#tools-grip');
     if (!el || !grip) return;
     this._el = el;
-    this.tier = tier;
     this._st = { mode, curveQuality };
 
     let saved = null;
@@ -242,11 +238,9 @@ export class Toolbar {
     const place = (id, parent) => { const n = this._nodes[id]; if (n) parent.appendChild(n); };
     for (const entry of this.layout || []) {
       if (entry.type === 'group') {
-        // Skip a group that has no tools visible in the current tier — otherwise
-        // opening it shows a stranded empty menu box.
-        const vis = (entry.items || []).filter(
-          (id) => this._nodes[id] && !(this._tbTool(id)?.pro && this.tier === 'simple'),
-        );
+        // Skip a group whose tools are all missing — otherwise opening it shows
+        // a stranded empty menu box.
+        const vis = (entry.items || []).filter((id) => this._nodes[id]);
         if (!vis.length) continue;
         const menu = document.createElement('div');
         menu.className = 'menu tb-group';
@@ -279,8 +273,6 @@ export class Toolbar {
     if (curveQuality !== undefined) this._st.curveQuality = curveQuality;
     this._reflect();
   }
-
-  setTier(tier) { this.tier = tier; this.render(); }
 
   // Reflect mode (glyph/title) and curve quality (glyph/title) from the cached
   // app state, and the code-panel open-state read live from #panel (App's
@@ -377,7 +369,7 @@ export class Toolbar {
     };
     const row = (id, current) => {
       const t = this._tbTool(id) || { glyph: '?', label: id };
-      return `<div class="tbm-row" data-id="${id}"><span class="tbm-ic">${t.glyph}</span><span class="tbm-lab">${_esc(t.label)}${t.pro ? ' <em>pro</em>' : ''}</span>${sel(id, current)}</div>`;
+      return `<div class="tbm-row" data-id="${id}"><span class="tbm-ic">${t.glyph}</span><span class="tbm-lab">${_esc(t.label)}</span>${sel(id, current)}</div>`;
     };
     let h = '<p class="tbm-hint">Drag the toolbar by its ⠿ grip to move it (it snaps to a side). Set each tool as a button, put it in a menu group, or turn it off.</p>';
     h += '<div class="tbm-sec">On the bar</div><div class="tbm-list">';
