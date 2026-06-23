@@ -124,11 +124,9 @@ body {
 .toolbar-edit:hover { color: var(--cyan); border-color: var(--line); }
 .toolbar-body { display: flex; flex-direction: column; align-items: center; gap: 5px; }
 .toolbar .rail-sep { width: 24px; height: 1px; margin: 2px 0; }
-#tools-more, #gear-menu, .tb-group { position: relative; }
-#tools-more .menu-pop, #gear-menu .menu-pop, .tb-group .menu-pop { left: calc(100% + 6px); top: 0; right: auto; min-width: 168px; }
+.tb-group { position: relative; }
+.tb-group .menu-pop { left: calc(100% + 6px); top: 0; right: auto; min-width: 168px; }
 /* docked to the right edge → group menus open to the LEFT so they stay on-screen */
-.toolbar.dock-right #tools-more .menu-pop,
-.toolbar.dock-right #gear-menu .menu-pop,
 .toolbar.dock-right .tb-group .menu-pop { left: auto; right: calc(100% + 6px); }
 /* group menus are a compact icon grid (the tools are icon buttons, like the bar) */
 .menu.tb-group.open .menu-pop { display: grid; grid-template-columns: repeat(3, 38px); }
@@ -196,14 +194,6 @@ body {
 .icon-btn:hover { border-color: var(--cyan); color: var(--cyan); }
 .icon-btn.on { background: var(--surface-2); border-color: var(--cyan); color: var(--cyan); }
 
-.tabs { display: flex; gap: 3px; background: var(--inset-bg); padding: 3px; border-radius: 8px; border: 1px solid var(--line); }
-.tabs button {
-  font-family: var(--mono); font-size: 12px; letter-spacing: .05em;
-  color: var(--ink-dim); background: none; border: 0;
-  padding: 5px 14px; border-radius: 6px; cursor: pointer;
-}
-.tabs button.active { background: var(--surface-2); color: var(--ink); }
-
 .viewtools { display: flex; gap: 4px; align-items: center; }
 #prep-grp { display: none; }
 #prep-grp.open { display: contents; }
@@ -264,9 +254,8 @@ body {
 .menu-sep[hidden], .menu-lab[hidden] { display: none; }
 .icon-btn.hidden { display: none; }
 .menu-pop button[hidden] { display: none; }
-/* ☰ app menu + ⚙ gear sit at the left of the bar, so their pops anchor left */
+/* ☰ app menu sits at the left of the bar, so its pop anchors left */
 #app-menu .menu-pop { left: 0; top: calc(100% + 4px); right: auto; min-width: 188px; } /* opens below the top bar */
-#gear-menu .menu-pop { left: calc(100% + 6px); top: 0; right: auto; min-width: 210px; } /* gear lives in the left toolbar — opens to the right */
 /* Templates / Export fly-out submenus */
 .menu-fly { position: relative; }
 .menu-fly-btn { display: flex; align-items: center; justify-content: space-between; width: 100%; }
@@ -966,12 +955,10 @@ input[type=range]::-moz-range-thumb {
 .m-ico { font-size: 14px; }
 .m-lab { margin-left: 5px; }
 
-/* Tablet / narrow: collapse the file·templates·export menus to icons and
-   shrink the level switch so the whole bar fits without clipping. */
+/* Tablet / narrow: tighten the top bar so it fits without clipping. */
 @media (max-width: 1040px) {
   .m-lab { display: none; }
   .topbar { gap: 6px; padding: 0 6px; }
-  .tabs button { padding: 5px 9px; }
 }
 @media (max-width: 900px) {
   .brand-name { display: none; } /* keep just the ◆ mark to reclaim width */

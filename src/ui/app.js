@@ -1225,7 +1225,6 @@ export class App {
     this.printCut = d.printCut || 0;
     this.selectedNode = -1;
     this.overrides = {};
-    this.root.querySelectorAll('[data-mode]').forEach((t) => t.classList.toggle('active', t.dataset.mode === this.mode));
     this.root.querySelector('#pane-code').classList.toggle('hidden', this.mode !== 'code');
     this.root.querySelector('#pane-build').classList.toggle('hidden', this.mode !== 'build');
     this.root.querySelector('#editor').value = this.source;
@@ -1275,7 +1274,6 @@ export class App {
       }
       this.mode = 'build';
     }
-    this.root.querySelectorAll('[data-mode]').forEach((t) => t.classList.toggle('active', t.dataset.mode === this.mode));
     $('#pane-code').classList.toggle('hidden', this.mode !== 'code');
     $('#pane-build').classList.toggle('hidden', this.mode !== 'build');
     this._syncBuildTools();
@@ -1475,7 +1473,6 @@ export class App {
     this.source = src;
     this.overrides = {};
     this._codeMirror = null;
-    this.root.querySelectorAll('[data-mode]').forEach((t) => t.classList.toggle('active', t.dataset.mode === 'code'));
     this.root.querySelector('#pane-code').classList.remove('hidden');
     this.root.querySelector('#pane-build').classList.add('hidden');
     this.root.querySelector('#editor').value = src;
@@ -1548,7 +1545,6 @@ export class App {
     this.overrides = {};
     this._codeMirror = null;
     this.selectedNodes = []; this.selectedNode = -1;
-    this.root.querySelectorAll('[data-mode]').forEach((t) => t.classList.toggle('active', t.dataset.mode === this.mode));
     this.root.querySelector('#pane-code').classList.toggle('hidden', this.mode !== 'code');
     this.root.querySelector('#pane-build').classList.toggle('hidden', this.mode !== 'build');
     this.root.querySelector('#editor').value = this.source;
@@ -2072,11 +2068,6 @@ export class App {
     ['keyup', 'click', 'mouseup'].forEach((ev) =>
       editor.addEventListener(ev, () => this._scheduleCursorHighlight()));
 
-    // mode tabs (also open the panel so the tools are visible)
-    this.root.querySelectorAll('[data-mode]').forEach((tab) => {
-      tab.addEventListener('click', () => this._switchMode(tab.dataset.mode));
-    });
-
     // sketch → extrude / revolve
     $('#add-sketch')?.addEventListener('click', () => this._startSketch());
     $('#sketch-finish')?.addEventListener('click', () => this._finishSketchUI());
@@ -2112,13 +2103,11 @@ export class App {
       });
     }
 
-    // top-bar menus: ☰ app menu (project / templates / export) and ⚙ gear
-    // (mode / level / view). Open one at a time; any click elsewhere closes them.
+    // top-bar menu: ☰ app menu (project / templates / export). Open it; any
+    // click elsewhere closes it.
     const openMenu = (m) => { const was = m.classList.contains('open'); this.root.querySelectorAll('.menu.open').forEach((o) => o.classList.remove('open')); if (!was) m.classList.add('open'); };
     const appMenu = $('#app-menu');
     $('#app-btn').addEventListener('click', (e) => { e.stopPropagation(); this.root.querySelectorAll('.menu-fly.open').forEach((f) => f.classList.remove('open')); this._renderRecentMenu(); openMenu(appMenu); });
-    const toolsMore = $('#tools-more');
-    if (toolsMore) $('#tools-more-btn').addEventListener('click', (e) => { e.stopPropagation(); openMenu(toolsMore); });
     document.addEventListener('click', () => this.root.querySelectorAll('.menu.open').forEach((m) => m.classList.remove('open')));
     // Templates / Export fly-out submenus inside the app menu (tap to open on touch)
     this.root.querySelectorAll('.menu-fly-btn').forEach((b) => b.addEventListener('click', (e) => {
