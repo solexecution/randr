@@ -310,6 +310,38 @@ union() {
 
 const TIER_KEY = 'randr.tier'; // saved experience level: 'simple' | 'maker' | 'pro'
 
+// ── Customizable left toolbar ────────────────────────────────────────────
+// Every tool that can live on the floating tool strip. A simple tool is a single
+// icon button (its node is re-parented as-is); an `opener` is a whole compound
+// .menu container (Settings) moved intact. Used to build the bar and the
+// customise panel. `pro` tools are CSS-hidden in Simple tier — the class rides
+// along with the moved node, so gating keeps working automatically.
+const TOOLBAR_TOOLS = [
+  { id: 'rail-home', glyph: '⌂', label: 'Home', cat: 'View' },
+  { id: 'view-mode-toggle', glyph: '◧', label: 'Edit / Result', cat: 'View', pro: true },
+  { id: 'v-grid', glyph: '▦', label: 'Grid', cat: 'View' },
+  { id: 'v-snap', glyph: '⌗', label: 'Snap 1 mm', cat: 'View' },
+  { id: 'v-theme', glyph: '◐', label: 'Light / dark', cat: 'View' },
+  { id: 'v-mmgrid', glyph: '⊞', label: 'mm grid', cat: 'View' },
+  { id: 'v-wire', glyph: '◇', label: 'Wireframe', cat: 'View', pro: true },
+  { id: 'v-measure', glyph: '📏', label: 'Measure', cat: 'Inspect & print', pro: true },
+  { id: 'v-layers', glyph: '≣', label: 'Layer preview', cat: 'Inspect & print', pro: true },
+  { id: 'v-overhang', glyph: '◣', label: 'Overhang', cat: 'Inspect & print', pro: true },
+  { id: 'v-orient', glyph: '⤓', label: 'Auto-orient', cat: 'Inspect & print', pro: true },
+  { id: 'v-fit-plate', glyph: '⤡', label: 'Fit to plate', cat: 'Inspect & print', pro: true },
+  { id: 'v-cut', glyph: '✂', label: 'Cut in half', cat: 'Inspect & print', pro: true },
+  { id: 'gear-menu', glyph: '⚙', label: 'Settings', cat: 'Settings', opener: true },
+];
+const TOOLBAR_DEFAULT = [
+  { type: 'tool', id: 'rail-home' },
+  { type: 'tool', id: 'view-mode-toggle' },
+  { type: 'tool', id: 'v-grid' },
+  { type: 'tool', id: 'v-snap' },
+  { type: 'tool', id: 'v-theme' },
+  { type: 'group', gid: 'g-more', label: 'More', glyph: '⋯', items: ['v-mmgrid', 'v-wire', 'v-measure', 'v-layers', 'v-overhang', 'v-orient', 'v-fit-plate', 'v-cut'] },
+  { type: 'opener', id: 'gear-menu' },
+];
+
 export class App {
   constructor(root) {
     this.root = root;
@@ -354,6 +386,7 @@ export class App {
     window.__dbg = { src: () => buildTreeToSource(this.buildTree), compile, meshSolid, importSTL, importOBJ, import3MF, registerSolid, coloredParts: () => buildColoredParts(this.buildTree) }; // debug
     window.__recipes = RECIPES; // simple-mode makes (test hook)
     this._bindEvents();
+    this._initToolbar();  // make the left tool strip draggable + dockable (restore saved spot)
     this._initTheme();    // apply saved light/dark before the first compile tints the meshes
     this._initLayout();   // apply saved layout (side inspector vs bottom bar)
     this.recompile(true);
@@ -362,6 +395,245 @@ export class App {
     this._initTier();     // apply the saved experience level, or show the first-run chooser
     this.viewport.homeView(); // open framed on the whole plate, from the front
     this.root.querySelector('#boot').classList.add('gone');
+  }
+
+  // --- floating / dockable / customizable left toolbar ----------------------
+  // The tool strip can be dragged anywhere by its grip; it snaps to whichever
+  // side edge it's dropped near (left by default) or stays floating. Position
+  // persists in localStorage (randr.toolbar). Customisation lives in Phase 2/3.
+  _initToolbar() {
+    const el = this.root.querySelector('#tools');
+    const grip = this.root.querySelector('#tools-grip');
+    if (!el || !grip) return;
+    this._toolsEl = el;
+
+    let saved = null;
+    try { saved = JSON.parse(localStorage.getItem('randr.toolbar')); } catch { /* ignore */ }
+    this._toolbar = {
+      dock: saved?.dock === 'right' || saved?.dock === 'float' ? saved.dock : 'left',
+      x: Number.isFinite(saved?.x) ? saved.x : 80,
+      y: Number.isFinite(saved?.y) ? saved.y : 110,
+    };
+    this._applyToolbarDock();
+
+    // managed tool nodes → a hidden store; the bar is then rendered from layout.
+    this._toolNodes = {};
+    for (const t of TOOLBAR_TOOLS) {
+      const n = this.root.querySelector('#' + t.id);
+      if (n) this._toolNodes[t.id] = n;
+    }
+    const store = document.createElement('div');
+    store.id = 'tool-store';
+    store.style.display = 'none';
+    el.appendChild(store);
+    this._toolStore = store;
+    for (const id in this._toolNodes) store.appendChild(this._toolNodes[id]); // park; render places them
+    this.root.querySelector('#tools-more')?.remove(); // legacy ⋯ husk — its tools are managed individually now
+    this._toolbar.layout = Array.isArray(saved?.layout) && saved.layout.length
+      ? saved.layout
+      : JSON.parse(JSON.stringify(TOOLBAR_DEFAULT));
+    this._renderToolbar();
+
+    let sx = 0, sy = 0, ox = 0, oy = 0, moved = false;
+    const onMove = (e) => {
+      moved = true;
+      el.classList.remove('dock-left', 'dock-right'); el.classList.add('float');
+      const r = el.getBoundingClientRect();
+      const x = Math.max(6, Math.min(ox + e.clientX - sx, window.innerWidth - r.width - 6));
+      const y = Math.max(52, Math.min(oy + e.clientY - sy, window.innerHeight - r.height - 6));
+      el.style.left = `${x}px`; el.style.top = `${y}px`; el.style.right = 'auto'; el.style.bottom = 'auto';
+    };
+    const onUp = () => {
+      window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('pointerup', onUp);
+      if (!moved) return;
+      const r = el.getBoundingClientRect();
+      if (r.left < 80) this._toolbar.dock = 'left';
+      else if (window.innerWidth - r.right < 80) this._toolbar.dock = 'right';
+      else { this._toolbar.dock = 'float'; this._toolbar.x = r.left; this._toolbar.y = r.top; }
+      this._applyToolbarDock();
+      this._saveToolbar();
+    };
+    grip.addEventListener('pointerdown', (e) => {
+      if (e.target.closest('button')) return; // let the ✎ customize button work
+      const r = el.getBoundingClientRect();
+      sx = e.clientX; sy = e.clientY; ox = r.left; oy = r.top; moved = false;
+      window.addEventListener('pointermove', onMove);
+      window.addEventListener('pointerup', onUp);
+      e.preventDefault();
+    });
+
+    this.root.querySelector('#tools-edit')?.addEventListener('click', () => this._openToolbarModal());
+
+    // customise modal: close / reset / backdrop + delegated edit controls
+    this.root.querySelector('#toolbar-modal-close')?.addEventListener('click', () => this._closeModal('#toolbar-modal'));
+    this.root.querySelector('#toolbar-reset')?.addEventListener('click', () => this._tbReset());
+    const tbModal = this.root.querySelector('#toolbar-modal');
+    tbModal?.addEventListener('mousedown', (e) => { if (e.target === tbModal) this._closeModal('#toolbar-modal'); });
+    const editBody = this.root.querySelector('#toolbar-edit-body');
+    editBody?.addEventListener('change', (e) => {
+      const s = e.target.closest('.tbm-place');
+      if (s) this._tbPlace(s.dataset.id, s.value);
+    });
+    editBody?.addEventListener('input', (e) => {
+      const nm = e.target.closest('.tbm-gname');
+      if (nm) this._tbRenameGroup(+nm.dataset.gi, nm.value);
+    });
+    editBody?.addEventListener('click', (e) => {
+      const mv = e.target.closest('[data-mv]');
+      if (mv) { this._tbMove(+mv.dataset.i, mv.dataset.mv === 'up' ? -1 : 1); return; }
+      const del = e.target.closest('.tbm-gdel');
+      if (del) { this._tbDeleteGroup(+del.dataset.gi); return; }
+      if (e.target.closest('.tbm-newgroup')) this._tbNewGroup();
+    });
+  }
+
+  _applyToolbarDock() {
+    const el = this._toolsEl, t = this._toolbar;
+    if (!el) return;
+    el.classList.remove('dock-left', 'dock-right', 'float');
+    if (t.dock === 'float') {
+      el.classList.add('float');
+      el.style.left = `${t.x}px`; el.style.top = `${t.y}px`; el.style.right = 'auto'; el.style.bottom = 'auto';
+    } else {
+      el.classList.add(t.dock === 'right' ? 'dock-right' : 'dock-left');
+      el.style.left = el.style.top = el.style.right = el.style.bottom = '';
+    }
+  }
+
+  _saveToolbar() {
+    try { localStorage.setItem('randr.toolbar', JSON.stringify(this._toolbar)); } catch { /* quota */ }
+  }
+
+  // Render the tool strip from this._toolbar.layout by re-parenting the wired
+  // tool nodes (their click handlers survive the move). Unplaced tools stay
+  // parked in the hidden store (= "off"). Groups reuse the .menu/.menu-pop +
+  // openMenu pattern (the global doc-click handler closes them).
+  _renderToolbar() {
+    const body = this.root.querySelector('#tools-body');
+    const store = this._toolStore;
+    if (!body || !store) return;
+    for (const id in this._toolNodes) store.appendChild(this._toolNodes[id]); // park everything first
+    body.innerHTML = '';
+    const place = (id, parent) => { const n = this._toolNodes[id]; if (n) parent.appendChild(n); };
+    for (const entry of this._toolbar.layout || []) {
+      if (entry.type === 'group') {
+        const menu = document.createElement('div');
+        menu.className = 'menu tb-group';
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'rail-btn';
+        btn.textContent = entry.glyph || '⋯';
+        btn.title = entry.label || 'Group';
+        const pop = document.createElement('div');
+        pop.className = 'menu-pop';
+        for (const id of (entry.items || [])) place(id, pop);
+        menu.append(btn, pop);
+        body.appendChild(menu);
+        btn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          const was = menu.classList.contains('open');
+          this.root.querySelectorAll('.menu.open').forEach((o) => o.classList.remove('open'));
+          if (!was) menu.classList.add('open');
+        });
+      } else {
+        place(entry.id, body); // 'tool' or 'opener'
+      }
+    }
+  }
+
+  // --- toolbar customisation (the ✎ modal) ----------------------------------
+  _openToolbarModal() { this._renderToolbarModal(); this._openModal('#toolbar-modal'); }
+
+  _tbTool(id) { return TOOLBAR_TOOLS.find((t) => t.id === id); }
+
+  // re-render the bar, persist, and refresh the modal after any layout change
+  _tbApply() { this._renderToolbar(); this._saveToolbar(); this._renderToolbarModal(); }
+
+  _tbRemove(id) {
+    const L = this._toolbar.layout;
+    for (let i = L.length - 1; i >= 0; i--) {
+      if (L[i].type === 'group') L[i].items = (L[i].items || []).filter((x) => x !== id);
+      else if (L[i].id === id) L.splice(i, 1);
+    }
+  }
+
+  _tbPlace(id, dest) {
+    this._tbRemove(id);
+    if (dest === 'bar') {
+      const t = this._tbTool(id);
+      this._toolbar.layout.push({ type: t?.opener ? 'opener' : 'tool', id });
+    } else if (dest && dest.startsWith('g:')) {
+      const gid = dest.slice(2);
+      const g = this._toolbar.layout.find((e) => e.type === 'group' && e.gid === gid);
+      if (g) (g.items = g.items || []).push(id);
+    } // 'off' → just leave it removed
+    this._tbApply();
+  }
+
+  _tbMove(i, dir) {
+    const L = this._toolbar.layout, j = i + dir;
+    if (j < 0 || j >= L.length) return;
+    [L[i], L[j]] = [L[j], L[i]];
+    this._tbApply();
+  }
+
+  _tbNewGroup() {
+    this._toolbar.layout.push({ type: 'group', gid: 'g' + Date.now().toString(36), label: 'New group', glyph: '❏', items: [] });
+    this._tbApply();
+  }
+
+  _tbRenameGroup(i, name) {
+    const g = this._toolbar.layout[i];
+    if (g?.type === 'group') { g.label = name.trim() || 'Group'; this._renderToolbar(); this._saveToolbar(); }
+  }
+
+  _tbDeleteGroup(i) {
+    const g = this._toolbar.layout[i];
+    if (g?.type === 'group') { this._toolbar.layout.splice(i, 1); this._tbApply(); } // its tools drop to Off
+  }
+
+  _tbReset() { this._toolbar.layout = JSON.parse(JSON.stringify(TOOLBAR_DEFAULT)); this._tbApply(); }
+
+  _renderToolbarModal() {
+    const body = this.root.querySelector('#toolbar-edit-body');
+    if (!body) return;
+    const L = this._toolbar.layout;
+    const groups = L.filter((e) => e.type === 'group');
+    const sel = (id, current) => {
+      const t = this._tbTool(id);
+      const o = [`<option value="bar"${current === 'bar' ? ' selected' : ''}>Button</option>`];
+      if (!t?.opener) for (const g of groups) o.push(`<option value="g:${g.gid}"${current === 'g:' + g.gid ? ' selected' : ''}>In “${_esc(g.label)}”</option>`);
+      o.push(`<option value="off"${current === 'off' ? ' selected' : ''}>Off</option>`);
+      return `<select class="tbm-place" data-id="${id}">${o.join('')}</select>`;
+    };
+    const row = (id, current) => {
+      const t = this._tbTool(id) || { glyph: '?', label: id };
+      return `<div class="tbm-row" data-id="${id}"><span class="tbm-ic">${t.glyph}</span><span class="tbm-lab">${_esc(t.label)}${t.pro ? ' <em>pro</em>' : ''}</span>${sel(id, current)}</div>`;
+    };
+    let h = '<p class="tbm-hint">Drag the toolbar by its ⠿ grip to move it (it snaps to a side). Set each tool as a button, put it in a menu group, or turn it off.</p>';
+    h += '<div class="tbm-sec">On the bar</div><div class="tbm-list">';
+    L.forEach((e, i) => {
+      const mv = `<span class="tbm-mv"><button type="button" data-mv="up" data-i="${i}" title="Move up">↑</button><button type="button" data-mv="dn" data-i="${i}" title="Move down">↓</button></span>`;
+      if (e.type === 'group') {
+        h += `<div class="tbm-grp"><div class="tbm-grphead"><span class="tbm-gic">${e.glyph || '❏'}</span><input class="tbm-gname" data-gi="${i}" value="${_esc(e.label)}" maxlength="20" spellcheck="false">${mv}<button type="button" class="tbm-gdel" data-gi="${i}" title="Delete group">✕</button></div><div class="tbm-grpitems">`;
+        (e.items || []).forEach((id) => { h += row(id, 'g:' + e.gid); });
+        if (!(e.items || []).length) h += `<div class="tbm-empty">empty — assign tools to “${_esc(e.label)}” below</div>`;
+        h += '</div></div>';
+      } else {
+        h += `<div class="tbm-toprow">${row(e.id, 'bar')}${mv}</div>`;
+      }
+    });
+    h += '</div><button type="button" class="tbm-newgroup">＋ New group</button>';
+    const placed = new Set();
+    L.forEach((e) => { if (e.type === 'group') (e.items || []).forEach((x) => placed.add(x)); else placed.add(e.id); });
+    const off = TOOLBAR_TOOLS.filter((t) => !placed.has(t.id));
+    if (off.length) {
+      h += '<div class="tbm-sec">Off — not on the bar</div><div class="tbm-list">';
+      off.forEach((t) => { h += row(t.id, 'off'); });
+      h += '</div>';
+    }
+    body.innerHTML = h;
   }
 
   // --- theme (light / dark) -------------------------------------------------
@@ -3231,7 +3503,12 @@ export class App {
           </div>
         </nav>
 
-        <nav class="toolbar" id="tools" aria-label="View and build tools">
+        <nav class="toolbar dock-left" id="tools" aria-label="View and build tools">
+          <div class="toolbar-grip" id="tools-grip" title="Drag to move the toolbar">
+            <span class="grip-dots" aria-hidden="true">⠿</span>
+            <button class="toolbar-edit" id="tools-edit" title="Customize toolbar — add or group tools">✎</button>
+          </div>
+          <div class="toolbar-body" id="tools-body">
           <button class="rail-btn" id="rail-home" title="Home — frame the whole plate">⌂</button>
           <button class="rail-btn" id="view-mode-toggle" title="Editing parts — tap to show result">◧</button>
           <div class="rail-sep"></div>
@@ -3278,6 +3555,7 @@ export class App {
               <div class="menu-sep"></div>
               <button id="panel-toggle">Show / hide code panel</button>
             </div>
+          </div>
           </div>
         </nav>
 
@@ -3437,6 +3715,17 @@ export class App {
               <input type="text" id="name-input" class="name-input" placeholder="Project name" spellcheck="false" maxlength="60">
               <div class="name-actions"><button id="name-ok" class="add-open-btn">Save</button></div>
             </div>
+          </div>
+        </div>
+
+        <div id="toolbar-modal" class="modal-overlay center hidden">
+          <div class="modal-panel toolbar-panel" role="dialog" aria-label="Customize toolbar">
+            <div class="modal-head">
+              <span class="modal-title">Customize toolbar</span>
+              <button type="button" class="tbm-reset" id="toolbar-reset" title="Restore the default toolbar">Reset</button>
+              <button class="modal-x" id="toolbar-modal-close" aria-label="Close">✕</button>
+            </div>
+            <div class="modal-body" id="toolbar-edit-body"></div>
           </div>
         </div>
 

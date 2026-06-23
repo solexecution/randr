@@ -21,12 +21,17 @@ import {
   collectConsoleErrors,
 } from './_helpers.js';
 
-// Open the ⋯ "more tools" fly-out menu and wait for it to be on screen, so the
-// measure / layers / cut buttons inside it are actually clickable.
+// Open the "More" tools group and wait for it. These tools (measure / layers /
+// cut …) now live in the customizable toolbar's default "More" group (.tb-group),
+// not the old #tools-more menu.
 async function openToolsMore(page) {
-  await page.click('#tools-more-btn');
+  await page.evaluate(() => {
+    const groups = [...document.querySelectorAll('#tools-body .tb-group')];
+    const more = groups.find((el) => el.querySelector('button')?.title === 'More') || groups[0];
+    more?.querySelector('button')?.click();
+  });
   await page.waitForFunction(
-    () => document.querySelector('#tools-more')?.classList.contains('open'),
+    () => !!document.querySelector('#tools-body .tb-group.open'),
     null,
     { timeout: 5000 },
   );
