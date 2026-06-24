@@ -912,6 +912,11 @@ input[type=range]::-moz-range-thumb {
 .nav-right { right: 0; top: 50%; transform: translateY(-50%); }
 .nav-home { top: 0; right: 0; width: 20px; height: 20px; font-size: 12px; }
 #nav-axis { width: 48px; height: 48px; cursor: pointer; pointer-events: auto; }
+/* When the parts card is docked LEFT it covers the top-left corner, so shift the
+   whole nav widget (cube + rotate arrows + home + axis) to the opposite edge.
+   .cardleft / .cardright are set on .stage by _applyCardLayout. */
+.stage.cardleft #nav-widget { left: auto; right: 12px; }
+.stage.cardright #nav-widget { left: 12px; right: auto; }
 
 .hud {
   position: absolute; top: 52px; left: 12px; right: auto; z-index: 25;
