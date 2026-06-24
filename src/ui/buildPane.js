@@ -1,5 +1,6 @@
 import { esc } from './escape.js';
 import { isFastener, METRIC_SIZES, currentMetricSize, supportsClearance, isShellable, supportsFillet, setNodeKind, applyMetricSize } from './buildtree.js';
+import { ADDABLE_KINDS } from './primitives.js';
 
 // App's build-pane renderers (the part-editor tree + the compact parts list),
 // split out of app.js. Authored as class methods so they move verbatim and
@@ -52,7 +53,7 @@ class BuildPaneRenderers {
     const mEl = this.root.querySelector('#part-modal-metrics');
     const mb = this.viewport.shapeBounds ? this.viewport.shapeBounds(this.selectedNode) : null;
     if (mEl) mEl.textContent = mb ? `${(mb.max[0] - mb.min[0]).toFixed(1)} × ${(mb.max[1] - mb.min[1]).toFixed(1)} × ${(mb.max[2] - mb.min[2]).toFixed(1)} mm` : '—';
-    const KINDS = ['box', 'cylinder', 'sphere', 'cone', 'pyramid', 'torus', 'wedge', 'dome', 'slot', 'star', 'roundedBox', 'roundedCylinder', 'chamferedBox', 'chamferedCylinder', 'tube', 'prism', 'gear', 'counterbore', 'countersink', 'insertHole', 'nutTrap', 'keyhole', 'text', 'thread', 'bolt', 'nut'];
+    const KINDS = ADDABLE_KINDS; // the kind picker — single source of truth in primitives.js
     const KIND_LABEL = { roundedBox: 'rounded', roundedCylinder: 'r-cyl', chamferedBox: 'cham-box', chamferedCylinder: 'cham-cyl', thread: 'rod' };
     const COUNT_KEYS = new Set(['sides', 'segments', 'n', 'count', 'teeth', 'points']);
     const hex = (c) => '#' + ((c >>> 0) & 0xffffff).toString(16).padStart(6, '0');

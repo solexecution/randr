@@ -1,0 +1,758 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`primitive catalog (characterization) > bolt → stable source, fields, and base height 1`] = `
+{
+  "baseZ": 0,
+  "fields": [
+    {
+      "key": "d",
+      "type": "number",
+      "value": 16,
+    },
+    {
+      "key": "pitch",
+      "type": "number",
+      "value": 2.5,
+    },
+    {
+      "key": "length",
+      "type": "number",
+      "value": 20,
+    },
+    {
+      "key": "headAF",
+      "type": "number",
+      "value": 24,
+    },
+    {
+      "key": "headH",
+      "type": "number",
+      "value": 10,
+    },
+  ],
+  "source": "union() {
+    bolt(16, 2.5, 20, 24, 10);
+}
+",
+}
+`;
+
+exports[`primitive catalog (characterization) > box → stable source, fields, and base height 1`] = `
+{
+  "baseZ": 10,
+  "fields": [
+    {
+      "key": "x",
+      "type": "number",
+      "value": 20,
+    },
+    {
+      "key": "y",
+      "type": "number",
+      "value": 20,
+    },
+    {
+      "key": "z",
+      "type": "number",
+      "value": 20,
+    },
+  ],
+  "source": "union() {
+    translate([0, 0, 10]) { box(20, 20, 20); }
+}
+",
+}
+`;
+
+exports[`primitive catalog (characterization) > chamferedBox → stable source, fields, and base height 1`] = `
+{
+  "baseZ": 12,
+  "fields": [
+    {
+      "key": "x",
+      "type": "number",
+      "value": 24,
+    },
+    {
+      "key": "y",
+      "type": "number",
+      "value": 24,
+    },
+    {
+      "key": "z",
+      "type": "number",
+      "value": 24,
+    },
+    {
+      "key": "c",
+      "type": "number",
+      "value": 4,
+    },
+  ],
+  "source": "union() {
+    translate([0, 0, 12]) { chamferedBox(24, 24, 24, 4); }
+}
+",
+}
+`;
+
+exports[`primitive catalog (characterization) > chamferedCylinder → stable source, fields, and base height 1`] = `
+{
+  "baseZ": 0,
+  "fields": [
+    {
+      "key": "h",
+      "type": "number",
+      "value": 20,
+    },
+    {
+      "key": "r",
+      "type": "number",
+      "value": 12,
+    },
+    {
+      "key": "chamfer",
+      "type": "number",
+      "value": 3,
+    },
+  ],
+  "source": "union() {
+    chamferedCylinder(20, 12, 3);
+}
+",
+}
+`;
+
+exports[`primitive catalog (characterization) > cone → stable source, fields, and base height 1`] = `
+{
+  "baseZ": 12,
+  "fields": [
+    {
+      "key": "h",
+      "type": "number",
+      "value": 24,
+    },
+    {
+      "key": "r1",
+      "type": "number",
+      "value": 12,
+    },
+    {
+      "key": "r2",
+      "type": "number",
+      "value": 0,
+    },
+  ],
+  "source": "union() {
+    translate([0, 0, 12]) { cone(24, 12, 0); }
+}
+",
+}
+`;
+
+exports[`primitive catalog (characterization) > counterbore → stable source, fields, and base height 1`] = `
+{
+  "baseZ": 0,
+  "fields": [
+    {
+      "key": "shaftD",
+      "type": "number",
+      "value": 3.4,
+    },
+    {
+      "key": "depth",
+      "type": "number",
+      "value": 12,
+    },
+    {
+      "key": "headD",
+      "type": "number",
+      "value": 6,
+    },
+    {
+      "key": "headDepth",
+      "type": "number",
+      "value": 3.5,
+    },
+  ],
+  "source": "union() {
+    counterbore(3.4, 12, 6, 3.5);
+}
+",
+}
+`;
+
+exports[`primitive catalog (characterization) > countersink → stable source, fields, and base height 1`] = `
+{
+  "baseZ": 0,
+  "fields": [
+    {
+      "key": "shaftD",
+      "type": "number",
+      "value": 3.4,
+    },
+    {
+      "key": "depth",
+      "type": "number",
+      "value": 12,
+    },
+    {
+      "key": "headD",
+      "type": "number",
+      "value": 6.5,
+    },
+  ],
+  "source": "union() {
+    countersink(3.4, 12, 6.5);
+}
+",
+}
+`;
+
+exports[`primitive catalog (characterization) > cylinder → stable source, fields, and base height 1`] = `
+{
+  "baseZ": 10,
+  "fields": [
+    {
+      "key": "h",
+      "type": "number",
+      "value": 20,
+    },
+    {
+      "key": "r",
+      "type": "number",
+      "value": 10,
+    },
+  ],
+  "source": "union() {
+    translate([0, 0, 10]) { cylinder(20, 10); }
+}
+",
+}
+`;
+
+exports[`primitive catalog (characterization) > dome → stable source, fields, and base height 1`] = `
+{
+  "baseZ": 0,
+  "fields": [
+    {
+      "key": "r",
+      "type": "number",
+      "value": 14,
+    },
+  ],
+  "source": "union() {
+    dome(14);
+}
+",
+}
+`;
+
+exports[`primitive catalog (characterization) > extrusion → stable source, fields, and base height 1`] = `
+{
+  "baseZ": 5,
+  "fields": [
+    {
+      "key": "height",
+      "type": "number",
+      "value": 10,
+    },
+  ],
+  "source": "union() {
+    translate([0, 0, 5]) { extrude([], 10); }
+}
+",
+}
+`;
+
+exports[`primitive catalog (characterization) > gear → stable source, fields, and base height 1`] = `
+{
+  "baseZ": 3,
+  "fields": [
+    {
+      "key": "teeth",
+      "type": "number",
+      "value": 16,
+    },
+    {
+      "key": "module",
+      "type": "number",
+      "value": 2,
+    },
+    {
+      "key": "h",
+      "type": "number",
+      "value": 6,
+    },
+    {
+      "key": "bore",
+      "type": "number",
+      "value": 4,
+    },
+  ],
+  "source": "union() {
+    translate([0, 0, 3]) { gear(16, 2, 6, 4); }
+}
+",
+}
+`;
+
+exports[`primitive catalog (characterization) > imported → stable source, fields, and base height 1`] = `
+{
+  "baseZ": 0,
+  "fields": [],
+  "source": "union() {
+    imported("");
+}
+",
+}
+`;
+
+exports[`primitive catalog (characterization) > insertHole → stable source, fields, and base height 1`] = `
+{
+  "baseZ": 0,
+  "fields": [
+    {
+      "key": "insertD",
+      "type": "number",
+      "value": 4,
+    },
+    {
+      "key": "depth",
+      "type": "number",
+      "value": 6,
+    },
+  ],
+  "source": "union() {
+    insertHole(4, 6);
+}
+",
+}
+`;
+
+exports[`primitive catalog (characterization) > keyhole → stable source, fields, and base height 1`] = `
+{
+  "baseZ": 0,
+  "fields": [
+    {
+      "key": "headD",
+      "type": "number",
+      "value": 8,
+    },
+    {
+      "key": "slotW",
+      "type": "number",
+      "value": 4,
+    },
+    {
+      "key": "length",
+      "type": "number",
+      "value": 12,
+    },
+    {
+      "key": "depth",
+      "type": "number",
+      "value": 6,
+    },
+  ],
+  "source": "union() {
+    keyhole(8, 4, 12, 6);
+}
+",
+}
+`;
+
+exports[`primitive catalog (characterization) > nut → stable source, fields, and base height 1`] = `
+{
+  "baseZ": 0,
+  "fields": [
+    {
+      "key": "d",
+      "type": "number",
+      "value": 16,
+    },
+    {
+      "key": "pitch",
+      "type": "number",
+      "value": 2.5,
+    },
+    {
+      "key": "thickness",
+      "type": "number",
+      "value": 12,
+    },
+    {
+      "key": "af",
+      "type": "number",
+      "value": 24,
+    },
+  ],
+  "source": "union() {
+    nut(16, 2.5, 12, 24);
+}
+",
+}
+`;
+
+exports[`primitive catalog (characterization) > nutTrap → stable source, fields, and base height 1`] = `
+{
+  "baseZ": 0,
+  "fields": [
+    {
+      "key": "af",
+      "type": "number",
+      "value": 5.5,
+    },
+    {
+      "key": "nutThick",
+      "type": "number",
+      "value": 2.6,
+    },
+    {
+      "key": "boltD",
+      "type": "number",
+      "value": 3.4,
+    },
+    {
+      "key": "shaftDepth",
+      "type": "number",
+      "value": 14,
+    },
+  ],
+  "source": "union() {
+    nutTrap(5.5, 2.6, 3.4, 14);
+}
+",
+}
+`;
+
+exports[`primitive catalog (characterization) > prism → stable source, fields, and base height 1`] = `
+{
+  "baseZ": 10,
+  "fields": [
+    {
+      "key": "h",
+      "type": "number",
+      "value": 20,
+    },
+    {
+      "key": "r",
+      "type": "number",
+      "value": 12,
+    },
+    {
+      "key": "sides",
+      "type": "number",
+      "value": 6,
+    },
+  ],
+  "source": "union() {
+    translate([0, 0, 10]) { prism(20, 12, 6); }
+}
+",
+}
+`;
+
+exports[`primitive catalog (characterization) > pyramid → stable source, fields, and base height 1`] = `
+{
+  "baseZ": 13,
+  "fields": [
+    {
+      "key": "h",
+      "type": "number",
+      "value": 26,
+    },
+    {
+      "key": "r",
+      "type": "number",
+      "value": 15,
+    },
+  ],
+  "source": "union() {
+    translate([0, 0, 13]) { pyramid(26, 15); }
+}
+",
+}
+`;
+
+exports[`primitive catalog (characterization) > revolution → stable source, fields, and base height 1`] = `
+{
+  "baseZ": 0,
+  "fields": [
+    {
+      "key": "degrees",
+      "type": "number",
+      "value": 360,
+    },
+  ],
+  "source": "union() {
+    revolve([], 360);
+}
+",
+}
+`;
+
+exports[`primitive catalog (characterization) > roundedBox → stable source, fields, and base height 1`] = `
+{
+  "baseZ": 12,
+  "fields": [
+    {
+      "key": "x",
+      "type": "number",
+      "value": 24,
+    },
+    {
+      "key": "y",
+      "type": "number",
+      "value": 24,
+    },
+    {
+      "key": "z",
+      "type": "number",
+      "value": 24,
+    },
+    {
+      "key": "r",
+      "type": "number",
+      "value": 4,
+    },
+  ],
+  "source": "union() {
+    translate([0, 0, 12]) { roundedBox(24, 24, 24, 4); }
+}
+",
+}
+`;
+
+exports[`primitive catalog (characterization) > roundedCylinder → stable source, fields, and base height 1`] = `
+{
+  "baseZ": 0,
+  "fields": [
+    {
+      "key": "h",
+      "type": "number",
+      "value": 20,
+    },
+    {
+      "key": "r",
+      "type": "number",
+      "value": 12,
+    },
+    {
+      "key": "fillet",
+      "type": "number",
+      "value": 3,
+    },
+  ],
+  "source": "union() {
+    roundedCylinder(20, 12, 3);
+}
+",
+}
+`;
+
+exports[`primitive catalog (characterization) > slot → stable source, fields, and base height 1`] = `
+{
+  "baseZ": 5,
+  "fields": [
+    {
+      "key": "length",
+      "type": "number",
+      "value": 40,
+    },
+    {
+      "key": "r",
+      "type": "number",
+      "value": 8,
+    },
+    {
+      "key": "h",
+      "type": "number",
+      "value": 10,
+    },
+  ],
+  "source": "union() {
+    translate([0, 0, 5]) { slot(40, 8, 10); }
+}
+",
+}
+`;
+
+exports[`primitive catalog (characterization) > sphere → stable source, fields, and base height 1`] = `
+{
+  "baseZ": 12,
+  "fields": [
+    {
+      "key": "r",
+      "type": "number",
+      "value": 12,
+    },
+  ],
+  "source": "union() {
+    translate([0, 0, 12]) { sphere(12); }
+}
+",
+}
+`;
+
+exports[`primitive catalog (characterization) > star → stable source, fields, and base height 1`] = `
+{
+  "baseZ": 4,
+  "fields": [
+    {
+      "key": "points",
+      "type": "number",
+      "value": 5,
+    },
+    {
+      "key": "outer",
+      "type": "number",
+      "value": 18,
+    },
+    {
+      "key": "inner",
+      "type": "number",
+      "value": 8,
+    },
+    {
+      "key": "h",
+      "type": "number",
+      "value": 8,
+    },
+  ],
+  "source": "union() {
+    translate([0, 0, 4]) { star(5, 18, 8, 8); }
+}
+",
+}
+`;
+
+exports[`primitive catalog (characterization) > text → stable source, fields, and base height 1`] = `
+{
+  "baseZ": 0,
+  "fields": [
+    {
+      "key": "str",
+      "type": "text",
+      "value": "Text",
+    },
+    {
+      "key": "size",
+      "type": "number",
+      "value": 12,
+    },
+    {
+      "key": "height",
+      "type": "number",
+      "value": 4,
+    },
+  ],
+  "source": "union() {
+    text("Text", 12, 4);
+}
+",
+}
+`;
+
+exports[`primitive catalog (characterization) > thread → stable source, fields, and base height 1`] = `
+{
+  "baseZ": 0,
+  "fields": [
+    {
+      "key": "d",
+      "type": "number",
+      "value": 12,
+    },
+    {
+      "key": "pitch",
+      "type": "number",
+      "value": 2.5,
+    },
+    {
+      "key": "length",
+      "type": "number",
+      "value": 24,
+    },
+  ],
+  "source": "union() {
+    thread(24, 2.5, 12);
+}
+",
+}
+`;
+
+exports[`primitive catalog (characterization) > torus → stable source, fields, and base height 1`] = `
+{
+  "baseZ": 6,
+  "fields": [
+    {
+      "key": "radius",
+      "type": "number",
+      "value": 18,
+    },
+    {
+      "key": "tube",
+      "type": "number",
+      "value": 6,
+    },
+  ],
+  "source": "union() {
+    translate([0, 0, 6]) { torus(18, 6); }
+}
+",
+}
+`;
+
+exports[`primitive catalog (characterization) > tube → stable source, fields, and base height 1`] = `
+{
+  "baseZ": 10,
+  "fields": [
+    {
+      "key": "h",
+      "type": "number",
+      "value": 20,
+    },
+    {
+      "key": "router",
+      "type": "number",
+      "value": 12,
+    },
+    {
+      "key": "rinner",
+      "type": "number",
+      "value": 7,
+    },
+  ],
+  "source": "union() {
+    translate([0, 0, 10]) { tube(20, 12, 7); }
+}
+",
+}
+`;
+
+exports[`primitive catalog (characterization) > wedge → stable source, fields, and base height 1`] = `
+{
+  "baseZ": 0,
+  "fields": [
+    {
+      "key": "w",
+      "type": "number",
+      "value": 30,
+    },
+    {
+      "key": "d",
+      "type": "number",
+      "value": 30,
+    },
+    {
+      "key": "h",
+      "type": "number",
+      "value": 24,
+    },
+  ],
+  "source": "union() {
+    wedge(30, 30, 24);
+}
+",
+}
+`;

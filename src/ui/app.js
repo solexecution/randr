@@ -13,6 +13,7 @@ import { compile } from '../lang/compile.js';
 import { exportSTL, exportOBJ, export3MF, export3MFColored, triggerDownload } from '../kernel/export.js';
 import { Viewport, BUILD_VOLUME } from './viewport.js';
 import { buildTreeToSource, buildColoredParts, effField, BuildTree } from './buildtree.js';
+import { PRIMITIVES, ADDABLE_KINDS, PRIMITIVE_FNS } from './primitives.js';
 import { sourceToNodes } from './importBuild.js';
 import { shapeArt } from './shapeart.js';
 import { Toolbar, QUALITY_LEVELS } from './toolbar.js';
@@ -30,30 +31,18 @@ import * as Projects from './projects.js';
 // add (data-add primitive), tpl (data-tpl template), or id (special action);
 // `art` picks the picture (defaults to the add/tpl key). Categories keep their
 // data-cat values so gallery search keeps working.
-const _a = (add, label, art, title) => ({ add, label: label || add, art: art || add, title });
 const _t = (tpl, art, label) => ({ tpl, label: label || tpl, art });
+// Primitive tiles come straight from the registry (label / title live there;
+// the picture key is just the kind). Bespoke tiles — draw, engrave, ready-made
+// templates, import — stay hand-written and interleave with them.
+const _prim = (kind) => ({ add: kind, label: PRIMITIVES[kind].label || kind, art: kind, title: PRIMITIVES[kind].title });
+const _prims = (cat) => ADDABLE_KINDS.filter((k) => PRIMITIVES[k].cat === cat).map(_prim);
 const ADD_GALLERY = [
   ['draw', 'Draw', [{ id: 'add-sketch', art: 'sketch', label: 'sketch & extrude', title: 'Draw a 2D outline on the plate and pull it into 3D' }]],
-  ['basic', 'Basic shapes', [
-    _a('box'), _a('cylinder'), _a('sphere'), _a('cone'), _a('pyramid'), _a('prism'),
-    _a('gear'), _a('wedge'), _a('torus'), _a('dome'), _a('slot'), _a('star'),
-  ]],
-  ['rounded', 'Rounded & chamfered', [
-    _a('roundedBox', 'round box'), _a('roundedCylinder', 'round cyl'),
-    _a('chamferedBox', 'cham box'), _a('chamferedCylinder', 'cham cyl'), _a('tube'),
-  ]],
-  ['text', 'Text', [
-    _a('text'),
-    { id: 'engrave-text', art: 'engrave', label: 'on a face…' },
-  ]],
-  ['fasteners', 'Fasteners', [
-    _a('bolt'), _a('nut'), _a('thread', 'rod'),
-    _a('counterbore', "c'bore", 'counterbore', 'Counterbore hole (cap screw sits below)'),
-    _a('countersink', "c'sink", 'countersink', 'Countersink hole (flat-head sits flush)'),
-    _a('insertHole', 'insert', 'insertHole', 'Heat-set insert pocket'),
-    _a('nutTrap', 'nut trap', 'nutTrap', 'Captive nut trap (hex pocket + bolt shaft)'),
-    _a('keyhole', 'keyhole', 'keyhole', 'Keyhole slot — hang the print on a screw'),
-  ]],
+  ['basic', 'Basic shapes', _prims('basic')],
+  ['rounded', 'Rounded & chamfered', _prims('rounded')],
+  ['text', 'Text', [..._prims('text'), { id: 'engrave-text', art: 'engrave', label: 'on a face…' }]],
+  ['fasteners', 'Fasteners', _prims('fasteners')],
   ['ready', 'Ready-made · adjustable', [
     _t('soap dish', 'soapDish'), _t('pen cup', 'penCup'), _t('coaster', 'coaster'),
     _t('stacking bin', 'stackingBin'), _t('bolt & nut', 'bolt_nut'), _t('washer', 'washer'),
@@ -77,10 +66,8 @@ function addGalleryHTML() {
 // comments + whitespace (the real tokenizer drops them), so it can't reuse it.
 const HL_KEYWORDS = new Set(['param', 'true', 'false', 'PI']);
 const HL_FUNCS = new Set([
-  'box', 'cube', 'cylinder', 'sphere', 'cone', 'pyramid', 'torus', 'wedge',
-  'dome', 'slot', 'star', 'roundedBox', 'roundedCylinder', 'chamferedBox',
-  'chamferedCylinder', 'tube', 'prism', 'gear', 'counterbore', 'countersink', 'insertHole', 'nutTrap', 'keyhole', 'text', 'thread', 'bolt', 'nut', 'imported',
-  'extrude', 'revolve', 'translate', 'rotate', 'scale', 'mirror', 'fillet', 'chamfer', 'bisect',
+  ...PRIMITIVE_FNS, 'cube', 'extrude', 'revolve', // primitive call names from the registry (+ aliases)
+  'translate', 'rotate', 'scale', 'mirror', 'fillet', 'chamfer', 'bisect',
   'union', 'difference', 'intersection', 'hull',
   'sin', 'cos', 'tan', 'sqrt', 'abs', 'floor', 'ceil', 'round', 'min', 'max', 'pow',
 ]);
@@ -160,41 +147,30 @@ function roundCorners(pts, r, seg = 6) {
   return out;
 }
 
+// Kernel constructor per primitive kind, keyed by the registry's call name
+// (kind === fn for these). The point/mesh-driven kinds — imported, extrusion,
+// revolution, thread (extra crest arg) — are handled explicitly below.
+const KERNEL = {
+  box, cylinder, sphere, cone, pyramid, torus, wedge, dome, slot, star,
+  roundedBox, roundedCylinder, chamferedBox, chamferedCylinder, tube, prism, gear,
+  counterbore, countersink, insertHole, nutTrap, keyhole, text, bolt, nut,
+};
+
+// The edit-view mesh for one node. Generic kinds call KERNEL[kind] with the
+// registry's args — the SAME args the source path emits — so the fast mesh path
+// can't drift from the compiled result. Frees the manifold once meshed.
 function nodeToGeometry(node) {
   const f = (k) => effField(node, k);
+  const prim = PRIMITIVES[node.kind];
+  if (!prim) return null;
   let m;
   try {
     switch (node.kind) {
-      case 'box':        m = box(f('x'), f('y'), f('z')); break;
-      case 'cylinder':   m = cylinder(f('h'), f('r')); break;
-      case 'sphere':     m = sphere(f('r')); break;
-      case 'cone':       m = cone(f('h'), f('r1'), f('r2')); break;
-      case 'pyramid':    m = pyramid(f('h'), f('r')); break;
-      case 'torus':      m = torus(f('radius'), f('tube')); break;
-      case 'wedge':      m = wedge(f('w'), f('d'), f('h')); break;
-      case 'dome':       m = dome(f('r')); break;
-      case 'slot':       m = slot(f('length'), f('r'), f('h')); break;
-      case 'star':       m = star(f('points'), f('outer'), f('inner'), f('h')); break;
-      case 'roundedBox': m = roundedBox(f('x'), f('y'), f('z'), f('r')); break;
-      case 'roundedCylinder': m = roundedCylinder(f('h'), f('r'), f('fillet')); break;
-      case 'chamferedBox': m = chamferedBox(f('x'), f('y'), f('z'), f('c')); break;
-      case 'chamferedCylinder': m = chamferedCylinder(f('h'), f('r'), f('chamfer')); break;
-      case 'tube':       m = tube(f('h'), f('router'), f('rinner')); break;
-      case 'prism':      m = prism(f('h'), f('r'), f('sides')); break;
-      case 'gear':       m = gear(f('teeth'), f('module'), f('h'), f('bore')); break;
-      case 'counterbore': m = counterbore(f('shaftD'), f('depth'), f('headD'), f('headDepth')); break;
-      case 'countersink': m = countersink(f('shaftD'), f('depth'), f('headD')); break;
-      case 'insertHole':  m = insertHole(f('insertD'), f('depth')); break;
-      case 'nutTrap':     m = nutTrap(f('af'), f('nutThick'), f('boltD'), f('shaftDepth')); break;
-      case 'keyhole':     m = keyhole(f('headD'), f('slotW'), f('length'), f('depth')); break;
-      case 'text':       m = text(f('str'), f('size'), f('height')); break;
       case 'imported':   m = imported(node.meshId || ''); break;
       case 'extrusion':  { const pts = node.points || []; if (pts.length < 3) return null; m = extrude(pts, f('height')); break; }
       case 'revolution': { const pts = node.points || []; if (pts.length < 3) return null; m = revolve(pts, f('degrees')); break; }
       case 'thread':     m = thread(f('length'), f('pitch'), f('d'), 0.61 * f('pitch')); break;
-      case 'bolt':       m = bolt(f('d'), f('pitch'), f('length'), f('headAF'), f('headH')); break;
-      case 'nut':        m = nut(f('d'), f('pitch'), f('thickness'), f('af')); break;
-      default: return null;
+      default:           m = KERNEL[node.kind](...prim.args.map(f)); break;
     }
     const g = manifoldToGeometry(m);
     m.delete();
@@ -1221,8 +1197,7 @@ export class App {
     const c = [];
     const add = (label, hint, group, run) => c.push({ label, hint, group, run });
     const clickBtn = (sel) => { const b = A.root.querySelector(sel); if (b) b.click(); };
-    const SHAPES = ['box', 'cylinder', 'sphere', 'cone', 'pyramid', 'prism', 'gear', 'wedge', 'torus', 'dome', 'slot', 'star', 'roundedBox', 'roundedCylinder', 'chamferedBox', 'chamferedCylinder', 'tube', 'text', 'bolt', 'nut', 'thread', 'counterbore', 'countersink', 'insertHole', 'nutTrap', 'keyhole'];
-    SHAPES.forEach((k) => add(`Add ${k}`, 'shape', 'Add', () => A._addShape(k)));
+    ADDABLE_KINDS.forEach((k) => add(`Add ${k}`, 'shape', 'Add', () => A._addShape(k)));
     Object.keys(TEMPLATES).forEach((k) => add(`Insert ${k}`, 'ready-made', 'Add', () => A._loadTemplate(k)));
     add('Draw a sketch (extrude / revolve)', 'polygon → 3D', 'Add', () => A._startSketch());
     add('Fit to view', 'F', 'View', () => A.viewport.fitView());

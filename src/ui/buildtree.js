@@ -6,86 +6,17 @@
 // and pasting the output gives you exactly the same model, which is the whole
 // point of keeping a single representation.
 
-const DEFS = {
-  box:        { fields: [['x', 20], ['y', 20], ['z', 20]] },
-  cylinder:   { fields: [['h', 20], ['r', 10]] },
-  sphere:     { fields: [['r', 12]] },
-  cone:       { fields: [['h', 24], ['r1', 12], ['r2', 0]] },
-  pyramid:    { fields: [['h', 26], ['r', 15]] },
-  torus:      { fields: [['radius', 18], ['tube', 6]] },
-  wedge:      { fields: [['w', 30], ['d', 30], ['h', 24]] },
-  dome:       { fields: [['r', 14]] },
-  slot:       { fields: [['length', 40], ['r', 8], ['h', 10]] },
-  star:       { fields: [['points', 5], ['outer', 18], ['inner', 8], ['h', 8]] },
-  roundedBox: { fields: [['x', 24], ['y', 24], ['z', 24], ['r', 4]] },
-  roundedCylinder: { fields: [['h', 20], ['r', 12], ['fillet', 3]] },
-  chamferedBox: { fields: [['x', 24], ['y', 24], ['z', 24], ['c', 4]] },
-  chamferedCylinder: { fields: [['h', 20], ['r', 12], ['chamfer', 3]] },
-  tube:       { fields: [['h', 20], ['router', 12], ['rinner', 7]] },
-  prism:      { fields: [['h', 20], ['r', 12], ['sides', 6]] },
-  gear:       { fields: [['teeth', 16], ['module', 2], ['h', 6], ['bore', 4]] },
-  counterbore: { fields: [['shaftD', 3.4], ['depth', 12], ['headD', 6], ['headDepth', 3.5]] },
-  countersink: { fields: [['shaftD', 3.4], ['depth', 12], ['headD', 6.5]] },
-  insertHole:  { fields: [['insertD', 4], ['depth', 6]] },
-  nutTrap:     { fields: [['af', 5.5], ['nutThick', 2.6], ['boltD', 3.4], ['shaftDepth', 14]] },
-  keyhole:     { fields: [['headD', 8], ['slotW', 4], ['length', 12], ['depth', 6]] },
-  text:       { fields: [['str', 'Text', 'text'], ['size', 12], ['height', 4]] },
-  imported:   { fields: [] }, // geometry comes from a registered mesh (node.meshId)
-  extrusion:  { fields: [['height', 10]] }, // a drawn 2D polygon (node.points) pulled up
-  revolution: { fields: [['degrees', 360]] }, // a drawn profile (node.points) spun around the axis
-  thread:     { fields: [['d', 12], ['pitch', 2.5], ['length', 24]] }, // threaded rod
-  bolt:       { fields: [['d', 16], ['pitch', 2.5], ['length', 20], ['headAF', 24], ['headH', 10]] },
-  nut:        { fields: [['d', 16], ['pitch', 2.5], ['thickness', 12], ['af', 24]] },
-};
-
-// Half-height along the up (z) axis, so a freshly added shape sits ON the
-// workplane (its base at z = 0) the way it does in Tinkercad.
-function baseHalfHeight(kind, get) {
-  switch (kind) {
-    case 'box':        return get('z') / 2;
-    case 'cylinder':   return get('h') / 2;
-    case 'cone':       return get('h') / 2;
-    case 'pyramid':    return get('h') / 2;
-    case 'torus':      return get('tube');
-    case 'wedge':      return 0; // already sits on the plate
-    case 'dome':       return 0; // hemisphere, flat base on the plate
-    case 'slot':       return get('h') / 2;
-    case 'star':       return get('h') / 2;
-    case 'roundedBox': return get('z') / 2;
-    case 'roundedCylinder': return 0; // revolve builds it base-on-plate
-    case 'chamferedBox': return get('z') / 2;
-    case 'chamferedCylinder': return 0; // revolve builds it base-on-plate
-    case 'sphere':     return get('r');
-    case 'tube':       return get('h') / 2;
-    case 'prism':      return get('h') / 2;
-    case 'gear':       return get('h') / 2;
-    case 'counterbore': return 0;
-    case 'countersink': return 0;
-    case 'insertHole':  return 0;
-    case 'nutTrap':     return 0;
-    case 'keyhole':     return 0;
-    case 'text':       return 0; // built base-on-plate, lying flat
-    case 'imported':   return 0; // STL centred on X/Y, base on the plate
-    case 'extrusion':  return get('height') / 2; // extrude is centred — lift base to plate
-    case 'revolution': return 0; // revolve yields a Z-axis solid already on the plate
-    case 'thread':     return 0; // threaded rod, base on the plate
-    case 'bolt':       return 0; // built base-on-plate
-    case 'nut':        return 0; // built base-on-plate
-    default:           return 0;
-  }
-}
+// Primitive catalogue (fields, on-plate base height, source call) lives in one
+// kernel-free registry so this module and the kernel-side mesh path can't drift.
+import { PRIMITIVES, fieldsFor, baseHalfHeight, primitiveSource } from './primitives.js';
 
 const PALETTE = [0x4dd0e1, 0x66bb6a, 0xffb74d, 0xf778ba, 0xa371f7, 0x56d4dd, 0xff8a65];
 let colorIx = 0;
 
-function fieldsFor(kind) {
-  return DEFS[kind].fields.map(([key, value, type]) => ({ key, label: key, value, type: type || 'number' }));
-}
-
 // Build a fresh node sitting on the plate. Exported so the template importer
 // can mint nodes the same way the Add buttons do.
 export function createNode(kind) {
-  if (!DEFS[kind]) return null;
+  if (!PRIMITIVES[kind]) return null;
   const fields = fieldsFor(kind);
   const get = (k) => fields.find((x) => x.key === k).value;
   return {
@@ -121,7 +52,7 @@ export class BuildTree {
 // Switch a node's primitive type in place: reset its dimensions to the new
 // shape's defaults and re-seat it on the plate (position/rotation/colour kept).
 export function setNodeKind(node, kind) {
-  if (!DEFS[kind]) return;
+  if (!PRIMITIVES[kind]) return;
   node.kind = kind;
   node.fields = fieldsFor(kind);
   const get = (k) => node.fields.find((x) => x.key === k).value;
@@ -247,40 +178,10 @@ function shapeCall(node) {
   return s;
 }
 
+// The base shape call as source — `kind(...args)` (or the registry's override),
+// with the same clearance-adjusted field values the kernel-side mesh path uses.
 function baseShapeCall(node) {
-  const f = (k) => effField(node, k);
-  switch (node.kind) {
-    case 'box':        return `box(${f('x')}, ${f('y')}, ${f('z')})`;
-    case 'cylinder':   return `cylinder(${f('h')}, ${f('r')})`;
-    case 'sphere':     return `sphere(${f('r')})`;
-    case 'cone':       return `cone(${f('h')}, ${f('r1')}, ${f('r2')})`;
-    case 'pyramid':    return `pyramid(${f('h')}, ${f('r')})`;
-    case 'torus':      return `torus(${f('radius')}, ${f('tube')})`;
-    case 'wedge':      return `wedge(${f('w')}, ${f('d')}, ${f('h')})`;
-    case 'dome':       return `dome(${f('r')})`;
-    case 'slot':       return `slot(${f('length')}, ${f('r')}, ${f('h')})`;
-    case 'star':       return `star(${f('points')}, ${f('outer')}, ${f('inner')}, ${f('h')})`;
-    case 'roundedBox': return `roundedBox(${f('x')}, ${f('y')}, ${f('z')}, ${f('r')})`;
-    case 'roundedCylinder': return `roundedCylinder(${f('h')}, ${f('r')}, ${f('fillet')})`;
-    case 'chamferedBox': return `chamferedBox(${f('x')}, ${f('y')}, ${f('z')}, ${f('c')})`;
-    case 'chamferedCylinder': return `chamferedCylinder(${f('h')}, ${f('r')}, ${f('chamfer')})`;
-    case 'tube':       return `tube(${f('h')}, ${f('router')}, ${f('rinner')})`;
-    case 'prism':      return `prism(${f('h')}, ${f('r')}, ${f('sides')})`;
-    case 'gear':       return `gear(${f('teeth')}, ${f('module')}, ${f('h')}, ${f('bore')})`;
-    case 'counterbore': return `counterbore(${f('shaftD')}, ${f('depth')}, ${f('headD')}, ${f('headDepth')})`;
-    case 'countersink': return `countersink(${f('shaftD')}, ${f('depth')}, ${f('headD')})`;
-    case 'insertHole':  return `insertHole(${f('insertD')}, ${f('depth')})`;
-    case 'nutTrap':     return `nutTrap(${f('af')}, ${f('nutThick')}, ${f('boltD')}, ${f('shaftDepth')})`;
-    case 'keyhole':     return `keyhole(${f('headD')}, ${f('slotW')}, ${f('length')}, ${f('depth')})`;
-    case 'text':       return `text("${String(f('str')).replace(/\\/g, '\\\\').replace(/"/g, '\\"')}", ${f('size')}, ${f('height')})`;
-    case 'imported':   return `imported("${node.meshId || ''}")`;
-    case 'extrusion':  return `extrude([${(node.points || []).map(([x, y]) => `[${x}, ${y}]`).join(', ')}], ${f('height')})`;
-    case 'revolution': return `revolve([${(node.points || []).map(([x, y]) => `[${x}, ${y}]`).join(', ')}], ${f('degrees')})`;
-    case 'thread':     return `thread(${f('length')}, ${f('pitch')}, ${f('d')})`;
-    case 'bolt':       return `bolt(${f('d')}, ${f('pitch')}, ${f('length')}, ${f('headAF')}, ${f('headH')})`;
-    case 'nut':        return `nut(${f('d')}, ${f('pitch')}, ${f('thickness')}, ${f('af')})`;
-    default:           return null;
-  }
+  return primitiveSource(node, (k) => effField(node, k));
 }
 
 // Wrap a shape call in the transforms it needs (rotate inside translate).
