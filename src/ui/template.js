@@ -144,8 +144,11 @@ export function appHTML({ addGallery, featuresHtml, gcodeHtml }) {
               <input type="file" id="stl-file" accept=".stl,.obj,.3mf,model/stl,application/sla" hidden>
               <div class="ppane" data-pane="parts">
                 <div class="parts-head">
-                  <p class="hint" id="parts-hint">Tap a part to edit · long-press to multi-select</p>
-                  <button class="mini-btn" id="clear-canvas" title="Remove all parts from the plate" hidden>Clear</button>
+                  <p class="hint" id="parts-hint">Tap a part to edit · tap ⊹ multi to pick several</p>
+                  <div class="parts-head-acts">
+                    <button class="mini-btn js-multi" id="multi-head" title="Multi-select: tap this, then tap parts in the scene to add them (tap again to finish)" hidden>⊹ multi</button>
+                    <button class="mini-btn" id="clear-canvas" title="Remove all parts from the plate" hidden>Clear</button>
+                  </div>
                 </div>
                 <div id="build-list" class="build-list"></div>
               </div>
@@ -158,7 +161,7 @@ export function appHTML({ addGallery, featuresHtml, gcodeHtml }) {
               <button data-xform="translate" class="on" title="Move (W)">↔ move</button>
               <button data-xform="rotate" title="Rotate (E)">⟳ turn</button>
               <button data-xform="scale" title="Scale (R)">⤢ size</button>
-              <button id="multi-toggle" title="Multi-select — or long-press a part in the scene. Tap parts to add; tap empty to finish.">⊹ multi</button>
+              <button id="multi-toggle" class="js-multi" title="Multi-select — or long-press a part in the scene. Tap parts to add; tap empty to finish.">⊹ multi</button>
             </div>
             <div class="xform" id="wpbar">
               <span class="xform-label">plane</span>

@@ -770,6 +770,8 @@ input[type=range]::-moz-range-thumb {
 }
 .mini-btn:hover { border-color: var(--cyan); color: var(--cyan); }
 .mini-btn.confirm { border-color: var(--red); color: var(--red); } /* armed destructive (e.g. Clear all?) */
+.mini-btn.on { border-color: var(--cyan); color: var(--cyan); background: rgba(77, 208, 225, .16); } /* multi-select mode on */
+.parts-head-acts { display: flex; align-items: center; gap: 6px; flex: none; }
 
 .build-node.collapsed .bn-fields,
 .build-node.collapsed .bn-clear,

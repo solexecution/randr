@@ -23,18 +23,23 @@ class BuildPaneRenderers {
     const hintEl = this.root.querySelector('#parts-hint');
     if (hintEl) {
       const sel = this.selectedNodes ? this.selectedNodes.length : 0;
-      if (sel >= 2) hintEl.textContent = `${sel} parts selected — align / group / array below`;
+      if (this.multiSelect) hintEl.textContent = sel
+        ? `${sel} selected — tap more to add · tap ⊹ multi to finish`
+        : 'Multi-select on — tap parts in the scene to add';
+      else if (sel >= 2) hintEl.textContent = `${sel} parts selected — align / group / array below`;
       else if (sel === 1) {
         const n = nodes[this.selectedNodes[0]];
         const name = n ? (n.kind === 'imported' ? (n.meshName || 'mesh') : (n.kind || 'part')) : 'part';
         hintEl.textContent = `Editing ${name} — change anything below`;
-      } else hintEl.textContent = total ? 'Tap a part to edit · long-press to multi-select' : 'Tap + to add your first part';
+      } else hintEl.textContent = total ? 'Tap a part to edit · tap ⊹ multi to pick several' : 'Tap + to add your first part';
     }
     const clearEl = this.root.querySelector('#clear-canvas');
     if (clearEl) {
       clearEl.hidden = !total; // only offer Clear when there's something to clear
       if (!total) { clearEl.classList.remove('confirm'); clearEl.textContent = 'Clear'; }
     }
+    const multiEl = this.root.querySelector('#multi-head');
+    if (multiEl) multiEl.hidden = total < 2; // multi-select only makes sense with 2+ parts
   }
 
   _renderBuildTree() {

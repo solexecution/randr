@@ -250,11 +250,10 @@ class EventBindings {
     // multi-select toggle: a sticky additive mode so a tap (no Shift) adds to the
     // selection. Long-pressing a part in the scene arms the same mode (see
     // viewport.js → onMultiArm); both share this._setMultiSelect.
-    const multiBtn = this.root.querySelector('#multi-toggle');
-    if (multiBtn) multiBtn.addEventListener('click', () => {
+    this.root.querySelectorAll('.js-multi').forEach((multiBtn) => multiBtn.addEventListener('click', () => {
       this._setMultiSelect(!this.multiSelect);
       this._toast(this.multiSelect ? 'Multi-select on — tap parts to add · tap empty to finish' : 'Multi-select off');
-    });
+    }));
 
     // dismiss the right-click context menu on any click outside it
     window.addEventListener('mousedown', (e) => {

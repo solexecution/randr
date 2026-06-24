@@ -396,8 +396,9 @@ export class App {
   _setMultiSelect(on) {
     this.multiSelect = on;
     if (this.viewport) this.viewport.multiSelect = on;
-    const b = this.root.querySelector('#multi-toggle');
-    if (b) b.classList.toggle('on', on);
+    // reflect on every multi toggle (the parts-header one + the edit-tools one)
+    this.root.querySelectorAll('.js-multi').forEach((b) => b.classList.toggle('on', on));
+    this._updatePartsHeader?.(); // the hint follows the mode
   }
 
   // Called by the viewport when a long-press arms (or an empty tap finishes)
