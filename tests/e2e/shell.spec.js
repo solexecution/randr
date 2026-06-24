@@ -12,7 +12,8 @@
 //   - code/build/result    → #mode-seg top-bar control (#seg-code/#seg-build/#seg-result)
 //                            → app.mode (code/build) + app.viewMode (result preview)
 //   - curve quality        → #v-quality button cycles app.curveQuality (24/48/64/128)
-//   - code panel           → #seg-panel toggle (in #mode-seg) shows/hides #panel (docked right)
+//   - sidebar toggle       → #seg-panel toggle (in #mode-seg) shows/hides the unified
+//                            #part-card (editor in code mode, parts inspector in build)
 import { test, expect } from '@playwright/test';
 import {
   gotoApp,
@@ -214,13 +215,13 @@ test('curve-quality button cycles Draft → Standard → Smooth → Ultra → Dr
   await expect.poll(() => page.evaluate(() => window.__forgeApp.curveQuality)).toBe(24); // wraps to Draft
 });
 
-test('the code-panel toggle (in the top-bar control) shows / hides the source panel', async ({ page }) => {
-  await gotoApp(page); // boots in code mode → panel open
+test('the sidebar toggle (in the top-bar control) shows / hides the editor card in code mode', async ({ page }) => {
+  await gotoApp(page); // boots in code mode → the unified card shows the editor, open
   const btn = page.locator('#seg-panel');
   await expect(btn).toBeVisible();
-  const collapsed = () => page.evaluate(() => document.querySelector('#panel').classList.contains('collapsed'));
+  const collapsed = () => page.evaluate(() => document.querySelector('#part-card').classList.contains('collapsed'));
 
-  // fresh code-mode boot → panel open, toggle lit
+  // fresh code-mode boot → card open, toggle lit
   await expect.poll(collapsed).toBe(false);
   await expect(btn).toHaveClass(/on/);
 
@@ -255,9 +256,9 @@ test('the side-panel toggle hides the parts inspector in build mode (any-sidebar
   await expect(page.locator('#parts-toggle')).toHaveCount(0);
 });
 
-test('the code panel is docked on the right edge (opposite the toolbar)', async ({ page }) => {
+test('the unified card is docked on the right edge by default (opposite the toolbar)', async ({ page }) => {
   await gotoApp(page);
-  const right = await page.locator('#panel').evaluate((el) => getComputedStyle(el).right);
+  const right = await page.locator('#part-card').evaluate((el) => getComputedStyle(el).right);
   expect(right).toBe('0px'); // pinned to the right
 });
 

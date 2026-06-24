@@ -220,8 +220,6 @@ body {
 /* Result is a clean preview: hide the editing panel in EITHER mode (code editor
    or parts inspector) without touching its collapsed state, so it returns exactly
    as it was when you leave Result. */
-body.view-result #panel,
-body.view-result #panel-resize,
 body.view-result #part-card { display: none; }
 #view-menu .menu-pop { left: 0; top: calc(100% + 4px); right: auto; min-width: 170px; }
 .menu-pop button.on { color: var(--cyan); } /* active display toggle in the View menu */
@@ -360,6 +358,11 @@ body.view-result #part-card { display: none; }
 .pcol-main { flex: 1 1 0; min-height: 70px; overflow-y: auto; overscroll-behavior: contain; padding: 8px 10px 12px; }
 .pcol-edit { flex: 1 1 auto; min-height: 0; max-height: 62%; overflow-y: auto; overscroll-behavior: contain; padding: 8px 10px 12px; border-top: 1px solid var(--line); }
 .pcol-edit.hidden, .ppane.hidden { display: none; }
+/* one card, two surfaces: in code mode #pane-code shows and the build columns are
+   hidden; in build mode #pane-code is .hidden (by mode) and the columns show */
+.part-card.dom-code .pcol-main,
+.part-card.dom-code #pcol-edit { display: none; }
+.part-card #pane-code { flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain; }
 .pedit-head { font-family: var(--mono); font-size: 11px; letter-spacing: .04em; color: var(--ink-dim); margin-bottom: 8px; }
 .card-tools { display: flex; flex-direction: column; gap: 6px; margin-top: 10px; }
 
@@ -421,27 +424,8 @@ body.layout-bottom .part-card.float {
 body.layout-bottom .part-card.collapsed { transform: translateY(100%); }
 body.layout-bottom #card-snap { display: none; } /* dock L/R is meaningless at the bottom */
 
-/* code panel — a right-docked collapsible blade that overlays the canvas */
-.panel {
-  position: absolute; top: 46px; left: auto; right: 0; bottom: 0; z-index: 18;
-  width: var(--panel-w, 320px); max-width: 92vw;
-  background: var(--panel-bg); backdrop-filter: blur(10px);
-  border-left: 1px solid var(--line);
-  overflow-y: auto; overscroll-behavior: contain;
-  transition: transform .22s ease;
-}
-.panel.collapsed { transform: translateX(101%); }
-
-/* drag handle on the panel's inner (left) edge to resize it */
-#panel-resize {
-  position: absolute; top: 46px; bottom: 0; right: var(--panel-w, 320px); z-index: 19;
-  width: 8px; margin-right: -4px; cursor: ew-resize; touch-action: none;
-}
-#panel-resize::after {
-  content: ''; position: absolute; top: 0; bottom: 0; left: 3px; width: 2px; background: transparent;
-}
-#panel-resize:hover::after, #panel-resize.dragging::after { background: var(--cyan); }
-#panel.collapsed ~ #panel-resize { display: none; }
+/* the model-source editor (.pane / .editor-wrap / #editor, below) now lives
+   inside the unified #part-card — see _syncCardDomain + .part-card.dom-code */
 
 /* help modal — Features reference + G-code guide */
 .help-panel { width: min(720px, 92vw); max-height: 84vh; display: flex; flex-direction: column; }
@@ -970,7 +954,6 @@ input[type=range]::-moz-range-thumb {
 
 /* responsive: the drawer already overlays, so just tighten on small screens */
 @media (max-width: 720px) {
-  .panel { width: 290px; }
   .brand em { display: none; }
   .modeseg-opt { padding: 0 10px; font-size: 12px; } /* keep the 3-way from crowding the bar on tablets */
   /* Don't hide tools on a tablet (R&R's main target) — make the strip

@@ -14,9 +14,12 @@ class BuildPaneRenderers {
     const holes = nodes.filter((n) => n.op === 'hole').length;
     const solids = total - holes;
     const countEl = this.root.querySelector('#parts-count');
-    if (countEl) countEl.textContent = total
-      ? `Parts · ${total}  (${solids} solid · ${holes} hole${holes === 1 ? '' : 's'})`
-      : 'Parts';
+    // the unified card's title doubles as the editor title in code mode
+    if (countEl) countEl.textContent = this.mode === 'code'
+      ? 'Code'
+      : total
+        ? `Parts · ${total}  (${solids} solid · ${holes} hole${holes === 1 ? '' : 's'})`
+        : 'Parts';
     const hintEl = this.root.querySelector('#parts-hint');
     if (hintEl) {
       const sel = this.selectedNodes ? this.selectedNodes.length : 0;

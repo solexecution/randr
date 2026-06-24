@@ -285,27 +285,6 @@ class EventBindings {
       helpModal.addEventListener('mousedown', (e) => { if (e.target === helpModal) helpModal.classList.add('hidden'); });
     }
 
-    // resizable right panel — drag its inner (left) edge (pointer events: touch + mouse)
-    const presize = this.root.querySelector('#panel-resize');
-    const stage = this.root.querySelector('.stage');
-    if (presize && stage) {
-      let sx = 0, sw = 0;
-      const move = (e) => {
-        // panel hugs the right edge, so dragging left (smaller clientX) widens it
-        const w = Math.max(240, Math.min(560, sw - (e.clientX - sx)));
-        stage.style.setProperty('--panel-w', `${w}px`);
-      };
-      const up = () => { presize.classList.remove('dragging'); window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', up); };
-      presize.addEventListener('pointerdown', (e) => {
-        sx = e.clientX;
-        sw = this.root.querySelector('#panel').getBoundingClientRect().width;
-        presize.classList.add('dragging');
-        window.addEventListener('pointermove', move);
-        window.addEventListener('pointerup', up);
-        e.preventDefault();
-      });
-    }
-
     // layer preview: toggle + scrub
     const layerBtn = this.root.querySelector('#v-layers');
     if (layerBtn) layerBtn.addEventListener('click', () => this._toggleLayers());

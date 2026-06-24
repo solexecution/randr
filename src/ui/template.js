@@ -113,25 +113,11 @@ export function appHTML({ addGallery, featuresHtml, gcodeHtml }) {
           </div>
         </nav>
 
-        <aside class="panel" id="panel">
-          <section id="pane-code" class="pane">
-            <div class="pane-title">model source</div>
-            <div class="editor-wrap">
-              <pre class="editor-hl" aria-hidden="true"><code id="editor-code"></code></pre>
-              <textarea id="editor" spellcheck="false" autocomplete="off" autocapitalize="off" autocorrect="off"></textarea>
-            </div>
-            <div id="error" class="error"></div>
-            <div class="pane-title">parameters</div>
-            <div id="params" class="params"></div>
-          </section>
-
-          <!-- build editing now lives in the floating #part-card; this stub keeps
-               mode-toggle code that references #pane-build working -->
-          <section id="pane-build" class="pane hidden"></section>
-        </aside>
-        <div id="panel-resize" title="Drag to resize the panel"></div>
-
-        <div id="part-card" class="part-card dock-right hidden" role="region" aria-label="Parts and tools">
+        <!-- one draggable/dockable card hosts BOTH authoring surfaces: the model
+             -source editor (code mode) and the parts inspector (build mode). The
+             active mode's content shows; the other is hidden (see _syncCardDomain
+             + .part-card.dom-code in styles.css). Result hides the whole card. -->
+        <div id="part-card" class="part-card dock-right hidden" role="region" aria-label="Editor and parts">
           <div class="card-head" id="card-head">
             <span class="card-grip" title="Drag to move · snaps to either edge">⠿</span>
             <span class="card-title" id="parts-count">Parts</span>
@@ -142,6 +128,18 @@ export function appHTML({ addGallery, featuresHtml, gcodeHtml }) {
             </span>
           </div>
           <div class="pcols" id="pcols">
+            <!-- code mode: model-source editor (.hidden in build; the build columns
+                 below are hidden in code via .part-card.dom-code) -->
+            <section id="pane-code" class="pane">
+              <div class="pane-title">model source</div>
+              <div class="editor-wrap">
+                <pre class="editor-hl" aria-hidden="true"><code id="editor-code"></code></pre>
+                <textarea id="editor" spellcheck="false" autocomplete="off" autocapitalize="off" autocorrect="off"></textarea>
+              </div>
+              <div id="error" class="error"></div>
+              <div class="pane-title">parameters</div>
+              <div id="params" class="params"></div>
+            </section>
             <div class="pcol-main">
               <input type="file" id="stl-file" accept=".stl,.obj,.3mf,model/stl,application/sla" hidden>
               <div class="ppane" data-pane="parts">

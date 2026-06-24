@@ -357,18 +357,12 @@ export class App {
       b.classList.toggle('on', on);
       b.setAttribute('aria-pressed', on ? 'true' : 'false');
     });
-    // the 4th control is an independent toggle (not a mode): lit while the current
-    // mode's sidebar is open — the code panel in code, the parts inspector elsewhere
+    // the 4th control is an independent toggle (not a mode): lit while the unified
+    // card (editor in code, parts inspector in build) is open
     const panelBtn = this.root.querySelector('#seg-panel');
     if (panelBtn) {
-      let open;
-      if (this.mode === 'code') {
-        const panel = this.root.querySelector('#panel');
-        open = !!panel && !panel.classList.contains('collapsed');
-      } else {
-        const card = this.root.querySelector('#part-card');
-        open = !!card && !card.classList.contains('hidden') && !this._cardCollapsed;
-      }
+      const card = this.root.querySelector('#part-card');
+      const open = !!card && !card.classList.contains('hidden') && !this._cardCollapsed;
       panelBtn.classList.toggle('on', open);
       panelBtn.innerHTML = open ? PANEL_ICON_SHOWN : PANEL_ICON_HIDDEN; // state-aware glyph
       panelBtn.setAttribute('aria-pressed', open ? 'true' : 'false');
@@ -443,16 +437,24 @@ export class App {
     this._renderBuildTree(); // re-render the roster + the modal detail for the new selection
   }
 
-  // The build tools live in a floating dock (bottom-right). Show its button only
-  // in build mode, and collapse the dock when leaving build so it never lingers
-  // over the code view.
+  // The unified card hosts both authoring surfaces (editor in code, parts
+  // inspector in build), so it shows in either mode — result hides it via the
+  // body.view-result CSS. _syncCardDomain swaps which content is visible.
   _syncBuildTools() {
-    const build = this.mode === 'build';
-    const show = build; // the inspector panel is build-mode only (settings is its own modal now)
     const card = this.root.querySelector('#part-card');
-    if (card) card.classList.toggle('hidden', !show);
-    this._setPanel(!build); // the code editor panel shows only in code mode
+    if (card) card.classList.remove('hidden');
+    this._syncCardDomain();
     this._applyCardLayout();
+  }
+
+  // Flip the card between its two surfaces by mode: code adds .dom-code (CSS shows
+  // #pane-code, hides the build columns); build removes it (parts list / editor
+  // columns show). The header title follows via _updatePartsHeader.
+  _syncCardDomain() {
+    const card = this.root.querySelector('#part-card');
+    if (!card) return;
+    card.classList.toggle('dom-code', this.mode === 'code');
+    this._updatePartsHeader?.();
   }
 
   // Keep the HUD (top-left) and nav-cube (top-right) clear of a side-docked
@@ -460,16 +462,17 @@ export class App {
   _applyCardLayout() {
     const stage = this.root.querySelector('.stage');
     if (!stage) return;
-    const build = this.mode === 'build';
     const dock = this._cardDock || 'right';
     const collapsed = !!this._cardCollapsed;
-    // the HUD / nav-cube only need to dodge an *expanded* side dock
+    // the HUD / nav-cube dodge an *expanded* side dock in either authoring mode,
+    // but not while the card is hidden (result preview) or laid out as a bottom bar
     const sideDock = this._layout !== 'bottom'; // the bottom sheet doesn't push the HUD/cube
-    stage.classList.toggle('cardleft', sideDock && build && dock === 'left' && !collapsed);
-    stage.classList.toggle('cardright', sideDock && build && dock === 'right' && !collapsed);
+    const visible = sideDock && !collapsed && this.viewMode !== 'result';
+    stage.classList.toggle('cardleft', visible && dock === 'left');
+    stage.classList.toggle('cardright', visible && dock === 'right');
     const minBtn = this.root.querySelector('#card-min');
-    if (minBtn) { minBtn.textContent = dock === 'right' ? '»' : '«'; minBtn.title = 'Hide the parts panel'; }
-    this._syncModeSeg(); // the ◨ side-panel toggle reflects the parts inspector in build/result
+    if (minBtn) { minBtn.textContent = dock === 'right' ? '»' : '«'; minBtn.title = 'Hide the panel'; }
+    this._syncModeSeg(); // the ◨ side-panel toggle reflects the card's open state
   }
 
   _saveCardDock() {
@@ -954,7 +957,6 @@ export class App {
     this.selectedNodes = [];
     this.overrides = {};
     this.root.querySelector('#pane-code').classList.toggle('hidden', this.mode !== 'code');
-    this.root.querySelector('#pane-build').classList.toggle('hidden', this.mode !== 'build');
     this.root.querySelector('#editor').value = this.source;
     this._renderBuildTree();
     this._syncBuildTools();
@@ -1003,7 +1005,6 @@ export class App {
       this.mode = 'build';
     }
     $('#pane-code').classList.toggle('hidden', this.mode !== 'code');
-    $('#pane-build').classList.toggle('hidden', this.mode !== 'build');
     this._syncBuildTools();
     if (this.mode === 'build') this._renderBuildTree();
     this.recompile(); // keep the camera as-is — code/build show the same object, so don't reframe
@@ -1113,7 +1114,6 @@ export class App {
     this.overrides = {};
     this._codeMirror = null;
     this.root.querySelector('#pane-code').classList.remove('hidden');
-    this.root.querySelector('#pane-build').classList.add('hidden');
     this.root.querySelector('#editor').value = src;
     this._syncBuildTools();
     this.recompile(true);
@@ -1185,7 +1185,6 @@ export class App {
     this._codeMirror = null;
     this.selectedNodes = [];
     this.root.querySelector('#pane-code').classList.toggle('hidden', this.mode !== 'code');
-    this.root.querySelector('#pane-build').classList.toggle('hidden', this.mode !== 'build');
     this.root.querySelector('#editor').value = this.source;
     this._syncModeSeg();
     this._renderBuildTree();
@@ -1458,20 +1457,10 @@ export class App {
     });
   }
 
-  // Open/close the code panel (right-docked). _setPanel() toggles; _setPanel(true|false) forces.
-  _setPanel(open) {
-    const panel = this.root.querySelector('#panel');
-    const collapse = open === undefined ? !panel.classList.contains('collapsed') : !open;
-    panel.classList.toggle('collapsed', collapse);
-    this._syncModeSeg(); // reflect the panel open-state on the top-bar control
-  }
-
-  // The ◨ top-bar button hides/shows the side panel for the CURRENT mode, so one
-  // control collapses the sidebar whatever you're doing: the code panel in code
-  // mode, the parts inspector (#part-card) in build/result.
+  // The ◨ top-bar button collapses / expands the one unified card (editor in
+  // code, parts inspector in build) — a single sidebar toggle for any mode.
   _toggleSidebar() {
-    if (this.mode === 'code') this._setPanel();
-    else this._setCardCollapsed?.(!this._cardCollapsed);
+    this._setCardCollapsed?.(!this._cardCollapsed);
   }
 
   _openAddModal() {
