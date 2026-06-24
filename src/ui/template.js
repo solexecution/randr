@@ -16,7 +16,7 @@ function templatesMenuHTML() {
     .join('\n                  ');
 }
 
-export function appHTML({ addGallery, gcodeHtml }) {
+export function appHTML({ addGallery, featuresHtml, gcodeHtml }) {
   return `
       <div id="boot"><div class="boot-inner"><span class="boot-mark">◆</span><p>loading kernel…</p></div></div>
 
@@ -55,7 +55,7 @@ export function appHTML({ addGallery, gcodeHtml }) {
               </div>
               <button id="menu-import">Import…</button>
               <div class="menu-sep"></div>
-              <button id="help-btn">Code help</button>
+              <button id="help-btn">Help</button>
             </div>
           </div>
           <div class="rail-sep"></div>
@@ -240,10 +240,17 @@ export function appHTML({ addGallery, gcodeHtml }) {
         <div id="help-modal" class="modal-overlay center hidden">
           <div class="modal-panel help-panel">
             <div class="modal-head">
-              <span class="modal-title">Learn G-code</span>
+              <span class="modal-title">Help</span>
               <button class="modal-x" id="help-close" aria-label="Close">✕</button>
             </div>
-            <div class="modal-body help-body">${gcodeHtml}</div>
+            <div class="help-tabs" role="tablist" aria-label="Help sections">
+              <button type="button" class="help-tab on" data-help-tab="features" role="tab" aria-selected="true">Features</button>
+              <button type="button" class="help-tab" data-help-tab="gcode" role="tab" aria-selected="false">G-code guide</button>
+            </div>
+            <div class="modal-body help-body">
+              <div id="help-features" class="help-pane" role="tabpanel">${featuresHtml}</div>
+              <div id="help-gcode" class="help-pane hidden" role="tabpanel">${gcodeHtml}</div>
+            </div>
           </div>
         </div>
 

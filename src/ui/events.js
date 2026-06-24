@@ -262,11 +262,24 @@ class EventBindings {
       if (menu && !menu.classList.contains('hidden') && !e.target.closest('#ctx-menu')) menu.classList.add('hidden');
     });
 
-    // help (Learn G-code) modal
+    // help modal — Features reference + G-code guide
     const helpModal = this.root.querySelector('#help-modal');
     const helpBtn = this.root.querySelector('#help-btn');
     if (helpBtn && helpModal) {
-      helpBtn.addEventListener('click', () => helpModal.classList.remove('hidden'));
+      const showHelpTab = (tab) => {
+        this.root.querySelectorAll('.help-tab').forEach((b) => {
+          const on = b.dataset.helpTab === tab;
+          b.classList.toggle('on', on);
+          b.setAttribute('aria-selected', on ? 'true' : 'false');
+        });
+        const feat = this.root.querySelector('#help-features');
+        const gcode = this.root.querySelector('#help-gcode');
+        if (feat) feat.classList.toggle('hidden', tab !== 'features');
+        if (gcode) gcode.classList.toggle('hidden', tab !== 'gcode');
+      };
+      helpBtn.addEventListener('click', () => { showHelpTab('features'); helpModal.classList.remove('hidden'); });
+      this.root.querySelectorAll('.help-tab').forEach((b) =>
+        b.addEventListener('click', () => showHelpTab(b.dataset.helpTab)));
       const hc = this.root.querySelector('#help-close');
       if (hc) hc.addEventListener('click', () => helpModal.classList.add('hidden'));
       helpModal.addEventListener('mousedown', (e) => { if (e.target === helpModal) helpModal.classList.add('hidden'); });
