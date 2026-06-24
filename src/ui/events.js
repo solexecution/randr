@@ -358,12 +358,18 @@ class EventBindings {
       this.recompile();
       this._pushHistory();
       this._toast(this.printCut > 0
-        ? 'Cut in half — showing the result. Switch to ◧ edit (Tools) to keep moving parts.'
+        ? 'Cut in half — showing the result. Tap Build to keep moving parts.'
         : 'Cut removed — back to editing.');
     });
 
-    // build view toggle: one button flips edit (parts + ghost) ⟷ result (combined solid)
-    $('#view-mode-toggle')?.addEventListener('click', () => this._setViewMode(this.viewMode === 'result' ? 'edit' : 'result'));
+    // top-bar cluster: code | build | result (mode-preserving result preview, see
+    // App._setWorkspace) + an independent code-panel show/hide toggle.
+    $('#mode-seg')?.addEventListener('click', (e) => {
+      const opt = e.target.closest('.modeseg-opt');
+      if (!opt) return;
+      if (opt.dataset.action === 'panel') this._setPanel();
+      else if (opt.dataset.view) this._setWorkspace(opt.dataset.view);
+    });
 
     // align toolbar (appears when 2+ shapes are selected)
     this.root.querySelectorAll('[data-align]').forEach((b) =>

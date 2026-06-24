@@ -5,13 +5,14 @@
 // floating) — all persisted in localStorage under randr.toolbar. The actual
 // tool *behaviors* stay in App: every managed button is a DOM node App wires
 // once, and the toolbar only re-parents those nodes (appendChild) to arrange
-// them, so their click handlers survive the move untouched. The three "shell"
-// buttons whose behavior is the toolbar's own concern — mode (code/build),
-// curve quality, and the code-panel toggle — fire back to App via callbacks.
+// them, so their click handlers survive the move untouched. The one "shell"
+// button whose behavior is the toolbar's own concern — curve quality — fires
+// back to App via a callback. (code/build/result and the code-panel toggle moved
+// to the dedicated top-bar segmented control.)
 //
 // App owns the wiring:
 //   this.toolbar = new Toolbar(root)
-//   this.toolbar.onModeToggle / onPanelToggle / onQualityChange = …
+//   this.toolbar.onQualityChange = …
 //   this.toolbar.init({ mode, curveQuality })
 //   this.toolbar.syncState({ mode, curveQuality })  // reflect app state on buttons
 
@@ -33,7 +34,6 @@ export const QUALITY_LEVELS = [
 // that starts active.
 const TOOLBAR_TOOLS = [
   { id: 'rail-home', glyph: '⌂', label: 'Home', title: 'Home — frame the whole plate', cat: 'View' },
-  { id: 'view-mode-toggle', glyph: '◧', label: 'Edit / Result', title: 'Editing parts — tap to show result', cat: 'View' },
   { id: 'v-grid', glyph: '▦', label: 'Grid', title: 'Grid', cat: 'View', on: true },
   { id: 'v-snap', glyph: '⌗', label: 'Snap 1 mm', title: 'Snap to 1 mm', cat: 'View', on: true },
   { id: 'v-theme', glyph: '◐', label: 'Light / dark', title: 'Dark / light mode', cat: 'View' },
@@ -45,25 +45,21 @@ const TOOLBAR_TOOLS = [
   { id: 'v-orient', glyph: '⤓', label: 'Auto-orient', title: 'Auto-orient', cat: 'Inspect & print' },
   { id: 'v-fit-plate', glyph: '⤡', label: 'Fit to plate', title: 'Fit to plate', cat: 'Inspect & print' },
   { id: 'v-cut', glyph: '✂', label: 'Cut in half', title: 'Cut in half', cat: 'Inspect & print' },
-  { id: 'mode-toggle', glyph: '⬓', label: 'Mode · code / build', title: 'Build mode — tap for code', cat: 'Mode' },
   { id: 'v-quality', glyph: '◕', label: 'Curve quality', title: 'Curve quality: Smooth — tap to cycle', cat: 'View' },
-  { id: 'panel-toggle', glyph: '⌨', label: 'Code panel', title: 'Code panel — show / hide', cat: 'Mode' },
 ];
 const TOOLBAR_DEFAULT = [
   { type: 'tool', id: 'rail-home' },
-  { type: 'tool', id: 'view-mode-toggle' },
   { type: 'tool', id: 'v-grid' },
   { type: 'tool', id: 'v-snap' },
   { type: 'tool', id: 'v-theme' },
   { type: 'group', gid: 'g-more', label: 'More', glyph: '⋯', items: ['v-mmgrid', 'v-wire', 'v-measure', 'v-layers', 'v-overhang', 'v-orient', 'v-fit-plate', 'v-cut'] },
-  { type: 'tool', id: 'mode-toggle' },
   { type: 'tool', id: 'v-quality' },
-  { type: 'tool', id: 'panel-toggle' },
 ];
 
 // Bump when the default layout gains a tool, and add a matching step in
 // migrateToolbar so older saved layouts surface it. Pre-versioned blobs read as v1.
-export const TOOLBAR_VERSION = 3;
+// (Removing a tool needs no step — migrate prunes ids not in KNOWN_IDS.)
+export const TOOLBAR_VERSION = 5;
 const KNOWN_IDS = new Set(TOOLBAR_TOOLS.map((t) => t.id));
 
 function defaultToolbarState() {
@@ -85,8 +81,8 @@ export function migrateToolbar(saved) {
     .filter((e) => e.type === 'group' || KNOWN_IDS.has(e.id));
   const has = (id) => layout.some((e) => (e.type === 'group' ? (e.items || []).includes(id) : e.id === id));
   const surface = (...ids) => ids.forEach((id) => { if (KNOWN_IDS.has(id) && !has(id)) layout.push({ type: 'tool', id }); });
-  if (version < 2) surface('mode-toggle');                // v2: single code/build toggle on the bar
-  if (version < 3) surface('v-quality', 'panel-toggle');  // v3: gear-menu controls became bar buttons
+  if (version < 3) surface('v-quality');                  // v3: curve-quality moved from the gear menu to a bar button
+  // v4 dropped view-mode-toggle + mode-toggle; v5 dropped panel-toggle — all now on the top-bar control (pruned above)
   return {
     version: TOOLBAR_VERSION,
     dock: saved.dock === 'right' || saved.dock === 'float' ? saved.dock : 'left',
@@ -119,8 +115,6 @@ export class Toolbar {
   constructor(root) {
     this.root = root;
     // callbacks set by App (mirrors the Viewport.onSelect pattern):
-    this.onModeToggle = null;    // mode button tapped (code ⇄ build)
-    this.onPanelToggle = null;   // code-panel show/hide tapped
     this.onQualityChange = null; // (level) => {} — quality cycled to `level`
     // the app state the shell buttons reflect (App pushes these in via syncState):
     this._st = { mode: 'code', curveQuality: 64 };
@@ -206,8 +200,6 @@ export class Toolbar {
   // live nodes — the binding survives being moved into a group.
   _wireButtons() {
     this.root.querySelector('#tools-edit')?.addEventListener('click', () => this._openModal());
-    this.root.querySelector('#mode-toggle')?.addEventListener('click', () => this.onModeToggle?.());
-    this.root.querySelector('#panel-toggle')?.addEventListener('click', () => this.onPanelToggle?.());
     this.root.querySelector('#v-quality')?.addEventListener('click', () => {
       const i = QUALITY_LEVELS.findIndex((q) => q.v === this._st.curveQuality);
       const next = QUALITY_LEVELS[(i + 1) % QUALITY_LEVELS.length];
@@ -312,24 +304,10 @@ export class Toolbar {
     this._reflect();
   }
 
-  // Reflect mode (glyph/title) and curve quality (glyph/title) from the cached
-  // app state, and the code-panel open-state read live from #panel (App's
-  // element). Re-run after every render since re-parenting clears nothing but
-  // re-runs cheaply, and after each syncState.
+  // Reflect curve quality (glyph/title) from the cached app state. Re-run after
+  // every render since re-parenting clears nothing but re-runs cheaply, and after
+  // each syncState. (code/build/result + the code panel live on the top bar now.)
   _reflect() {
-    const m = this.root.querySelector('#mode-toggle');
-    if (m) {
-      const code = this._st.mode === 'code';
-      m.classList.toggle('on', code);
-      m.textContent = code ? '⬒' : '⬓';
-      m.title = code ? 'Code mode — tap for build' : 'Build mode — tap for code';
-    }
-    const p = this.root.querySelector('#panel-toggle');
-    if (p) {
-      const panel = this.root.querySelector('#panel');
-      p.classList.toggle('on', !!panel && !panel.classList.contains('collapsed'));
-      p.title = 'Code panel — show / hide';
-    }
     const q = this.root.querySelector('#v-quality');
     if (q) {
       const lvl = QUALITY_LEVELS.find((x) => x.v === this._st.curveQuality) || QUALITY_LEVELS[2];

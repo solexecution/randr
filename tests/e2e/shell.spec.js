@@ -9,9 +9,10 @@
 //   - grid / theme         → #v-grid (.on class) / #v-theme (html.theme-light + randr.theme)
 //   - measure / layers / cut → live in the customizable "More" group (.tb-group):
 //                            #v-measure→app.measureMode, #v-layers→#layer-bar, #v-cut→app.printCut
-//   - mode toggle          → #mode-toggle button on the bar → app.mode (code/build)
+//   - code/build/result    → #mode-seg top-bar control (#seg-code/#seg-build/#seg-result)
+//                            → app.mode (code/build) + app.viewMode (result preview)
 //   - curve quality        → #v-quality button cycles app.curveQuality (24/48/64/128)
-//   - code panel           → #panel-toggle button shows/hides #panel (docked right)
+//   - code panel           → #seg-panel toggle (in #mode-seg) shows/hides #panel (docked right)
 import { test, expect } from '@playwright/test';
 import {
   gotoApp,
@@ -200,8 +201,8 @@ test('cut-in-half toggle (in the ⋯ menu) flips app.printCut', async ({ page })
   await page.waitForFunction(() => window.__forgeApp.printCut === 0, null, { timeout: 10000 });
 });
 
-// The ⚙ gear menu was removed — its three controls (mode, curve quality, code
-// panel) are now plain toolbar buttons. Mode is covered in toolbar.spec.js.
+// The ⚙ gear menu was removed. Curve quality is now a plain toolbar button;
+// mode and the code panel moved to the top-bar #mode-seg control (see toolbar.spec.js).
 test('curve-quality button cycles Draft → Standard → Smooth → Ultra → Draft', async ({ page }) => {
   await gotoApp(page);
   const q = page.locator('#v-quality');
@@ -213,16 +214,23 @@ test('curve-quality button cycles Draft → Standard → Smooth → Ultra → Dr
   await expect.poll(() => page.evaluate(() => window.__forgeApp.curveQuality)).toBe(24); // wraps to Draft
 });
 
-test('code-panel button shows / hides the source panel', async ({ page }) => {
+test('the code-panel toggle (in the top-bar control) shows / hides the source panel', async ({ page }) => {
   await gotoApp(page); // boots in code mode → panel open
-  const btn = page.locator('#panel-toggle');
+  const btn = page.locator('#seg-panel');
   await expect(btn).toBeVisible();
   const collapsed = () => page.evaluate(() => document.querySelector('#panel').classList.contains('collapsed'));
-  const start = await collapsed();
+
+  // fresh code-mode boot → panel open, toggle lit
+  await expect.poll(collapsed).toBe(false);
+  await expect(btn).toHaveClass(/on/);
+
   await btn.click();
-  await expect.poll(collapsed).toBe(!start);
+  await expect.poll(collapsed).toBe(true);   // hidden
+  await expect(btn).not.toHaveClass(/on/);
+
   await btn.click();
-  await expect.poll(collapsed).toBe(start);
+  await expect.poll(collapsed).toBe(false);  // shown again
+  await expect(btn).toHaveClass(/on/);
 });
 
 test('the code panel is docked on the right edge (opposite the toolbar)', async ({ page }) => {

@@ -308,26 +308,27 @@ test.describe('exports', () => {
 });
 
 test.describe('edit / result view', () => {
-  test('#view-mode-toggle flips viewMode edit <-> result with no console errors (colors kept)', async ({ page }) => {
+  test('the Result segment previews the merged solid and back, with no console errors (colors kept)', async ({ page }) => {
     const dialogs = forbidNativeDialogs(page);
     const errors = collectConsoleErrors(page);
     await gotoApp(page);
     await ensureBuildMode(page);
     await addShape(page, 'box');
 
-    // The toggle is build-mode only.
-    const toggle = page.locator('#view-mode-toggle');
-    await expect(toggle).toBeVisible();
+    await expect(page.locator('#mode-seg')).toBeVisible();
     expect(await page.evaluate(() => window.__forgeApp.viewMode)).toBe('edit');
 
-    // edit -> result: the merged solid renders via setColoredModel (per-part colors).
-    await toggle.click();
+    // build -> result: the merged solid renders via setColoredModel (per-part colors).
+    await page.click('#seg-result');
     await expect.poll(() => page.evaluate(() => window.__forgeApp.viewMode)).toBe('result');
     await expect(page.locator('body')).toHaveClass(/view-result/);
+    // result is a preview — it preserves the authoring mode (no lossy code<->build flip)
+    expect(await page.evaluate(() => window.__forgeApp.mode)).toBe('build');
 
-    // result -> edit.
-    await toggle.click();
+    // result -> build (edit): the preview class clears.
+    await page.click('#seg-build');
     await expect.poll(() => page.evaluate(() => window.__forgeApp.viewMode)).toBe('edit');
+    await expect(page.locator('body')).not.toHaveClass(/view-result/);
 
     expect(errors, `console errors:\n${errors.join('\n')}`).toEqual([]);
     expect(dialogs).toEqual([]);

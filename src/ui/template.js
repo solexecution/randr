@@ -87,6 +87,14 @@ export function appHTML({ addGallery, gcodeHtml }) {
           </div>
 
           <div class="rail-right">
+          <div class="modeseg" id="mode-seg" role="group" aria-label="Workspace — code, build, result, and the source panel">
+            <button class="modeseg-opt" id="seg-code" type="button" data-view="code" aria-pressed="false" title="Code — write the model as text">Code</button>
+            <button class="modeseg-opt" id="seg-build" type="button" data-view="build" aria-pressed="false" title="Build — edit the parts visually">Build</button>
+            <button class="modeseg-opt" id="seg-result" type="button" data-view="result" aria-pressed="false" title="Result — preview the finished solid">Result</button>
+            <span class="modeseg-div" aria-hidden="true"></span>
+            <button class="modeseg-opt pane" id="seg-panel" type="button" data-action="panel" aria-pressed="false" aria-label="Show or hide the code panel" title="Show / hide the code panel">⌨</button>
+          </div>
+          <div class="rail-sep"></div>
           <button class="rail-btn" id="cmd-open" title="Find a command (Ctrl+K)">⌕</button>
           <button class="rail-btn wide" id="parts-toggle" title="Show / hide the parts panel">▤ Parts</button>
           <button class="rail-btn add-round" id="add-open" title="Add a shape, part, or ready-made object">＋</button>

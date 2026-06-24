@@ -40,9 +40,10 @@ test('toolbar renders from layout, groups open, relocated tools still work', asy
   for (const id of ['rail-home', 'v-grid', 'v-snap', 'v-theme']) {
     await expect(page.locator(`#tools-body > #${id}`)).toHaveCount(1); // top-level buttons
   }
-  // the ⚙ menu's controls are now top-level buttons (the gear dropdown is gone)
+  // the curve-quality control is a top-level button (the gear dropdown is gone)
   await expect(page.locator('#tools-body > #v-quality')).toHaveCount(1);
-  await expect(page.locator('#tools-body > #panel-toggle')).toHaveCount(1);
+  // the code panel + mode toggles left the floating bar for the top-bar control
+  await expect(page.locator('#tools-body > #panel-toggle, #tools-body > #mode-toggle')).toHaveCount(0);
 
   const group = page.locator('#tools-body .tb-group');
   await expect(group).toHaveCount(1); // default "More" group
@@ -141,20 +142,29 @@ test('an opened group is a compact icon grid, not a tall text list', async ({ pa
   expect(h).toBeLessThan(220);
 });
 
-test('the mode toggle is a single button that switches code/build (like edit/result)', async ({ page }) => {
+test('the top-bar segmented control switches code/build; the old bar toggles are gone', async ({ page }) => {
   await gotoApp(page); // pro, build
   await ensureBuildMode(page);
 
-  const mode = page.locator('#mode-toggle');
-  await expect(mode).toBeVisible();
-  // one button: build → tap → code → tap → build, with the .on state tracking
+  // the floating-bar mode + view toggles were replaced by the top-bar control
+  await expect(page.locator('#mode-toggle, #view-mode-toggle')).toHaveCount(0);
+
+  const code = page.locator('#seg-code');
+  const build = page.locator('#seg-build');
+  await expect(page.locator('#mode-seg')).toBeVisible();
+
+  // the active segment fills (.on); switching flips both the mode and the highlight
   await expect.poll(() => page.evaluate(() => window.__forgeApp.mode)).toBe('build');
-  await mode.click();
+  await expect(build).toHaveClass(/on/);
+
+  await code.click();
   await expect.poll(() => page.evaluate(() => window.__forgeApp.mode)).toBe('code');
-  await expect(mode).toHaveClass(/on/);
-  await mode.click();
+  await expect(code).toHaveClass(/on/);
+  await expect(build).not.toHaveClass(/on/);
+
+  await build.click();
   await expect.poll(() => page.evaluate(() => window.__forgeApp.mode)).toBe('build');
-  await expect(mode).not.toHaveClass(/on/);
+  await expect(build).toHaveClass(/on/);
 });
 
 test('the tier system is gone — no tier switch anywhere', async ({ page }) => {

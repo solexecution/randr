@@ -265,10 +265,9 @@ export class App {
   // the layout, persistence, drag/dock, and the ✎ customise modal.
   _initToolbar() {
     this.toolbar = new Toolbar(this.root);
-    this.toolbar.onModeToggle = () => this._switchMode(this.mode === 'code' ? 'build' : 'code');
-    this.toolbar.onPanelToggle = () => this._setPanel();
     this.toolbar.onQualityChange = (lvl) => { this._setQuality(lvl.v); this._toast(`Curve quality: ${lvl.name}`); };
     this.toolbar.init({ mode: this.mode, curveQuality: this.curveQuality });
+    this._syncModeSeg(); // reflect the initial workspace on the top-bar control
   }
 
   // Reflect the live mode + curve-quality on the toolbar's shell buttons.
@@ -440,7 +439,8 @@ export class App {
   // enter-group step needed.
   _setViewMode(mode) {
     this.viewMode = mode;
-    this._syncViewModeBtn();
+    this._syncModeSeg();
+    if (mode === 'result') this._setPanel(false); // clean preview — tuck the source panel away
     if (this.mode !== 'build') return;
     if (mode === 'result') {
       this.viewport.setEditMode(false);
@@ -453,15 +453,41 @@ export class App {
     }
   }
 
-  // Reflect edit/result on the single top-bar toggle (◧ edit ⟷ ◨ result).
-  _syncViewModeBtn() {
-    const result = this.viewMode === 'result';
-    document.body.classList.toggle('view-result', result); // the floating undo/redo hide in result view
-    const t = this.root.querySelector('#view-mode-toggle');
-    if (!t) return;
-    t.classList.toggle('on', result);
-    t.textContent = result ? '◨' : '◧';
-    t.title = result ? 'Showing result — tap to edit parts' : 'Editing parts — tap to show result';
+  // The top-bar code / build / result control. code & build are the two
+  // authoring modes; result is a *preview* of the merged solid that preserves
+  // the mode you're in — tapping code or build returns to that editor — so it
+  // never triggers the lossy code<->build conversion _switchMode does. (In code
+  // mode the viewport already shows the merged solid; result just hides the
+  // source panel for a clean look, via the body.view-result class.)
+  _setWorkspace(view) {
+    if (view === 'result') {
+      if (this.viewMode !== 'result') this._setViewMode('result');
+    } else {
+      if (this.viewMode === 'result') this._setViewMode('edit'); // leave the preview first
+      this._switchMode(view); // no-op if already in this mode; may refuse (and stay) if code can't lift
+    }
+    this._syncModeSeg();
+  }
+
+  // Reflect the live workspace on the top-bar segmented control + the
+  // result-preview body class. The selected segment is derived: result wins when
+  // the view is the merged-solid preview, else it's the authoring mode.
+  _syncModeSeg() {
+    const view = this.viewMode === 'result' ? 'result' : this.mode; // 'code' | 'build' | 'result'
+    document.body.classList.toggle('view-result', view === 'result');
+    this.root.querySelectorAll('#mode-seg .modeseg-opt[data-view]').forEach((b) => {
+      const on = b.dataset.view === view;
+      b.classList.toggle('on', on);
+      b.setAttribute('aria-pressed', on ? 'true' : 'false');
+    });
+    // the 4th control is an independent toggle (not a mode): lit while the panel is open
+    const panelBtn = this.root.querySelector('#seg-panel');
+    if (panelBtn) {
+      const panel = this.root.querySelector('#panel');
+      const open = !!panel && !panel.classList.contains('collapsed');
+      panelBtn.classList.toggle('on', open);
+      panelBtn.setAttribute('aria-pressed', open ? 'true' : 'false');
+    }
   }
 
   // Print-prep overlays (cut-in-half, overhang) render on the merged RESULT
@@ -531,7 +557,6 @@ export class App {
   _syncBuildTools() {
     const build = this.mode === 'build';
     const show = build; // the inspector panel is build-mode only (settings is its own modal now)
-    const vmt = this.root.querySelector('#view-mode-toggle'); if (vmt) vmt.hidden = !build; // edit/result is build-only
     const card = this.root.querySelector('#part-card');
     if (card) card.classList.toggle('hidden', !show);
     this._setPanel(!build); // the code editor panel shows only in code mode
@@ -1176,6 +1201,7 @@ export class App {
     this.recompile(true);
     this._pushHistory();
     this._syncToolbar();
+    this._syncModeSeg(); // code/build switch changes the highlighted segment
   }
 
   // --- command palette (Ctrl+K) ---------------------------------------------
@@ -1442,7 +1468,7 @@ export class App {
     this.root.querySelector('#pane-code').classList.toggle('hidden', this.mode !== 'code');
     this.root.querySelector('#pane-build').classList.toggle('hidden', this.mode !== 'build');
     this.root.querySelector('#editor').value = this.source;
-    this._syncViewModeBtn();
+    this._syncModeSeg();
     this._renderBuildTree();
     this._syncBuildTools();
     this.recompile(true);
@@ -1940,7 +1966,7 @@ export class App {
     const panel = this.root.querySelector('#panel');
     const collapse = open === undefined ? !panel.classList.contains('collapsed') : !open;
     panel.classList.toggle('collapsed', collapse);
-    this._syncToolbar(); // reflect the panel open-state on its toolbar button
+    this._syncModeSeg(); // reflect the panel open-state on the top-bar control
   }
 
   _openAddModal() {

@@ -199,6 +199,21 @@ body {
 .rail-sep { width: 1px; height: 24px; background: var(--line); margin: 0 3px; flex: none; }
 .rail-spacer { flex: 1 1 auto; }
 .rail-btn.wide { width: auto; min-width: 0; padding: 0 12px; gap: 6px; font-size: 13px; font-weight: 500; } /* labelled top-bar buttons */
+
+/* code / build / result — the top-bar workspace switch. A segmented control so
+   both other choices stay visible and the active one reads as a filled selection
+   (distinct from the on/off .rail-btn toggles, which mean "this option is on"). */
+.modeseg { display: inline-flex; align-items: center; gap: 3px; padding: 3px; background: var(--btn-bg); border: 1px solid var(--line); border-radius: 10px; flex: none; }
+.modeseg-opt { height: 30px; padding: 0 13px; display: inline-flex; align-items: center; font-size: 12.5px; font-weight: 500; line-height: 1; white-space: nowrap; color: var(--ink-dim); background: none; border: 0; border-radius: 7px; cursor: pointer; transition: .12s; font-family: inherit; -webkit-appearance: none; appearance: none; }
+.modeseg-opt:hover { color: var(--ink); }
+.modeseg-opt.on { background: var(--cyan); color: var(--bg); }
+.modeseg-opt.on:hover { color: var(--bg); }
+/* a thin divider sets the panel toggle apart from the 3 exclusive mode segments */
+.modeseg-div { width: 1px; align-self: stretch; margin: 3px 2px; background: var(--line); flex: none; }
+/* 4th control: the code-panel show/hide toggle — an icon, lit as an independent on/off (not a filled mode) */
+.modeseg-opt.pane { font-size: 15px; padding: 0 10px; }
+.modeseg-opt.pane.on { background: rgba(77, 208, 225, .16); color: var(--cyan); }
+.modeseg-opt.pane.on:hover { color: var(--cyan); }
 #view-menu .menu-pop { left: 0; top: calc(100% + 4px); right: auto; min-width: 170px; }
 .menu-pop button.on { color: var(--cyan); } /* active display toggle in the View menu */
 .topbar > * { pointer-events: auto; }
@@ -918,6 +933,7 @@ input[type=range]::-moz-range-thumb {
 @media (max-width: 720px) {
   .panel { width: 290px; }
   .brand em { display: none; }
+  .modeseg-opt { padding: 0 10px; font-size: 12px; } /* keep the 3-way from crowding the bar on tablets */
   /* Don't hide tools on a tablet (R&R's main target) — make the strip
      horizontally scrollable so every tool stays reachable by swiping. */
   .viewtools { max-width: 58vw; overflow-x: auto; overflow-y: hidden; }
