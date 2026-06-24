@@ -23,7 +23,7 @@ class EventBindings {
     });
     // keep the colour layer scroll-aligned with the textarea
     editor.addEventListener('scroll', () => {
-      const pre = $('#editor-hl');
+      const pre = $('.editor-hl'); // the colour layer is .editor-hl (class), not an id
       if (pre) { pre.scrollTop = editor.scrollTop; pre.scrollLeft = editor.scrollLeft; }
     });
     // glow the shape the caret is in (caret-move events; typing re-runs it via

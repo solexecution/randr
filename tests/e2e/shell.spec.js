@@ -232,3 +232,18 @@ test('the code panel is docked on the right edge (opposite the toolbar)', async 
 });
 
 // (tier switching removed — the app is Pro-only now; see toolbar.spec.js)
+
+test('code editor: scrolling the textarea keeps the highlight layer in sync', async ({ page }) => {
+  await gotoApp(page); // boots in code mode — the editor is visible
+  const synced = await page.evaluate(() => {
+    const ed = document.querySelector('#editor');
+    ed.value = Array.from({ length: 150 }, (_, i) => `// line ${i + 1}`).join('\n');
+    ed.dispatchEvent(new Event('input', { bubbles: true })); // re-highlights the .editor-hl layer
+    ed.scrollTop = 300;
+    ed.dispatchEvent(new Event('scroll', { bubbles: true }));
+    const hl = document.querySelector('.editor-hl');
+    return { ed: ed.scrollTop, hl: hl.scrollTop };
+  });
+  expect(synced.ed).toBeGreaterThan(0); // the textarea actually scrolled
+  expect(synced.hl).toBe(synced.ed);    // and the colour (highlight) layer followed it
+});
