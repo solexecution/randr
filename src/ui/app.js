@@ -30,6 +30,7 @@ import { installBuildPane } from './buildPane.js';
 import { RECIPES } from './recipes.js';
 import gcodeHelp from '../help/gcode.md?raw';
 import { ProjectStore } from './projectStore.js';
+import { featuresHelpHTML } from './featuresHelp.js';
 
 // The ◨ side-panel toggle's icon, swapped by state so it reads at a glance:
 // SHOWN = a docked panel filled on the right + a › (collapse) chevron;
@@ -316,8 +317,7 @@ export class App {
   // enter-group step needed.
   _setViewMode(mode) {
     this.viewMode = mode;
-    this._syncModeSeg();
-    if (mode === 'result') this._setPanel(false); // clean preview — tuck the source panel away
+    this._syncModeSeg(); // toggles body.view-result → CSS hides the editing panel in either mode
     if (this.mode !== 'build') return;
     if (mode === 'result') {
       this.viewport.setEditMode(false);
@@ -1725,7 +1725,11 @@ export class App {
   // --- markup ---------------------------------------------------------------
 
   _render() {
-    this.root.innerHTML = appHTML({ addGallery: addGalleryHTML(), gcodeHtml: mdToHtml(gcodeHelp) });
+    this.root.innerHTML = appHTML({
+      addGallery: addGalleryHTML(),
+      featuresHtml: featuresHelpHTML(),
+      gcodeHtml: mdToHtml(gcodeHelp),
+    });
   }
 }
 
