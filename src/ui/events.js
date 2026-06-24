@@ -456,7 +456,6 @@ class EventBindings {
     });
   }
 
-  // Open/close the code panel (right-docked). _setPanel() toggles; _setPanel(true|false) forces.
   _bindBuildPane() {
     // shape/part buttons live in the Add modal; one handler covers them all
     this.root.querySelectorAll('[data-add]').forEach((b) =>

@@ -12,10 +12,10 @@ import { manifoldToGeometry } from '../kernel/mesh.js';
 import { compile } from '../lang/compile.js';
 import { exportSTL, exportOBJ, export3MF, export3MFColored, triggerDownload } from '../kernel/export.js';
 import { Viewport, BUILD_VOLUME } from './viewport.js';
-import { buildTreeToSource, buildColoredParts, effField, supportsClearance, isShellable, supportsFillet, isFastener, applyMetricSize, currentMetricSize, METRIC_SIZES, BuildTree, setNodeKind } from './buildtree.js';
+import { buildTreeToSource, buildColoredParts, effField, BuildTree } from './buildtree.js';
 import { sourceToNodes } from './importBuild.js';
 import { shapeArt } from './shapeart.js';
-import { Toolbar, toolbarSeedHTML, toggleMenu, QUALITY_LEVELS } from './toolbar.js';
+import { Toolbar, QUALITY_LEVELS } from './toolbar.js';
 import { esc, hlEscape } from './escape.js';
 import { appHTML } from './template.js';
 import { STARTER, TEMPLATES } from './templates.js';
@@ -1935,8 +1935,7 @@ export class App {
     });
   }
 
-  // --- events ---------------------------------------------------------------
-
+  // Open/close the code panel (right-docked). _setPanel() toggles; _setPanel(true|false) forces.
   _setPanel(open) {
     const panel = this.root.querySelector('#panel');
     const collapse = open === undefined ? !panel.classList.contains('collapsed') : !open;
@@ -2153,7 +2152,7 @@ export class App {
     this._pushHistory();
   }
 
-  // Object count + a short, touch-aware contextual line in the card header.
+  // Show the per-part editor — the Edit tab (2nd column) of the unified panel.
   _openPartModal() {
     this._setPanelTab('edit');
   }

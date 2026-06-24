@@ -6,6 +6,7 @@ import { isFastener, METRIC_SIZES, currentMetricSize, supportsClearance, isShell
 // `this` stays the App instance; installBuildPane() copies them onto
 // App.prototype (app.js calls it once, after the class).
 class BuildPaneRenderers {
+  // Object count + a short, touch-aware contextual line in the card header.
   _updatePartsHeader() {
     const nodes = this.buildTree.nodes || [];
     const total = nodes.length;
@@ -267,8 +268,6 @@ class BuildPaneRenderers {
     }));
     host.querySelectorAll('[data-rdup]').forEach((el) => el.addEventListener('click', () => this._duplicateNode(+el.dataset.rdup)));
   }
-
-  // Show the per-part editor — the Edit tab (2nd column) of the unified panel.
 }
 
 export function installBuildPane(App) {
