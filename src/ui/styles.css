@@ -210,10 +210,14 @@ body {
 .modeseg-opt.on:hover { color: var(--bg); }
 /* a thin divider sets the panel toggle apart from the 3 exclusive mode segments */
 .modeseg-div { width: 1px; align-self: stretch; margin: 3px 2px; background: var(--line); flex: none; }
-/* 4th control: the code-panel show/hide toggle — an icon, lit as an independent on/off (not a filled mode) */
-.modeseg-opt.pane { font-size: 15px; padding: 0 10px; }
+/* 4th control: the code-panel show/hide toggle — a CSS-drawn "panel docked on the
+   right" icon (no font glyph, so it stays crisp + dead-centred in every font). Lit
+   as an independent on/off (not a filled mode); colour drives the icon via currentColor. */
+.modeseg-opt.pane { padding: 0 11px; justify-content: center; }
 .modeseg-opt.pane.on { background: rgba(77, 208, 225, .16); color: var(--cyan); }
 .modeseg-opt.pane.on:hover { color: var(--cyan); }
+.pane-ic { display: block; box-sizing: border-box; width: 16px; height: 12px; border: 1.5px solid currentColor; border-radius: 3px; position: relative; }
+.pane-ic::after { content: ''; position: absolute; top: 1.5px; bottom: 1.5px; right: 1.5px; width: 4.5px; background: currentColor; border-radius: 0 1px 1px 0; }
 #view-menu .menu-pop { left: 0; top: calc(100% + 4px); right: auto; min-width: 170px; }
 .menu-pop button.on { color: var(--cyan); } /* active display toggle in the View menu */
 .topbar > * { pointer-events: auto; }
