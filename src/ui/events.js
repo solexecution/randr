@@ -239,8 +239,7 @@ class EventBindings {
       });
       // collapse button tucks the whole sidebar away; the reopen tab brings it back
       this.root.querySelector('#card-min')?.addEventListener('click', () => setCardCollapsed(true));
-      // expand / collapse from the top bar
-      this.root.querySelector('#parts-toggle')?.addEventListener('click', () => setCardCollapsed(!this._cardCollapsed));
+      // (show/hide from the top bar is the ◨ control → App._toggleSidebar)
     }
 
     // ── unified panel: fold the Add gallery + settings into their tabs ──

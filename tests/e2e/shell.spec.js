@@ -251,10 +251,8 @@ test('the side-panel toggle hides the parts inspector in build mode (any-sidebar
   await expect.poll(collapsed).toBe(false);
   await expect(btn).toHaveClass(/on/);
 
-  // the ▤ Parts button toggles the same panel, and the ◨ reflection stays in sync
-  await page.click('#parts-toggle');
-  await expect.poll(collapsed).toBe(true);
-  await expect(btn).not.toHaveClass(/on/);
+  // ◨ is the single sidebar toggle now — the old ▤ Parts button is gone
+  await expect(page.locator('#parts-toggle')).toHaveCount(0);
 });
 
 test('the code panel is docked on the right edge (opposite the toolbar)', async ({ page }) => {

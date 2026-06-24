@@ -31,6 +31,13 @@ import { RECIPES } from './recipes.js';
 import gcodeHelp from '../help/gcode.md?raw';
 import { ProjectStore } from './projectStore.js';
 
+// The ◨ side-panel toggle's icon, swapped by state so it reads at a glance:
+// SHOWN = a docked panel filled on the right + a › (collapse) chevron;
+// HIDDEN = an empty frame + a ‹ (expand) chevron. Colour (cyan when shown, dim
+// when hidden) comes from the button via currentColor.
+const PANEL_ICON_SHOWN = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3.5" y="5.5" width="17" height="13" rx="2"/><rect x="13.5" y="6.5" width="6" height="11" rx="1" fill="currentColor" stroke="none"/><path d="M8 9.5 L11 12 L8 14.5"/></svg>';
+const PANEL_ICON_HIDDEN = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3.5" y="5.5" width="17" height="13" rx="2"/><path d="M15.5 9.5 L12.5 12 L15.5 14.5"/></svg>';
+
 // Round the corners of a closed polygon by radius r (tessellated arcs), so a
 // drawn sketch can have curved/organic edges. Clamps r per-corner to the
 // shorter adjoining edge; collinear corners pass through unchanged.
@@ -363,7 +370,11 @@ export class App {
         open = !!card && !card.classList.contains('hidden') && !this._cardCollapsed;
       }
       panelBtn.classList.toggle('on', open);
+      panelBtn.innerHTML = open ? PANEL_ICON_SHOWN : PANEL_ICON_HIDDEN; // state-aware glyph
       panelBtn.setAttribute('aria-pressed', open ? 'true' : 'false');
+      const label = open ? 'Hide the side panel' : 'Show the side panel';
+      panelBtn.setAttribute('aria-label', label);
+      panelBtn.title = label;
     }
   }
 
@@ -456,11 +467,6 @@ export class App {
     const sideDock = this._layout !== 'bottom'; // the bottom sheet doesn't push the HUD/cube
     stage.classList.toggle('cardleft', sideDock && build && dock === 'left' && !collapsed);
     stage.classList.toggle('cardright', sideDock && build && dock === 'right' && !collapsed);
-    const toggleBtn = this.root.querySelector('#parts-toggle');
-    if (toggleBtn) {
-      toggleBtn.classList.toggle('hidden', !build);          // only relevant in build mode
-      toggleBtn.classList.toggle('on', build && !collapsed); // lit while the panel is open
-    }
     const minBtn = this.root.querySelector('#card-min');
     if (minBtn) { minBtn.textContent = dock === 'right' ? '»' : '«'; minBtn.title = 'Hide the parts panel'; }
     this._syncModeSeg(); // the ◨ side-panel toggle reflects the parts inspector in build/result
