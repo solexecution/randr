@@ -32,6 +32,8 @@
   --hl-comment:  #6b7686;
   --hl-str:      #8fd98f;
   --hl-kw:       #f778ba;
+  --scroll-thumb:       rgba(154, 163, 173, .30);
+  --scroll-thumb-hover: rgba(154, 163, 173, .55);
   --radius:    10px;
   --rail-w:    0px;   /* rail is a top bar now — no left inset for panels */
   --mono: 'IBM Plex Mono', ui-monospace, 'SF Mono', Menlo, monospace;
@@ -62,9 +64,26 @@
   --hl-comment:  #6a737d;
   --hl-str:      #1a7f37;
   --hl-kw:       #cf2284;
+  --scroll-thumb:       rgba(90, 101, 113, .32);
+  --scroll-thumb-hover: rgba(90, 101, 113, .55);
 }
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
+
+/* Slim, modern scrollbars (Chromium ::-webkit + Firefox standard props):
+   transparent track, a rounded translucent thumb that's inset via a transparent
+   border so it reads thin, and darkens on hover. Themed via --scroll-* vars. */
+* { scrollbar-width: thin; scrollbar-color: var(--scroll-thumb) transparent; }
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb {
+  background: var(--scroll-thumb);
+  border-radius: 999px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+::-webkit-scrollbar-thumb:hover { background: var(--scroll-thumb-hover); }
+::-webkit-scrollbar-corner { background: transparent; }
 
 html, body, #root { height: 100%; }
 body {
