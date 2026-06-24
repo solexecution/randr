@@ -9,7 +9,7 @@
 
 import { loadKernel, inspect, meshSolid, importSTL, importOBJ, import3MF, registerSolid, solidMesh, setCurveQuality } from '../kernel/manifold.js';
 import { compile } from '../lang/compile.js';
-import { exportSTL, exportOBJ, export3MF, export3MFColored, triggerDownload } from '../kernel/export.js';
+import { exportSTL, exportOBJ, export3MF, export3MFColored } from '../kernel/export.js';
 import { Viewport, BUILD_VOLUME } from './viewport.js';
 import { buildTreeToSource, buildColoredParts, BuildTree } from './buildtree.js';
 import { ADDABLE_KINDS } from './primitives.js';
@@ -18,7 +18,8 @@ import { scoreOrientations } from '../kernel/orient.js';
 import { sourceToNodes } from './importBuild.js';
 import { addGalleryHTML } from './addGallery.js';
 import { highlightCode, mdToHtml } from './highlight.js';
-import { Toolbar, QUALITY_LEVELS } from './toolbar.js';
+import { CommandPalette } from './commandPalette.js';
+import { Toolbar } from './toolbar.js';
 import { esc } from './escape.js';
 import { appHTML } from './template.js';
 import { STARTER, TEMPLATES } from './templates.js';
@@ -75,6 +76,7 @@ export class App {
     this.printCut = 0; // >0 bisects the model (gap mm) into two repacked halves at compile
     this.curveQuality = 64; // segment count for round primitives (Smooth) — see QUALITY_LEVELS
     this.buildTree = new BuildTree();
+    this.cmd = new CommandPalette(this); // Ctrl+K command palette (owns its own modal state)
     this.selectedNodes = []; // the selection set; selectedNode (primary) derives from it
     this.workplane = null; // {origin,normal,rot} build frame, or null for ground
     this.viewMode = 'edit'; // build view: 'edit' (parts + ghost) | 'result' (combined solid)
@@ -1068,99 +1070,12 @@ export class App {
   }
 
   // --- command palette (Ctrl+K) ---------------------------------------------
-  // A searchable index of every tool/op, built fresh each open so it reflects
-  // current state. Reuses the existing handlers (and a few button .click()s) so
-  // there's one source of truth for each action.
-  _commands() {
-    const A = this;
-    const c = [];
-    const add = (label, hint, group, run) => c.push({ label, hint, group, run });
-    const clickBtn = (sel) => { const b = A.root.querySelector(sel); if (b) b.click(); };
-    ADDABLE_KINDS.forEach((k) => add(`Add ${k}`, 'shape', 'Add', () => A._addShape(k)));
-    Object.keys(TEMPLATES).forEach((k) => add(`Insert ${k}`, 'ready-made', 'Add', () => A._loadTemplate(k)));
-    add('Draw a sketch (extrude / revolve)', 'polygon → 3D', 'Add', () => A._startSketch());
-    add('Fit to view', 'F', 'View', () => A.viewport.fitView());
-    add('Toggle grid', 'G', 'View', () => clickBtn('#v-grid'));
-    add('Toggle mm grid', '', 'View', () => clickBtn('#v-mmgrid'));
-    add('Toggle light / dark theme', '', 'View', () => clickBtn('#v-theme'));
-    add('Switch layout (side / bottom)', '', 'View', () => A._toggleLayout());
-    add('Toggle wireframe', '', 'View', () => clickBtn('#v-wire'));
-    add('Auto-orient for printing', 'least support', 'Prep', () => A._autoOrient());
-    add('Scale to fit the plate', '', 'Prep', () => A._scaleToFit());
-    add('Cut in half', 'two glue-able pieces', 'Prep', () => clickBtn('#v-cut'));
-    add('Overhang check', 'red = needs support', 'Prep', () => clickBtn('#v-overhang'));
-    add('Measure distance', 'click two points', 'Tools', () => clickBtn('#v-measure'));
-    add('Undo', 'Ctrl+Z', 'Edit', () => A._undo());
-    add('Redo', 'Ctrl+Y', 'Edit', () => A._redo());
-    add('Group selection', 'Ctrl+G', 'Edit', () => A._group());
-    add('Ungroup', '', 'Edit', () => A._ungroup());
-    add('Clear canvas', 'remove all parts', 'Edit', () => A._clearCanvas());
-    add('Export STL', 'for slicing', 'Export', () => { if (A.currentModel) triggerDownload(exportSTL(A.currentModel), 'part.stl'); });
-    add('Export for Bambu Studio', '3MF', 'Export', () => { if (A.currentModel) { triggerDownload(A._build3MF(), 'model.3mf'); A._toast('Saved model.3mf — open it in Bambu Studio'); } });
-    add('Export 3MF', 'units + colour', 'Export', () => { if (A.currentModel) triggerDownload(A._build3MF(), 'part.3mf'); });
-    add('Export OBJ', 'mesh', 'Export', () => { if (A.currentModel) triggerDownload(exportOBJ(A.currentModel), 'part.obj'); });
-    QUALITY_LEVELS.forEach((q) =>
-      add(`Quality: ${q.name}`, 'curve smoothness', 'Quality', () => A._setQuality(q.v)));
-    add('New project', '', 'Project', () => A._newProject());
-    add('Save project', 'Ctrl+S', 'Project', () => A._saveProject());
-    add('Save project as…', '', 'Project', () => A._promptName('Save project as', A.project ? A.project.name : '', (n) => A._doSaveAs(n)));
-    add('Open / manage projects…', '', 'Project', () => { A._renderProjectList(); A._openModal('#proj-modal'); });
-    return c;
-  }
-
-  _openCmd() {
-    this._cmdAll = this._commands();
-    this._openModal('#cmd-modal');
-    const input = this.root.querySelector('#cmd-input');
-    input.value = '';
-    this._renderCmd('');
-    setTimeout(() => { input.focus(); }, 20);
-  }
-
-  _renderCmd(query) {
-    const q = (query || '').trim().toLowerCase();
-    let items = this._cmdAll || [];
-    if (q) {
-      items = items
-        .map((cmd) => {
-          const l = cmd.label.toLowerCase();
-          let score = -1;
-          if (l.startsWith(q)) score = 0;
-          else if (l.includes(q)) score = 1;
-          else if (`${cmd.group} ${cmd.hint || ''}`.toLowerCase().includes(q)) score = 2;
-          return { cmd, score };
-        })
-        .filter((x) => x.score >= 0)
-        .sort((a, b) => a.score - b.score)
-        .map((x) => x.cmd);
-    }
-    items = items.slice(0, 40);
-    this._cmdShown = items;
-    this._cmdActive = 0;
-    const list = this.root.querySelector('#cmd-list');
-    if (!items.length) { list.innerHTML = '<div class="cmd-empty">No matching command</div>'; return; }
-    list.innerHTML = items.map((cmd, i) => `
-      <div class="cmd-item${i === 0 ? ' active' : ''}" data-i="${i}" role="option">
-        <span class="cmd-grp">${esc(cmd.group)}</span>
-        <span class="cmd-label">${esc(cmd.label)}</span>
-        ${cmd.hint ? `<span class="cmd-hint">${esc(cmd.hint)}</span>` : ''}
-      </div>`).join('');
-  }
-
-  _cmdMove(d) {
-    if (!this._cmdShown || !this._cmdShown.length) return;
-    this._cmdActive = (this._cmdActive + d + this._cmdShown.length) % this._cmdShown.length;
-    const list = this.root.querySelector('#cmd-list');
-    list.querySelectorAll('.cmd-item').forEach((el, i) => el.classList.toggle('active', i === this._cmdActive));
-    list.querySelector('.cmd-item.active')?.scrollIntoView({ block: 'nearest' });
-  }
-
-  _runCmd(i) {
-    const idx = i != null ? i : this._cmdActive;
-    const cmd = this._cmdShown && this._cmdShown[idx];
-    this._closeModal('#cmd-modal');
-    if (cmd) { try { cmd.run(); } catch { this._toast('Could not run that command'); } }
-  }
+  // The Ctrl+K command palette lives in CommandPalette (commandPalette.js); App
+  // owns the instance (this.cmd) and forwards the wired handlers to it.
+  _openCmd() { this.cmd.open(); }
+  _renderCmd(query) { this.cmd.render(query); }
+  _cmdMove(d) { this.cmd.move(d); }
+  _runCmd(i) { this.cmd.run(i); }
 
   // --- sketch → extrude -----------------------------------------------------
   _startSketch() {
