@@ -9,3 +9,9 @@ export const esc = (s) =>
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;');
+
+// Variant for syntax-highlighted code / markdown rendering: it deliberately
+// omits the `"` escape because its output only ever lands in element text
+// content (never an attribute), so quotes are safe and left intact.
+export const hlEscape = (s) =>
+  String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');

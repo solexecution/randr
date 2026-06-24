@@ -213,6 +213,17 @@ export class Toolbar {
       const next = QUALITY_LEVELS[(i + 1) % QUALITY_LEVELS.length];
       this.onQualityChange?.(next);
     });
+    // Group toggles are delegated here (once) so render() doesn't re-bind a
+    // listener per group on every layout change — it recreates the .tb-group
+    // nodes each time. A group's toggle is the .rail-btn that's a direct child
+    // of .tb-group (its menu-pop tools sit a level deeper).
+    this.root.querySelector('#tools-body')?.addEventListener('click', (e) => {
+      const btn = e.target.closest('.rail-btn');
+      if (btn && btn.parentElement?.classList.contains('tb-group')) {
+        e.stopPropagation();
+        toggleMenu(this.root, btn.parentElement);
+      }
+    });
   }
 
   // customise modal: close / reset / backdrop + delegated edit controls
@@ -287,7 +298,6 @@ export class Toolbar {
         for (const id of (entry.items || [])) place(id, pop);
         menu.append(btn, pop);
         body.appendChild(menu);
-        btn.addEventListener('click', (e) => { e.stopPropagation(); toggleMenu(this.root, menu); });
       } else {
         place(entry.id, body); // a top-level tool button
       }
