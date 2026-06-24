@@ -12,13 +12,14 @@ import { compile } from '../lang/compile.js';
 import { exportSTL, exportOBJ, export3MF, export3MFColored, triggerDownload } from '../kernel/export.js';
 import { Viewport, BUILD_VOLUME } from './viewport.js';
 import { buildTreeToSource, buildColoredParts, BuildTree } from './buildtree.js';
-import { PRIMITIVES, ADDABLE_KINDS, PRIMITIVE_FNS } from './primitives.js';
+import { ADDABLE_KINDS } from './primitives.js';
 import { nodeToGeometry } from './nodeGeometry.js';
 import { scoreOrientations } from '../kernel/orient.js';
 import { sourceToNodes } from './importBuild.js';
-import { shapeArt } from './shapeart.js';
+import { addGalleryHTML } from './addGallery.js';
+import { highlightCode, mdToHtml } from './highlight.js';
 import { Toolbar, QUALITY_LEVELS } from './toolbar.js';
-import { esc, hlEscape } from './escape.js';
+import { esc } from './escape.js';
 import { appHTML } from './template.js';
 import { STARTER, TEMPLATES } from './templates.js';
 import { installEvents } from './events.js';
@@ -27,94 +28,6 @@ import { RECIPES } from './recipes.js';
 import gcodeHelp from '../help/gcode.md?raw';
 import * as Projects from './projects.js';
 
-// --- Add gallery -----------------------------------------------------------
-// Each tile is a labelled SVG picture of the shape/part. Items carry one of
-// add (data-add primitive), tpl (data-tpl template), or id (special action);
-// `art` picks the picture (defaults to the add/tpl key). Categories keep their
-// data-cat values so gallery search keeps working.
-const _t = (tpl, art, label) => ({ tpl, label: label || tpl, art });
-// Primitive tiles come straight from the registry (label / title live there;
-// the picture key is just the kind). Bespoke tiles — draw, engrave, ready-made
-// templates, import — stay hand-written and interleave with them.
-const _prim = (kind) => ({ add: kind, label: PRIMITIVES[kind].label || kind, art: kind, title: PRIMITIVES[kind].title });
-const _prims = (cat) => ADDABLE_KINDS.filter((k) => PRIMITIVES[k].cat === cat).map(_prim);
-const ADD_GALLERY = [
-  ['draw', 'Draw', [{ id: 'add-sketch', art: 'sketch', label: 'sketch & extrude', title: 'Draw a 2D outline on the plate and pull it into 3D' }]],
-  ['basic', 'Basic shapes', _prims('basic')],
-  ['rounded', 'Rounded & chamfered', _prims('rounded')],
-  ['text', 'Text', [..._prims('text'), { id: 'engrave-text', art: 'engrave', label: 'on a face…' }]],
-  ['fasteners', 'Fasteners', _prims('fasteners')],
-  ['ready', 'Ready-made · adjustable', [
-    _t('soap dish', 'soapDish'), _t('pen cup', 'penCup'), _t('coaster', 'coaster'),
-    _t('stacking bin', 'stackingBin'), _t('bolt & nut', 'bolt_nut'), _t('washer', 'washer'),
-    _t('L-bracket', 'lBracket'), _t('knob', 'knob'), _t('fit test', 'fitTest'),
-  ]],
-  ['import', 'Import', [{ id: 'modal-import', art: 'import', label: 'STL / OBJ / 3MF…' }]],
-];
-function _addTile(it) {
-  const attr = it.add ? ` data-add="${it.add}"` : it.tpl ? ` data-tpl="${esc(it.tpl)}"` : it.id ? ` id="${it.id}"` : '';
-  const title = it.title ? ` title="${esc(it.title)}"` : '';
-  return `<button class="add-tile"${attr}${title}><span class="tile-art">${shapeArt(it.art)}</span><span class="tile-lab">${esc(it.label)}</span></button>`;
-}
-function addGalleryHTML() {
-  return ADD_GALLERY.map(([cat, title, items]) =>
-    `<section class="cat" data-cat="${cat}"><h4>${esc(title)}</h4><div class="cat-grid">${items.map(_addTile).join('')}</div></section>`,
-  ).join('');
-}
-
-// --- code-editor syntax highlighting ---------------------------------------
-// Tokenise the mini-language for a colour layer behind the textarea. Keeps
-// comments + whitespace (the real tokenizer drops them), so it can't reuse it.
-const HL_KEYWORDS = new Set(['param', 'true', 'false', 'PI']);
-const HL_FUNCS = new Set([
-  ...PRIMITIVE_FNS, 'cube', 'extrude', 'revolve', // primitive call names from the registry (+ aliases)
-  'translate', 'rotate', 'scale', 'mirror', 'fillet', 'chamfer', 'bisect',
-  'union', 'difference', 'intersection', 'hull',
-  'sin', 'cos', 'tan', 'sqrt', 'abs', 'floor', 'ceil', 'round', 'min', 'max', 'pow',
-]);
-function highlightCode(src) {
-  const re = /(\/\/[^\n]*|\/\*[\s\S]*?\*\/)|("(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*')|((?:\d[\d.]*(?:[eE][+-]?\d+)?(?:mm|cm|deg|rad)?)|\.\d+)|([A-Za-z_]\w*)|([+\-*/%=<>!]+)/g;
-  let out = '', last = 0, m;
-  while ((m = re.exec(src))) {
-    out += hlEscape(src.slice(last, m.index));
-    const t = m[0];
-    let cls = '';
-    if (m[1]) cls = 'c';            // comment
-    else if (m[2]) cls = 's';       // string
-    else if (m[3]) cls = 'n';       // number
-    else if (m[4]) cls = HL_KEYWORDS.has(t) ? 'k' : (HL_FUNCS.has(t) ? 'f' : ''); // keyword / function
-    else if (m[5]) cls = 'o';       // operator
-    out += cls ? `<span class="hl-${cls}">${hlEscape(t)}</span>` : hlEscape(t);
-    last = m.index + t.length;
-  }
-  out += hlEscape(src.slice(last));
-  return out;
-}
-
-// Tiny markdown -> HTML for the help modal (headings, lists, bold, `code`, hr).
-function mdToHtml(md) {
-  const inline = (s) => hlEscape(s)
-    .replace(/`([^`]+)`/g, '<code>$1</code>')
-    .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
-    .replace(/\*([^*]+)\*/g, '<em>$1</em>');
-  let html = '', list = null;
-  const close = () => { if (list) { html += `</${list}>`; list = null; } };
-  for (const raw of md.split('\n')) {
-    const line = raw.replace(/\r$/, ''), t = line.trim();
-    let m;
-    if (/^---+$/.test(t)) { close(); html += '<hr>'; }
-    else if ((m = t.match(/^(#{1,6})\s+(.*)/))) { close(); const l = m[1].length; html += `<h${l}>${inline(m[2])}</h${l}>`; }
-    else if ((m = line.match(/^(\s*)\d+\.\s+(.*)/))) { if (list !== 'ol') { close(); html += '<ol>'; list = 'ol'; } html += `<li>${inline(m[2])}</li>`; }
-    else if ((m = line.match(/^(\s*)[-*]\s+(.*)/))) { if (list !== 'ul') { close(); html += '<ul>'; list = 'ul'; } html += `<li>${inline(m[2])}</li>`; }
-    else if (t === '') { close(); }
-    else { close(); html += `<p>${inline(t)}</p>`; }
-  }
-  close();
-  return html;
-}
-
-// Build one shape's geometry (centered, kernel-accurate) for the editable
-// build-mode view. The manifold is freed immediately after meshing.
 // Round the corners of a closed polygon by radius r (tessellated arcs), so a
 // drawn sketch can have curved/organic edges. Clamps r per-corner to the
 // shorter adjoining edge; collinear corners pass through unchanged.
