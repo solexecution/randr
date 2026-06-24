@@ -15,6 +15,7 @@ import { buildTreeToSource, buildColoredParts, BuildTree } from './buildtree.js'
 import { ADDABLE_KINDS } from './primitives.js';
 import { nodeToGeometry } from './nodeGeometry.js';
 import { scoreOrientations } from '../kernel/orient.js';
+import { wrapPrintPrep } from './printPrep.js';
 import { sourceToNodes } from './importBuild.js';
 import { addGalleryHTML } from './addGallery.js';
 import { highlightCode, mdToHtml } from './highlight.js';
@@ -177,13 +178,8 @@ export class App {
   // sees identical geometry. No-op at defaults. (Auto-orient / scale-to-fit build
   // their own measuring source — they compute a *replacement* rotation/scale.)
   _effectiveSource() {
-    let source = this.mode === 'build' ? buildTreeToSource(this.buildTree) : this.source;
-    if (!source.trim()) return source;
-    const [rx, ry, rz] = this.printRot || [0, 0, 0];
-    if (rx || ry || rz) source = `rotate([${rx}, ${ry}, ${rz}]) {\n${source}\n}`;
-    if (this.printScale && this.printScale !== 1) source = `scale([${this.printScale}, ${this.printScale}, ${this.printScale}]) {\n${source}\n}`;
-    if (this.printCut && this.printCut > 0) source = `bisect(${this.printCut}) {\n${source}\n}`;
-    return source;
+    const base = this.mode === 'build' ? buildTreeToSource(this.buildTree) : this.source;
+    return wrapPrintPrep(base, { rot: this.printRot, scale: this.printScale, cut: this.printCut });
   }
 
   recompile(frame = false) {
@@ -1300,9 +1296,9 @@ export class App {
   // applied as a print scale wrapped at compile (undoable). Accounts for the
   // current print orientation. No-op (resets to 100%) if it already fits.
   _scaleToFit() {
-    let src = this.mode === 'build' ? buildTreeToSource(this.buildTree) : this.source;
-    const pr = this.printRot;
-    if (pr && (pr[0] || pr[1] || pr[2]) && src.trim()) src = `rotate([${pr[0]}, ${pr[1]}, ${pr[2]}]) {\n${src}\n}`;
+    // measure the model at its print orientation (rotation only) — scale is what
+    // we're about to compute, so it must not already be wrapped in.
+    const src = wrapPrintPrep(this.mode === 'build' ? buildTreeToSource(this.buildTree) : this.source, { rot: this.printRot });
     const base = src.trim() ? compile(src, this.overrides).result : null;
     if (!base) { this._toast('Nothing to scale'); return; }
     const bb = base.boundingBox();

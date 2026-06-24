@@ -149,7 +149,7 @@ export function supportsFillet(kind) { return FILLET_KINDS.has(kind); }
 
 // Emit a part's geometry call: the base shape, optionally hollowed into a shell,
 // then optionally rounded/bevelled on its convex edges (fillet/chamfer).
-function shapeCall(node) {
+export function shapeCall(node) {
   let s = baseShapeCall(node);
   if (!s) return s;
 
