@@ -2,6 +2,19 @@
 // controller stays logic rather than a ~290-line template. The App passes the
 // Add-gallery and g-code-help HTML in; the toolbar seed comes from its registry.
 import { toolbarSeedHTML } from './toolbar.js';
+import { TEMPLATES } from './templates.js';
+import { esc } from './escape.js';
+
+// ☰ Templates▸ flyout — generated from TEMPLATES so the menu never drifts from
+// templates.js / the add gallery / command palette.
+function templatesMenuHTML() {
+  return Object.keys(TEMPLATES)
+    .map((key) => {
+      const label = key.charAt(0).toUpperCase() + key.slice(1);
+      return `<button data-tpl="${esc(key)}">${esc(label)}</button>`;
+    })
+    .join('\n                  ');
+}
 
 export function appHTML({ addGallery, gcodeHtml }) {
   return `
@@ -28,11 +41,7 @@ export function appHTML({ addGallery, gcodeHtml }) {
               <div class="menu-fly" id="tpl-fly">
                 <button class="menu-fly-btn">Templates<span class="fly-arr">▸</span></button>
                 <div class="menu-sub">
-                  <button data-tpl="soap dish">Soap dish</button>
-                  <button data-tpl="pen cup">Pen cup</button>
-                  <button data-tpl="coaster">Coaster</button>
-                  <button data-tpl="stacking bin">Stacking bin</button>
-                  <button data-tpl="bolt & nut">Bolt &amp; nut 🔩</button>
+                  ${templatesMenuHTML()}
                 </div>
               </div>
               <div class="menu-fly" id="export-fly">

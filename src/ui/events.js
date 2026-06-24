@@ -455,61 +455,6 @@ class EventBindings {
       }
     });
   }
-
-  _bindBuildPane() {
-    // shape/part buttons live in the Add modal; one handler covers them all
-    this.root.querySelectorAll('[data-add]').forEach((b) =>
-      b.addEventListener('click', () => this._addShape(b.dataset.add)));
-    this.root.querySelector('#engrave-text')?.addEventListener('click', () => this._engraveText());
-    const collapseAll = this.root.querySelector('#collapse-all');
-    if (collapseAll) collapseAll.addEventListener('click', () => this._collapseAll());
-    const clearBtn = this.root.querySelector('#clear-canvas');
-    if (clearBtn) clearBtn.addEventListener('click', () => {
-      // two-click confirm (it's undoable, but emptying the plate deserves a beat)
-      if (clearBtn.classList.contains('confirm')) {
-        clearTimeout(this._clearArmT);
-        clearBtn.classList.remove('confirm'); clearBtn.textContent = 'Clear';
-        this._clearCanvas();
-      } else {
-        clearBtn.classList.add('confirm'); clearBtn.textContent = 'Clear all?';
-        clearTimeout(this._clearArmT);
-        this._clearArmT = setTimeout(() => { clearBtn.classList.remove('confirm'); clearBtn.textContent = 'Clear'; }, 3000);
-      }
-    });
-
-    // Add modal: open / close / backdrop-dismiss
-    const modal = this.root.querySelector('#add-modal');
-    const openBtn = this.root.querySelector('#add-open');
-    const closeBtn = this.root.querySelector('#add-close');
-    if (openBtn) openBtn.addEventListener('click', () => this._openAddModal());
-    this.root.querySelector('#add-close')?.addEventListener('click', () => this._closeModal('#add-modal'));
-    const addModalEl = this.root.querySelector('#add-modal');
-    if (addModalEl) addModalEl.addEventListener('mousedown', (e) => { if (e.target === addModalEl) this._closeModal('#add-modal'); });
-    if (closeBtn) closeBtn.addEventListener('click', () => this._closeAddModal());
-    if (modal) modal.addEventListener('click', (e) => { if (e.target === modal) this._closeAddModal(); });
-
-    // search filter + collapsible category headers
-    const search = this.root.querySelector('#add-search');
-    if (search) search.addEventListener('input', () => this._filterAdd(search.value));
-    this.root.querySelectorAll('#add-modal .cat > h4').forEach((h) => h.addEventListener('click', () => {
-      if (!modal.classList.contains('searching')) h.parentElement.classList.toggle('collapsed');
-    }));
-
-    // STL import (from the modal's Import category)
-    const fileInput = this.root.querySelector('#stl-file');
-    const importBtn = this.root.querySelector('#modal-import');
-    if (importBtn && fileInput) {
-      importBtn.addEventListener('click', () => { fileInput.click(); this._closeAddModal(); });
-      fileInput.addEventListener('change', (e) => {
-        const f = e.target.files && e.target.files[0];
-        if (f) this._importSTLFile(f);
-        e.target.value = '';
-      });
-    }
-    // Import… in the ☰ menu opens the same file picker (sits next to Export).
-    this.root.querySelector('#menu-import')?.addEventListener('click', () => fileInput?.click());
-    this._renderBuildTree();
-  }
 }
 
 export function installEvents(App) {
