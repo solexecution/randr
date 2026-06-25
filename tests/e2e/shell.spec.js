@@ -294,6 +294,20 @@ test('code editor: params panel toggles and line gutter renders', async ({ page 
   expect(lines).toBeGreaterThan(3);
 });
 
+test('code and build panels are mutually exclusive in the part card', async ({ page }) => {
+  await gotoApp(page);
+  await expect(page.locator('#pane-code')).toBeVisible();
+  await expect(page.locator('.pcol-main')).toBeHidden();
+  await expect(page.locator('#parts-count')).toHaveText('Code');
+  await page.locator('#seg-build').click();
+  await expect(page.locator('#pane-code')).toBeHidden();
+  await expect(page.locator('.pcol-main')).toBeVisible();
+  await expect(page.locator('#parts-count')).toContainText('Parts');
+  await page.locator('#seg-code').click();
+  await expect(page.locator('#pane-code')).toBeVisible();
+  await expect(page.locator('.pcol-main')).toBeHidden();
+});
+
 test('code editor: line numbers align with code rows', async ({ page }) => {
   await gotoApp(page);
   const drift = await page.evaluate(() => {
