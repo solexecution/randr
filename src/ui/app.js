@@ -1063,11 +1063,17 @@ export class App {
     const dRot = [newRot[0] - n.rot[0], newRot[1] - n.rot[1], newRot[2] - n.rot[2]];
     const s0 = n.scale || [1, 1, 1];
     const fS = [newScale[0] / (s0[0] || 1), newScale[1] / (s0[1] || 1), newScale[2] / (s0[2] || 1)];
+    const scaleOnly = this.viewport.transformMode === 'scale';
     sel.forEach((j) => {
       const m = nodes[j]; if (!m) return;
-      if (j === i) { m.pos = newPos; m.rot = newRot; m.scale = newScale; return; }
+      if (j === i) {
+        m.pos = newPos;
+        m.scale = newScale;
+        if (!scaleOnly) m.rot = newRot;
+        return;
+      }
       m.pos = [m.pos[0] + dPos[0], m.pos[1] + dPos[1], m.pos[2] + dPos[2]];
-      m.rot = [m.rot[0] + dRot[0], m.rot[1] + dRot[1], m.rot[2] + dRot[2]];
+      if (!scaleOnly) m.rot = [m.rot[0] + dRot[0], m.rot[1] + dRot[1], m.rot[2] + dRot[2]];
       const ms = m.scale || [1, 1, 1];
       m.scale = [ms[0] * fS[0], ms[1] * fS[1], ms[2] * fS[2]];
     });

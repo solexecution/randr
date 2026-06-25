@@ -135,6 +135,9 @@ export class Viewport {
     this.onTransformEnd = null;    // (index)
     this._groupPivot = null;       // gizmo anchor at selection centre (2+ parts)
     this._groupXformLocals = null; // each member's matrix relative to the pivot
+    this._groupPivotCenter = null; // selection centre when the current drag started
+    this._groupScaleBaseline = null; // per-member pos/rot/scale at drag start (scale mode)
+    this._singleScaleRot = null;     // locked euler while a lone part is being scaled
     this.onMultiArm = null;        // (on) — long-press armed / disarmed multi-select
     this._lpTimer = null;          // long-press timer (touch multi-select)
     this._raycaster = new THREE.Raycaster();
@@ -851,18 +854,36 @@ export class Viewport {
     g.setSpace('world');
     g.addEventListener('dragging-changed', (e) => {
       this._gizmoDragging = e.value;
-      if (e.value) this._syncGroupGizmo();
-      else if (this.onTransformEnd && this.selectedIndex >= 0) this.onTransformEnd(this.selectedIndex);
+      if (e.value) {
+        this._syncGroupGizmo();
+        if (this.transformMode === 'scale' && this.transformSet.length < 2) {
+          const em = this.editMeshes.find((m) => m.index === this.selectedIndex);
+          const D = 180 / Math.PI;
+          this._singleScaleRot = em
+            ? [em.mesh.rotation.x * D, em.mesh.rotation.y * D, em.mesh.rotation.z * D]
+            : null;
+        }
+      } else {
+        this._singleScaleRot = null;
+        if (this.onTransformEnd && this.selectedIndex >= 0) this.onTransformEnd(this.selectedIndex);
+      }
     });
     g.addEventListener('objectChange', () => {
-      if (this._groupXformLocals) { this._propagateGroupPivotTransform(); return; }
+      if (this._groupXformLocals) {
+        if (this.transformMode === 'scale') this._propagateGroupScaleTransform();
+        else this._propagateGroupPivotTransform();
+        return;
+      }
       const em = this.editMeshes.find((m) => m.index === this.selectedIndex);
       if (!em || !this.onTransform) return;
       const m = em.mesh, D = 180 / Math.PI;
       if (this._outline) { this._outline.position.copy(m.position); this._outline.rotation.copy(m.rotation); this._outline.scale.copy(m.scale); }
+      const rot = this.transformMode === 'scale' && this._singleScaleRot
+        ? this._singleScaleRot
+        : [m.rotation.x * D, m.rotation.y * D, m.rotation.z * D];
       this.onTransform(this.selectedIndex, {
         pos: [m.position.x, m.position.y, m.position.z],
-        rot: [m.rotation.x * D, m.rotation.y * D, m.rotation.z * D],
+        rot,
         scale: [m.scale.x, m.scale.y, m.scale.z],
       });
     });
@@ -912,12 +933,71 @@ export class Viewport {
       const local = new THREE.Matrix4().copy(m.mesh.matrixWorld).premultiply(inv);
       this._groupXformLocals.push({ index: i, matrix: local });
     }
+    this._captureGroupScaleBaseline(ts);
     this.gizmo.attach(this._groupPivot);
     this.gizmo.setMode(this.transformMode);
     return true;
   }
 
-  _clearGroupPivot() { this._groupXformLocals = null; }
+  _captureGroupScaleBaseline(indices) {
+    const D = 180 / Math.PI;
+    this._groupPivotCenter = this._xfCenter.clone();
+    this._groupScaleBaseline = [];
+    for (const i of indices) {
+      const em = this.editMeshes.find((e) => e.index === i);
+      if (!em) continue;
+      const m = em.mesh;
+      this._groupScaleBaseline.push({
+        index: i,
+        pos: [m.position.x, m.position.y, m.position.z],
+        rot: [m.rotation.x * D, m.rotation.y * D, m.rotation.z * D],
+        scale: [m.scale.x, m.scale.y, m.scale.z],
+      });
+    }
+  }
+
+  _clearGroupPivot() {
+    this._groupXformLocals = null;
+    this._groupScaleBaseline = null;
+    this._groupPivotCenter = null;
+  }
+
+  // Scale the group around the pivot centre without touching each part's rotation.
+  // Matrix decompose would invent euler drift when a scaled pivot is applied to
+  // already-rotated members.
+  _propagateGroupScaleTransform() {
+    if (!this._groupScaleBaseline || !this._groupPivotCenter || !this.onGroupTransform) return;
+    const p = this._groupPivot;
+    const C = this._groupPivotCenter;
+    const fx = p.scale.x, fy = p.scale.y, fz = p.scale.z;
+    const rnd = (v, d) => { const x = Math.round(v * 10 ** d) / 10 ** d; return x === 0 ? 0 : x; };
+    const updates = [];
+    const D = 180 / Math.PI;
+    for (const base of this._groupScaleBaseline) {
+      const em = this.editMeshes.find((e) => e.index === base.index);
+      if (!em) continue;
+      const nx = C.x + (base.pos[0] - C.x) * fx;
+      const ny = C.y + (base.pos[1] - C.y) * fy;
+      const nz = C.z + (base.pos[2] - C.z) * fz;
+      const ns = [base.scale[0] * fx, base.scale[1] * fy, base.scale[2] * fz];
+      em.mesh.position.set(nx, ny, nz);
+      em.mesh.scale.set(ns[0], ns[1], ns[2]);
+      em.mesh.rotation.set(base.rot[0] / D, base.rot[1] / D, base.rot[2] / D);
+      updates.push({
+        index: base.index,
+        pos: [rnd(nx, 2), rnd(ny, 2), rnd(nz, 2)],
+        rot: base.rot.map((v) => rnd(v, 2)),
+        scale: ns.map((v) => rnd(v, 3)),
+      });
+    }
+    const primary = this.editMeshes.find((e) => e.index === this.selectedIndex);
+    if (primary && this._outline) {
+      this._outline.position.copy(primary.mesh.position);
+      this._outline.rotation.copy(primary.mesh.rotation);
+      this._outline.scale.copy(primary.mesh.scale);
+    }
+    this.onGroupTransform(updates);
+  }
 
   _propagateGroupPivotTransform() {
     if (!this._groupXformLocals || !this._groupPivot || !this.onGroupTransform) return;
