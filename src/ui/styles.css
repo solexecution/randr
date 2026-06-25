@@ -32,6 +32,9 @@
   --hl-comment:  #6b7686;
   --hl-str:      #8fd98f;
   --hl-kw:       #f778ba;
+  --editor-bg:       #12151a;
+  --editor-gutter-bg:#181c22;
+  --editor-line-active: rgba(77, 208, 225, .08);
   --scroll-thumb:       rgba(154, 163, 173, .30);
   --scroll-thumb-hover: rgba(154, 163, 173, .55);
   --radius:    10px;
@@ -64,6 +67,9 @@
   --hl-comment:  #6a737d;
   --hl-str:      #1a7f37;
   --hl-kw:       #cf2284;
+  --editor-bg:       #ffffff;
+  --editor-gutter-bg:#f4f6f8;
+  --editor-line-active: rgba(14, 138, 160, .10);
   --scroll-thumb:       rgba(90, 101, 113, .32);
   --scroll-thumb-hover: rgba(90, 101, 113, .55);
 }
@@ -371,7 +377,8 @@ body.view-result #part-card { display: none; }
    hidden; in build mode #pane-code is .hidden (by mode) and the columns show */
 .part-card.dom-code .pcol-main,
 .part-card.dom-code #pcol-edit { display: none; }
-.part-card #pane-code { flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain; }
+.part-card.dom-code { width: min(440px, calc(100vw - 16px)); }
+.part-card #pane-code { flex: 1 1 auto; min-height: 0; overflow: hidden; display: flex; flex-direction: column; }
 .pedit-head { font-family: var(--mono); font-size: 11px; letter-spacing: .04em; color: var(--ink-dim); margin-bottom: 8px; }
 .card-tools { display: flex; flex-direction: column; gap: 6px; margin-top: 10px; }
 
@@ -476,26 +483,102 @@ body.layout-bottom #card-snap { display: none; } /* dock L/R is meaningless at t
 .pane { padding: 10px 12px 18px; display: flex; flex-direction: column; gap: 7px;
   min-height: 100%; box-sizing: border-box; }
 .pane.hidden { display: none; }
+.pane.pane-code { padding: 0; gap: 0; min-height: 0; }
 .pane-title {
   font-family: var(--mono); font-size: 11px; letter-spacing: .14em;
   text-transform: uppercase; color: var(--ink-dim); margin-top: 6px;
 }
 
-/* code editor: a coloured layer (.editor-hl) behind a transparent textarea.
-   The wrap flex-grows to fill the panel's leftover height (so the editor is as
-   tall as the screen allows, responsive to window size); the textarea fills the
-   wrap and the colour layer is absolutely positioned to match it exactly. */
+/* ===== code workspace (editor + resizable params sidebar) ================ */
+.code-workspace {
+  flex: 1; display: flex; flex-direction: row; min-height: 0; overflow: hidden;
+}
+.code-main {
+  flex: 1 1 0; min-width: 0; display: flex; flex-direction: column;
+  min-height: 0; padding: 8px 0 10px 10px;
+}
+.code-toolbar {
+  display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  flex: none; margin-bottom: 6px; padding-right: 6px;
+}
+.code-file-tab {
+  font-family: var(--mono); font-size: 11px; letter-spacing: .06em;
+  text-transform: uppercase; color: var(--ink-dim);
+  padding: 4px 10px; border: 1px solid transparent; border-radius: 6px 6px 0 0;
+}
+.code-file-tab.on { color: var(--ink); background: var(--editor-bg); border-color: var(--line); border-bottom-color: var(--editor-bg); }
+.code-toolbar-acts { display: flex; align-items: center; gap: 6px; flex: none; }
+.code-kbd-hint {
+  font-family: var(--mono); font-size: 9px; letter-spacing: .02em;
+  color: var(--ink-dim); opacity: .85; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  max-width: 160px;
+}
+@media (max-width: 380px) { .code-kbd-hint { display: none; } }
+.code-tb-btn {
+  font-family: var(--mono); font-size: 10px; letter-spacing: .06em; text-transform: uppercase;
+  color: var(--ink-dim); background: var(--btn-bg); border: 1px solid var(--line);
+  border-radius: 6px; padding: 4px 9px; cursor: pointer;
+}
+.code-tb-btn:hover { color: var(--cyan); border-color: var(--cyan); }
+.code-tb-btn.on { color: var(--cyan); border-color: var(--cyan); background: var(--editor-line-active); }
+.code-tb-btn.sm { padding: 2px 7px; font-size: 12px; line-height: 1; }
+.code-toolbar { position: relative; z-index: 2; }
+
+.code-splitter {
+  flex: none; width: 6px; cursor: col-resize; touch-action: none;
+  background: transparent; position: relative; align-self: stretch;
+}
+.code-splitter::after {
+  content: ''; position: absolute; top: 12%; bottom: 12%; left: 50%;
+  width: 2px; transform: translateX(-50%); border-radius: 2px;
+  background: var(--line); opacity: .55; transition: opacity .15s, background .15s;
+}
+.code-splitter:hover::after, .code-splitter.dragging::after { opacity: 1; background: var(--cyan); }
+
+.code-params-pane {
+  flex: none; width: var(--params-pane-w, 200px); min-width: 0;
+  display: flex; flex-direction: column; min-height: 0;
+  background: var(--editor-gutter-bg); border-left: 1px solid var(--line);
+  padding: 8px 10px 10px;
+}
+.code-params-head {
+  flex: none; margin-bottom: 4px;
+  display: flex; align-items: center; justify-content: space-between; gap: 6px;
+}
+.code-params-head .pane-title { margin-top: 0; }
+.code-params-pane .params { flex: 1; overflow-y: auto; overscroll-behavior: contain; min-height: 0; }
+.code-workspace.params-collapsed .code-params-pane,
+.code-workspace.params-collapsed .code-splitter { display: none; }
+
+/* code editor shell: gutter + coloured layer + transparent textarea */
+.editor-shell {
+  flex: 1 1 auto; min-height: 160px; display: flex; min-width: 0;
+  border: 1px solid var(--line); border-radius: var(--radius);
+  background: var(--editor-bg); overflow: hidden;
+}
+.editor-shell:focus-within { border-color: var(--cyan); box-shadow: 0 0 0 1px rgba(77, 208, 225, .15); }
+:root.theme-light .editor-shell:focus-within { box-shadow: 0 0 0 1px rgba(14, 138, 160, .18); }
+
+.editor-gutter {
+  flex: none; width: 42px; overflow: hidden; user-select: none;
+  background: var(--editor-gutter-bg); border-right: 1px solid var(--line);
+}
+.editor-ln {
+  margin: 0; padding: 10px 6px 10px 4px; box-sizing: border-box;
+  font-family: var(--mono); font-size: 13px; line-height: 1.6; letter-spacing: 0;
+  color: var(--ink-dim); text-align: right; white-space: pre;
+}
+.editor-ln .ln { display: block; padding: 0 4px; border-radius: 3px; }
+.editor-ln .ln.active { color: var(--cyan); background: var(--editor-line-active); }
+
 .editor-wrap {
   position: relative; display: flex; flex-direction: column;
-  flex: 1 1 auto; min-height: 180px;
-  border: 1px solid var(--line); border-radius: var(--radius);
-  background: var(--bg); overflow: hidden;
+  flex: 1 1 0; min-width: 0; min-height: 0; overflow: hidden;
 }
-.editor-wrap:focus-within { border-color: var(--cyan); }
 .editor-hl, #editor {
   margin: 0; box-sizing: border-box; width: 100%;
   font-family: var(--mono); font-size: 13px; line-height: 1.6; letter-spacing: 0;
-  padding: 14px; border: 0; tab-size: 2;
+  padding: 10px 12px; border: 0; tab-size: 2;
   white-space: pre-wrap; overflow-wrap: break-word; word-break: break-word;
 }
 .editor-hl { position: absolute; inset: 0; overflow: hidden; pointer-events: none; color: var(--ink); z-index: 0; }
@@ -506,6 +589,7 @@ body.layout-bottom #card-snap { display: none; } /* dock L/R is meaningless at t
   color: transparent; background: transparent; caret-color: var(--cyan);
 }
 #editor:focus { outline: none; }
+.pane-code .error { flex: none; margin-top: 6px; margin-right: 10px; }
 /* token colours */
 .hl-c { color: var(--hl-comment); font-style: italic; }
 .hl-s { color: var(--hl-str); }

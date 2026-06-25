@@ -274,8 +274,22 @@ test('code editor: scrolling the textarea keeps the highlight layer in sync', as
     ed.scrollTop = 300;
     ed.dispatchEvent(new Event('scroll', { bubbles: true }));
     const hl = document.querySelector('.editor-hl');
-    return { ed: ed.scrollTop, hl: hl.scrollTop };
+    const gutter = document.querySelector('#editor-gutter');
+    return { ed: ed.scrollTop, hl: hl.scrollTop, gutter: gutter?.scrollTop ?? -1 };
   });
   expect(synced.ed).toBeGreaterThan(0); // the textarea actually scrolled
   expect(synced.hl).toBe(synced.ed);    // and the colour (highlight) layer followed it
+  expect(synced.gutter).toBe(synced.ed); // line-number gutter follows too
+});
+
+test('code editor: params panel toggles and line gutter renders', async ({ page }) => {
+  await gotoApp(page);
+  const before = await page.locator('#code-params-pane').isVisible();
+  expect(before).toBe(true);
+  await page.locator('#params-hide').click();
+  await expect(page.locator('#code-workspace')).toHaveClass(/params-collapsed/);
+  await page.locator('#params-show').click();
+  await expect(page.locator('#code-workspace')).not.toHaveClass(/params-collapsed/);
+  const lines = await page.locator('#editor-ln .ln').count();
+  expect(lines).toBeGreaterThan(3);
 });

@@ -130,15 +130,36 @@ export function appHTML({ addGallery, featuresHtml, gcodeHtml }) {
           <div class="pcols" id="pcols">
             <!-- code mode: model-source editor (.hidden in build; the build columns
                  below are hidden in code via .part-card.dom-code) -->
-            <section id="pane-code" class="pane">
-              <div class="pane-title">model source</div>
-              <div class="editor-wrap">
-                <pre class="editor-hl" aria-hidden="true"><code id="editor-code"></code></pre>
-                <textarea id="editor" spellcheck="false" autocomplete="off" autocapitalize="off" autocorrect="off"></textarea>
+            <section id="pane-code" class="pane pane-code">
+              <div class="code-workspace" id="code-workspace">
+                <div class="code-main">
+                  <div class="code-toolbar">
+                    <span class="code-file-tab on" title="Model source">model source</span>
+                    <div class="code-toolbar-acts">
+                      <span class="code-kbd-hint" title="Editor shortcuts">Tab · Ctrl+/ comment · Ctrl+D dup · Ctrl+Enter run</span>
+                      <button type="button" class="code-tb-btn" id="params-show" title="Show parameters (Ctrl+\\)" hidden>params</button>
+                    </div>
+                  </div>
+                  <div class="editor-shell">
+                    <div class="editor-gutter" id="editor-gutter" aria-hidden="true">
+                      <pre class="editor-ln" id="editor-ln"></pre>
+                    </div>
+                    <div class="editor-wrap">
+                      <pre class="editor-hl" aria-hidden="true"><code id="editor-code"></code></pre>
+                      <textarea id="editor" spellcheck="false" autocomplete="off" autocapitalize="off" autocorrect="off" aria-label="Model source code"></textarea>
+                    </div>
+                  </div>
+                  <div id="error" class="error"></div>
+                </div>
+                <div class="code-splitter" id="code-splitter" title="Drag to resize parameters panel" aria-hidden="true"></div>
+                <aside class="code-params-pane" id="code-params-pane" aria-label="Parameters">
+                  <div class="code-params-head">
+                    <span class="pane-title">parameters</span>
+                    <button type="button" class="code-tb-btn sm" id="params-hide" title="Hide parameters (Ctrl+\\)">◂</button>
+                  </div>
+                  <div id="params" class="params"></div>
+                </aside>
               </div>
-              <div id="error" class="error"></div>
-              <div class="pane-title">parameters</div>
-              <div id="params" class="params"></div>
             </section>
             <div class="pcol-main">
               <input type="file" id="stl-file" accept=".stl,.obj,.3mf,model/stl,application/sla" hidden>

@@ -1235,6 +1235,7 @@ export class App {
     const code = this.root.querySelector('#editor-code');
     const ed = this.root.querySelector('#editor');
     if (code && ed) code.innerHTML = highlightCode(ed.value);
+    this._updateEditorGutter?.();
   }
 
   _scheduleCursorHighlight() {

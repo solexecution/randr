@@ -1,4 +1,5 @@
 import { toggleMenu } from './toolbar.js';
+import { installCodeEditor } from './codeEditor.js';
 import { exportSTL, exportOBJ, triggerDownload } from '../kernel/export.js';
 import * as Projects from './projects.js';
 
@@ -21,11 +22,7 @@ class EventBindings {
       this._highlightEditor();
       this._scheduleRecompile();
     });
-    // keep the colour layer scroll-aligned with the textarea
-    editor.addEventListener('scroll', () => {
-      const pre = $('.editor-hl'); // the colour layer is .editor-hl (class), not an id
-      if (pre) { pre.scrollTop = editor.scrollTop; pre.scrollLeft = editor.scrollLeft; }
-    });
+    installCodeEditor(this);
     // glow the shape the caret is in (caret-move events; typing re-runs it via
     // recompile). The glow persists when focus leaves the editor so you can
     // orbit the model while it stays lit.
