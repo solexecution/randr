@@ -4,7 +4,7 @@
 //    re-saving the just-deleted one straight back into the index.
 //  - Importing a mesh adds an 'imported' build part that persists across save+reopen.
 import { test, expect } from '@playwright/test';
-import { gotoApp, ensureBuildMode, addShape } from './_helpers.js';
+import { gotoApp, ensureBuildMode, ensureCodeMode, addShape } from './_helpers.js';
 
 const indexIds = (page) =>
   page.evaluate(() => JSON.parse(localStorage.getItem('randr.index') || '[]').map((p) => p.id));
@@ -60,6 +60,23 @@ test('importing a mesh adds a build part that survives save + reopen', async ({ 
   await page.evaluate(() => { const a = window.__forgeApp; a._saveCurrent(); a._openProject(a.project.id); });
   await page.waitForFunction(
     () => window.__forgeApp.buildTree.nodes.some((n) => n.kind === 'imported') && !!window.__forgeApp.currentModel,
+    null,
+    { timeout: 12000 },
+  );
+});
+
+test('importing while in code mode switches to build so the part is visible', async ({ page }) => {
+  // The ☰ menu Import fires in any mode; in code mode the part used to land in the
+  // build tree behind the editor (looked like nothing happened). It must switch.
+  await gotoApp(page);
+  await ensureCodeMode(page);
+  await page.waitForFunction(() => !!window.__forgeApp.currentModel, null, { timeout: 12000 });
+  await page.evaluate(() => {
+    const a = window.__forgeApp;
+    a._importSTLFile(new File([window.__forgeExport.exportSTL(a.currentModel)], 'm.stl', { type: 'model/stl' }));
+  });
+  await page.waitForFunction(
+    () => window.__forgeApp.mode === 'build' && window.__forgeApp.buildTree.nodes.some((n) => n.kind === 'imported'),
     null,
     { timeout: 12000 },
   );
