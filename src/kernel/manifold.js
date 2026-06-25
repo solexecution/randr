@@ -193,6 +193,16 @@ export function splitHalf(m, axis = 'z') {
   return m.splitByPlane(normal, center);
 }
 
+// Split along an arbitrary plane: `normal` points at the +half, `point` is any
+// point on the plane (language frame, Z-up).
+export function splitAtPlane(m, normal, point) {
+  const [nx, ny, nz] = normal;
+  const len = Math.hypot(nx, ny, nz) || 1;
+  const n = [nx / len, ny / len, nz / len];
+  const offset = n[0] * point[0] + n[1] * point[1] + n[2] * point[2];
+  return m.splitByPlane(n, offset);
+}
+
 // Chamfered box: like roundedBox but hulling 8 octahedra, so every edge gets a
 // flat 45 degree bevel of size `c` instead of a round fillet.
 export function chamferedBox(x, y, z, c) {

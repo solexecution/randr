@@ -9,6 +9,7 @@ import {
   intersection,
   hull,
   inspect,
+  splitAtPlane,
 } from '../../src/kernel/manifold.js';
 
 // Coverage of the Boolean operators and the Manifold transform methods. We lean
@@ -150,5 +151,19 @@ describe('kernel CSG + transforms', () => {
     expect(after.bbox.min[0]).toBeCloseTo(-before.bbox.max[0], 3);
     a.delete();
     m.delete();
+  });
+
+  it('splitAtPlane cuts a box into two non-empty halves', () => {
+    const a = box(10, 10, 10);
+    const before = inspect(a).volume;
+    const [p, n] = splitAtPlane(a, [0, 0, 1], [0, 0, 0]);
+    const vp = inspect(p).volume;
+    const vn = inspect(n).volume;
+    expect(p.isEmpty()).toBe(false);
+    expect(n.isEmpty()).toBe(false);
+    expect(vp + vn).toBeCloseTo(before, 0);
+    a.delete();
+    p.delete();
+    n.delete();
   });
 });

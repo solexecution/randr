@@ -7,7 +7,7 @@
 // sees one input format. The build pane is a structured editor that emits
 // source; a touch-built model can be opened in the code pane and vice versa.
 
-import { loadKernel, inspect, meshSolid, importSTL, importOBJ, import3MF, registerSolid, solidMesh, setCurveQuality, splitHalf } from '../kernel/manifold.js';
+import { loadKernel, inspect, meshSolid, importSTL, importOBJ, import3MF, registerSolid, solidMesh, setCurveQuality, splitHalf, splitAtPlane } from '../kernel/manifold.js';
 import { compile } from '../lang/compile.js';
 import { exportSTL, exportOBJ, export3MF, export3MFColored } from '../kernel/export.js';
 import { Viewport, BUILD_VOLUME } from './viewport.js';
@@ -91,6 +91,7 @@ export class App {
     this.projects = new ProjectStore(this); // project lifecycle (save/open/delete/recent)
     this.selectedNodes = []; // the selection set; selectedNode (primary) derives from it
     this.workplane = null; // {origin,normal,rot} build frame, or null for ground
+    this.cutPlaneMode = false; // movable laser-cut plane in the build viewport
     this.viewMode = 'edit'; // build view: 'edit' (parts + ghost) | 'result' (combined solid)
     this.multiSelect = false; // sticky additive selection (touch-friendly — taps add to the selection)
     this._layerMode = false;  // layer-preview (slice) view active
@@ -116,6 +117,7 @@ export class App {
     this.viewport.onGroupTransform = (updates) => this._onGroupTransform(updates);
     this.viewport.onTransformEnd = (i) => this._onTransformEnd(i);
     this.viewport.getTransformSet = () => this._transformSet();
+    this.viewport.onCutPlaneChange = (plane) => this._onCutPlaneChange(plane);
     this.viewport.onSketchComplete = (pts) => this._onSketchComplete(pts);
     window.__forgeExport = { exportSTL, export3MF, export3MFColored, exportOBJ, build3MF: () => this._build3MF() }; // scripting/test hook
     window.__dbg = { src: () => buildTreeToSource(this.buildTree), compile, meshSolid, importSTL, importOBJ, import3MF, registerSolid, coloredParts: () => buildColoredParts(this.buildTree) }; // debug
@@ -616,6 +618,10 @@ export class App {
       bar.querySelectorAll('button, input').forEach((el) => { el.disabled = disabled; });
     };
     disableBar('#opsbar', sel < 1);
+    const cutbar = this.root.querySelector('#cutbar');
+    if (cutbar) {
+      cutbar.querySelectorAll('[data-cut-plane="apply"], [data-cut-plane="reset"]').forEach((b) => { b.disabled = sel < 1; });
+    }
     disableBar('#arraybar', sel < 1);
     disableBar('#alignbar', sel < 2);
     const grp = this.root.querySelector('#groupbar');
@@ -945,31 +951,29 @@ export class App {
     this._toast(`Broke into ${pieces.length} pieces`);
   }
 
-  // Cut the selection (or a linked group) in half along X, Y, or Z at its centre.
-  _splitHalf(axis) {
+  _cutSelectionSolid() {
     const nodes = this.buildTree.nodes;
-    if (!this.selectedNodes.length) return;
+    if (!this.selectedNodes.length) return { error: 'Select a part to cut' };
     if (!this._isUnifiedGroupSelection() && this.selectedNodes.length > 1) {
-      this._toast('Select one part or a linked group to cut');
-      return;
+      return { error: 'Select one part or a linked group to cut' };
     }
     const ref = nodes[this.selectedNode];
-    if (!ref) return;
+    if (!ref) return { error: 'Nothing selected' };
     const compileNodes = this._isUnifiedGroupSelection()
       ? nodes.filter((n) => n.group === ref.group).map((n) => ({ ...n, op: 'solid', hidden: false }))
       : [{ ...ref, op: 'solid', group: null, groupMode: 'union', hidden: false }];
     let man = null;
     try { man = compile(buildTreeToSource({ nodes: compileNodes }), {}).result; }
-    catch { this._toast('Couldn’t cut this part'); return; }
-    if (!man) { this._toast('Nothing to cut'); return; }
-    let halves = [];
-    try {
-      halves = splitHalf(man, axis);
-      man.delete();
-    } catch { this._toast('Couldn’t cut this part'); return; }
-    if (!halves || halves.length !== 2) { this._toast('Cut failed'); return; }
-    const baseName = ref.meshName || ref.kind || 'part';
-    const pieces = halves.map((c, k) => {
+    catch { return { error: 'Couldn’t cut this part' }; }
+    if (!man) return { error: 'Nothing to cut' };
+    const remove = this._isUnifiedGroupSelection()
+      ? nodes.map((n, i) => (n.group === ref.group ? i : -1)).filter((i) => i >= 0)
+      : [this.selectedNode];
+    return { man, ref, remove };
+  }
+
+  _piecesFromManifolds(halves, ref, baseName) {
+    return halves.map((c, k) => {
       const id = `cut-${Date.now()}-${k}`;
       try { registerSolid(id, c); } catch { c.delete(); return null; }
       return {
@@ -978,17 +982,113 @@ export class App {
         collapsed: false, meshId: id, meshName: `${baseName} ${k + 1}`, fields: [],
       };
     }).filter(Boolean);
-    if (pieces.length !== 2) { this._toast('Couldn’t cut this part'); return; }
-    const remove = this._isUnifiedGroupSelection()
-      ? nodes.map((n, i) => (n.group === ref.group ? i : -1)).filter((i) => i >= 0)
-      : [this.selectedNode];
+  }
+
+  _installCutPieces(ref, remove, pieces) {
+    const nodes = this.buildTree.nodes;
     const insertAt = Math.min(...remove);
     remove.sort((a, b) => b - a).forEach((i) => nodes.splice(i, 1));
     nodes.splice(insertAt, 0, ...pieces);
-    this.selectedNodes = [insertAt, insertAt + 1];
+    this.selectedNodes = pieces.map((_, k) => insertAt + k);
     this._renderBuildTree(); this.recompile(); this._pushHistory(); this._renderAlignBar();
+  }
+
+  _validCutHalves(halves) {
+    return (halves || []).filter((h) => h && !h.isEmpty() && h.numVert() > 0);
+  }
+
+  // Cut the selection (or a linked group) in half along X, Y, or Z at its centre.
+  _splitHalf(axis) {
+    const prep = this._cutSelectionSolid();
+    if (prep.error) { this._toast(prep.error); return; }
+    let halves = [];
+    try {
+      halves = this._validCutHalves(splitHalf(prep.man, axis));
+      prep.man.delete();
+    } catch { prep.man?.delete(); this._toast('Couldn’t cut this part'); return; }
+    if (halves.length < 2) { this._toast('Cut missed the part — move the plane'); return; }
+    const baseName = prep.ref.meshName || prep.ref.kind || 'part';
+    const pieces = this._piecesFromManifolds(halves, prep.ref, baseName);
+    if (pieces.length < 2) { this._toast('Couldn’t cut this part'); return; }
+    this._installCutPieces(prep.ref, prep.remove, pieces);
     const ax = axis === 'x' ? 'left/right' : axis === 'y' ? 'front/back' : 'top/bottom';
     this._toast(`Cut in half (${ax})`);
+  }
+
+  _cutPlaneSeedCenter() {
+    const sel = this.selectedNode >= 0 ? [this.selectedNode] : this._transformSet();
+    const bb = sel.length ? this._selectionBounds(sel) : null;
+    if (bb) {
+      return [
+        (bb.min[0] + bb.max[0]) / 2,
+        (bb.min[1] + bb.max[1]) / 2,
+        (bb.min[2] + bb.max[2]) / 2,
+      ];
+    }
+    return [0, 0, 30];
+  }
+
+  _syncCutPlaneUI() {
+    const on = this.cutPlaneMode;
+    this.root.querySelectorAll('[data-cut-plane="toggle"]').forEach((b) => b.classList.toggle('on', on));
+    const hint = this.root.querySelector('#cut-plane-hint');
+    if (hint) hint.hidden = !on;
+    if (on) this._setEditToolTab('move');
+  }
+
+  _onCutPlaneChange(plane) {
+    const el = this.root.querySelector('#cut-plane-readout');
+    if (!el || !plane) return;
+    const f = (v) => (Math.round(v * 10) / 10).toFixed(1);
+    el.textContent = `${f(plane.origin[0])}, ${f(plane.origin[1])}, ${f(plane.origin[2])} mm`;
+  }
+
+  _toggleCutPlane() {
+    this.cutPlaneMode = !this.cutPlaneMode;
+    if (this.cutPlaneMode && this.measureMode) {
+      this.measureMode = false;
+      this.viewport.setMeasureMode(false);
+      this.root.querySelector('#v-measure')?.classList.remove('on');
+    }
+    if (this.cutPlaneMode) {
+      this.viewport.setCutPlaneMode(true, {
+        origin: this._cutPlaneSeedCenter(),
+        normal: [0, 0, 1],
+      });
+      this._setEditToolTab('move');
+      this._setXform('translate');
+      this._toast('Laser cut on — move/turn the red plane, then Cut here');
+    } else {
+      this.viewport.setCutPlaneMode(false);
+      this._toast('Laser cut off');
+    }
+    this._syncCutPlaneUI();
+  }
+
+  _resetCutPlane() {
+    if (!this.cutPlaneMode) { this._toggleCutPlane(); return; }
+    this.viewport.setCutPlanePose(this._cutPlaneSeedCenter(), [0, 0, 1]);
+    this._toast('Cut plane levelled through selection');
+  }
+
+  _applyCutPlane() {
+    if (!this.cutPlaneMode) { this._toggleCutPlane(); return; }
+    const plane = this.viewport.getCutPlane();
+    if (!plane) { this._toast('Cut plane not ready'); return; }
+    const prep = this._cutSelectionSolid();
+    if (prep.error) { this._toast(prep.error); return; }
+    let halves = [];
+    try {
+      halves = this._validCutHalves(splitAtPlane(prep.man, plane.normal, plane.origin));
+      prep.man.delete();
+    } catch { prep.man?.delete(); this._toast('Couldn’t cut along this plane'); return; }
+    if (halves.length < 2) { this._toast('Plane misses the part — move or turn it'); return; }
+    const baseName = prep.ref.meshName || prep.ref.kind || 'part';
+    const pieces = this._piecesFromManifolds(halves, prep.ref, baseName);
+    if (pieces.length < 2) { this._toast('Couldn’t cut this part'); return; }
+    this._installCutPieces(prep.ref, prep.remove, pieces);
+    this._toast(`Cut into ${pieces.length} pieces`);
+    this.viewport.setCutPlanePose(this._cutPlaneSeedCenter(), plane.normal);
   }
 
   // live during a drag: move the shape (whole group moves together) + reflect
@@ -1095,7 +1195,8 @@ export class App {
   }
 
   _setXform(mode) {
-    this.viewport.setTransformMode(mode);
+    if (this.cutPlaneMode) this.viewport.setCutPlaneXform(mode);
+    else this.viewport.setTransformMode(mode);
     this.root.querySelectorAll('[data-xform]').forEach((x) => x.classList.toggle('on', x.dataset.xform === mode));
   }
 
@@ -1151,6 +1252,11 @@ export class App {
   // into editable parts (or keeps the parts if the code is their clean mirror).
   _switchMode(mode) {
     const $ = (s) => this.root.querySelector(s);
+    if (this.cutPlaneMode) {
+      this.cutPlaneMode = false;
+      this.viewport?.setCutPlaneMode(false);
+      this._syncCutPlaneUI();
+    }
     if (this.viewport && this.viewport._sketch?.on) { this.viewport.cancelSketch(); this.root.querySelector('#sketch-bar')?.classList.add('hidden'); }
     if (mode === this.mode) { this._syncBuildTools(); return; }
     if (mode === 'code') {

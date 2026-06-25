@@ -201,6 +201,15 @@ export function appHTML({ addGallery, featuresHtml, gcodeHtml }) {
                 </div>
                 <div class="edit-tool-pane" data-ttab="place" role="tabpanel">
                   <p class="edit-tool-hint">Seat, centre, mirror, or cut the selected part (or group) on the plate.</p>
+                  <div class="edit-tool-block">
+                    <span class="edit-tool-block-title">Laser cut</span>
+                    <p class="edit-tool-hint cut-plane-hint" id="cut-plane-hint" hidden>Move/turn the red plane with ↔ move / ⟳ turn, then <strong>cut here</strong>. Point: <span id="cut-plane-readout">—</span></p>
+                    <div class="tool-chip-grid" id="cutbar">
+                      <button data-cut-plane="toggle" title="Show a movable cut plane across the plate">⚡ laser</button>
+                      <button data-cut-plane="apply" title="Split the part along the plane">✂ cut here</button>
+                      <button data-cut-plane="reset" title="Level the plane through the selection centre">⟲ level plane</button>
+                    </div>
+                  </div>
                   <div class="tool-chip-grid" id="opsbar">
                     <button data-op-act="drop" title="Drop onto the plate">⤓ on base</button>
                     <button data-op-act="center" title="Center on the plate">⊹ centre</button>
@@ -210,9 +219,9 @@ export function appHTML({ addGallery, featuresHtml, gcodeHtml }) {
                     <button data-flip="x" title="Mirror across X">⇋ X</button>
                     <button data-flip="y" title="Mirror across Y">⇋ Y</button>
                     <button data-flip="z" title="Mirror across Z">⇋ Z</button>
-                    <button data-cut-half="z" title="Cut in half horizontally (top / bottom)">✂ top/bottom</button>
-                    <button data-cut-half="x" title="Cut in half vertically (left / right)">✂ left/right</button>
-                    <button data-cut-half="y" title="Cut in half vertically (front / back)">✂ front/back</button>
+                    <button data-cut-half="z" title="Quick cut: top / bottom at centre">✂ top/bottom</button>
+                    <button data-cut-half="x" title="Quick cut: left / right at centre">✂ left/right</button>
+                    <button data-cut-half="y" title="Quick cut: front / back at centre">✂ front/back</button>
                   </div>
                 </div>
                 <div class="edit-tool-pane" data-ttab="multi" role="tabpanel">

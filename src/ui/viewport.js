@@ -138,6 +138,9 @@ export class Viewport {
     this._groupPivotCenter = null; // selection centre when the current drag started
     this._groupScaleBaseline = null; // per-member pos/rot/scale at drag start (scale mode)
     this._singleScaleRot = null;     // locked euler while a lone part is being scaled
+    this._cutPlanePivot = null;      // movable laser-cut plane (build mode)
+    this._cutPlaneActive = false;
+    this.onCutPlaneChange = null;    // ({ origin, normal }) while the plane moves
     this.onMultiArm = null;        // (on) — long-press armed / disarmed multi-select
     this._lpTimer = null;          // long-press timer (touch multi-select)
     this._raycaster = new THREE.Raycaster();
@@ -855,8 +858,8 @@ export class Viewport {
     g.addEventListener('dragging-changed', (e) => {
       this._gizmoDragging = e.value;
       if (e.value) {
-        this._syncGroupGizmo();
-        if (this.transformMode === 'scale' && this.transformSet.length < 2) {
+        if (!this._cutPlaneActive) this._syncGroupGizmo();
+        if (this.transformMode === 'scale' && !this._cutPlaneActive && this.transformSet.length < 2) {
           const em = this.editMeshes.find((m) => m.index === this.selectedIndex);
           const D = 180 / Math.PI;
           this._singleScaleRot = em
@@ -869,6 +872,10 @@ export class Viewport {
       }
     });
     g.addEventListener('objectChange', () => {
+      if (this._cutPlaneActive) {
+        if (this.onCutPlaneChange) this.onCutPlaneChange(this.getCutPlane());
+        return;
+      }
       if (this._groupXformLocals) {
         if (this.transformMode === 'scale') this._propagateGroupScaleTransform();
         else this._propagateGroupPivotTransform();
@@ -897,9 +904,14 @@ export class Viewport {
     if (this.gizmo) this.gizmo.setMode(mode);
   }
 
+  setCutPlaneXform(mode) {
+    this.setTransformMode(mode === 'scale' ? 'translate' : mode);
+  }
+
   // With 2+ transform targets (multi-select or a linked group), park the gizmo on a
   // pivot at the selection centre so move/rotate/scale is one rigid body.
   _syncGroupGizmo() {
+    if (this._cutPlaneActive) return false;
     const ts = this.transformSet;
     const em = this.editMeshes.find((e) => e.index === this.selectedIndex);
     if (!this.gizmo || !this.editActive) return false;
@@ -1215,6 +1227,83 @@ export class Viewport {
     this._wpMesh = mesh;
   }
 
+  // --- laser cut plane (movable split surface) ------------------------------
+
+  _ensureCutPlanePivot() {
+    if (this._cutPlanePivot) return;
+    const pivot = new THREE.Object3D();
+    const span = (this._plateW || 220) * 1.05;
+    const geo = new THREE.PlaneGeometry(span, span);
+    const fill = new THREE.Mesh(
+      geo,
+      new THREE.MeshBasicMaterial({
+        color: 0xff3355, transparent: true, opacity: 0.12, side: THREE.DoubleSide, depthWrite: false,
+      }),
+    );
+    fill.renderOrder = 4;
+    fill.raycast = () => {}; // clicks pass through to parts / orbit
+    const edge = new THREE.LineSegments(
+      new THREE.EdgesGeometry(geo),
+      new THREE.LineBasicMaterial({ color: 0xff6688, transparent: true, opacity: 0.95 }),
+    );
+    edge.renderOrder = 5;
+    edge.raycast = () => {};
+    // Cross-hair "laser" lines across the plate
+    const arm = span * 0.46;
+    const laserPts = new Float32Array([
+      -arm, 0, 0, arm, 0, 0,
+      0, -arm, 0, 0, arm, 0,
+    ]);
+    const laser = new THREE.LineSegments(
+      new THREE.BufferGeometry().setAttribute('position', new THREE.BufferAttribute(laserPts, 3)),
+      new THREE.LineBasicMaterial({ color: 0xff99aa, transparent: true, opacity: 0.55 }),
+    );
+    laser.renderOrder = 5;
+    laser.raycast = () => {};
+    pivot.add(fill, edge, laser);
+    this._cutPlanePivot = pivot;
+    this.editGroup.add(pivot);
+  }
+
+  getCutPlane() {
+    if (!this._cutPlanePivot) return null;
+    const p = this._cutPlanePivot.position;
+    const n = new THREE.Vector3(0, 0, 1).applyQuaternion(this._cutPlanePivot.quaternion).normalize();
+    const rnd = (v) => Math.round(v * 1000) / 1000 || 0;
+    return {
+      origin: [rnd(p.x), rnd(p.y), rnd(p.z)],
+      normal: [rnd(n.x), rnd(n.y), rnd(n.z)],
+    };
+  }
+
+  setCutPlanePose(origin, normal) {
+    this._ensureCutPlanePivot();
+    const p = this._cutPlanePivot;
+    if (origin) p.position.set(origin[0], origin[1], origin[2]);
+    const nn = new THREE.Vector3(...(normal || [0, 0, 1])).normalize();
+    p.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), nn);
+    p.updateMatrixWorld(true);
+    if (this.onCutPlaneChange) this.onCutPlaneChange(this.getCutPlane());
+  }
+
+  setCutPlaneMode(on, pose) {
+    this._cutPlaneActive = !!on;
+    if (!on) {
+      if (this._cutPlanePivot) this._cutPlanePivot.visible = false;
+      if (this.gizmo && !this._gizmoDragging) this.setSelection(this.selectedSet, this.transformSet);
+      return;
+    }
+    this._ensureCutPlanePivot();
+    this._cutPlanePivot.visible = true;
+    if (pose) this.setCutPlanePose(pose.origin, pose.normal);
+    if (this.gizmo && this.editActive) {
+      this._clearGroupPivot();
+      this.gizmo.attach(this._cutPlanePivot);
+      this.gizmo.setMode(this.transformMode === 'scale' ? 'translate' : this.transformMode);
+    }
+    if (this.onCutPlaneChange) this.onCutPlaneChange(this.getCutPlane());
+  }
+
   // --- code mode: one merged solid -----------------------------------------
 
   // Empty modelGroup, freeing geometries and any per-mesh (non-shared)
@@ -1485,7 +1574,8 @@ export class Viewport {
       this._outline = line;
     }
     if (this.gizmo) {
-      if (em && !em.lock && this.editActive) this._syncGroupGizmo();
+      if (this._cutPlaneActive && this._cutPlanePivot) this.gizmo.attach(this._cutPlanePivot);
+      else if (em && !em.lock && this.editActive) this._syncGroupGizmo();
       else this.gizmo.detach();
     }
   }

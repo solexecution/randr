@@ -361,6 +361,15 @@ class EventBindings {
     this.root.querySelectorAll('[data-cut-half]').forEach((b) =>
       b.addEventListener('click', () => this._splitHalf(b.dataset.cutHalf)));
 
+    // movable laser-cut plane
+    this.root.querySelectorAll('[data-cut-plane]').forEach((b) =>
+      b.addEventListener('click', () => {
+        const act = b.dataset.cutPlane;
+        if (act === 'toggle') this._toggleCutPlane();
+        else if (act === 'apply') this._applyCutPlane();
+        else if (act === 'reset') this._resetCutPlane();
+      }));
+
     // group / ungroup toolbar + boolean mode
     this.root.querySelectorAll('[data-group]').forEach((b) =>
       b.addEventListener('click', () => (b.dataset.group === 'group' ? this._group() : this._ungroup())));

@@ -437,6 +437,8 @@ body.layout-bottom .card-resize { display: none !important; }
 .tool-chip-grid button:hover:not(:disabled) { border-color: var(--cyan); color: var(--cyan); }
 .tool-chip-grid button:disabled { opacity: .3; cursor: default; }
 .tool-chip-grid button.on { border-color: var(--cyan); color: var(--cyan); }
+.cut-plane-hint { margin: 0 0 6px; font-size: 11px; line-height: 1.35; }
+.cut-plane-hint #cut-plane-readout { color: var(--cyan); font-variant-numeric: tabular-nums; }
 .tool-chip-grid .arr-f { align-items: center; gap: 4px; cursor: default; }
 .xform-sub { margin-top: 0; }
 .edit-multi-hint strong { color: var(--cyan); font-weight: 600; }
