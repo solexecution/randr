@@ -405,6 +405,25 @@ export class App {
     return nodes.map((n, k) => (n.group === g ? k : -1)).filter((k) => k >= 0);
   }
 
+  // Place/move targets: selection plus every member of any touched group.
+  _placeSet() {
+    const out = new Set();
+    this.selectedNodes.forEach((i) => this._members(i).forEach((j) => out.add(j)));
+    return [...out];
+  }
+
+  _selectionBounds(indices) {
+    const mn = [Infinity, Infinity, Infinity], mx = [-Infinity, -Infinity, -Infinity];
+    let any = false;
+    indices.forEach((i) => {
+      const b = this.viewport.shapeBounds(i);
+      if (!b) return;
+      any = true;
+      for (let k = 0; k < 3; k++) { mn[k] = Math.min(mn[k], b.min[k]); mx[k] = Math.max(mx[k], b.max[k]); }
+    });
+    return any ? { min: mn, max: mx } : null;
+  }
+
   // Single source of truth for the additive ("multi") selection mode, shared by
   // the card's ⊹ toggle and the scene long-press gesture.
   _setMultiSelect(on) {
@@ -758,14 +777,40 @@ export class App {
   _placeOp(act) {
     if (act === 'stack') return this._stack();
     const nodes = this.buildTree.nodes;
-    this.selectedNodes.forEach((i) => {
-      const n = nodes[i];
-      if (!n) return;
-      if (act === 'drop') { const ext = this.viewport.shapeExtent(i); if (ext) n.pos[2] = Math.round(-ext.minZ * 100) / 100 || 0; }
-      else if (act === 'center') { n.pos[0] = 0; n.pos[1] = 0; }
-      else if (act === 'level') { n.rot = [0, 0, 0]; }
-      else if (act === 'scale') { n.scale = [1, 1, 1]; }
-    });
+    const sel = this._placeSet();
+    if (!sel.length) return;
+    const rnd = (v) => Math.round(v * 100) / 100 || 0;
+
+    if (act === 'drop') {
+      // Seat the whole selection (or group) on the plate — one shared Z shift.
+      let groupMinZ = Infinity;
+      sel.forEach((i) => {
+        const n = nodes[i], ext = this.viewport.shapeExtent(i);
+        if (!n || !ext) return;
+        groupMinZ = Math.min(groupMinZ, n.pos[2] + ext.minZ);
+      });
+      if (groupMinZ === Infinity) return;
+      const shift = -groupMinZ;
+      sel.forEach((i) => { const n = nodes[i]; if (n) n.pos[2] = rnd(n.pos[2] + shift); });
+    } else if (act === 'center') {
+      // Centre the selection's bounding box on the plate origin (XY).
+      const bb = this._selectionBounds(sel);
+      if (!bb) return;
+      const cx = (bb.min[0] + bb.max[0]) / 2, cy = (bb.min[1] + bb.max[1]) / 2;
+      sel.forEach((i) => {
+        const n = nodes[i];
+        if (!n) return;
+        n.pos[0] = rnd(n.pos[0] - cx);
+        n.pos[1] = rnd(n.pos[1] - cy);
+      });
+    } else {
+      sel.forEach((i) => {
+        const n = nodes[i];
+        if (!n) return;
+        if (act === 'level') n.rot = [0, 0, 0];
+        else if (act === 'scale') n.scale = [1, 1, 1];
+      });
+    }
     this._renderBuildTree();
     this.recompile();
     this._pushHistory();
