@@ -79,7 +79,12 @@ export class ProjectStore {
     const app = this.app;
     Projects.deleteProject(id);
     if (app.project && app.project.id === id) {
-      // deleted the open one — fall back to most recent, or a fresh project
+      // Deleted the OPEN project. Drop it from memory and cancel any pending
+      // autosave FIRST — otherwise the fallback below (_openProject / _newProject
+      // both checkpoint the *current* project) re-saves the just-deleted one and
+      // it reappears in the list.
+      clearTimeout(app._autosaveTimer);
+      app.project = null;
       const next = Projects.listProjects().sort((a, b) => b.modified - a.modified)[0];
       if (next) app._openProject(next.id); else app._newProject();
     }

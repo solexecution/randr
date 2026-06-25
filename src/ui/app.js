@@ -1527,6 +1527,10 @@ export class App {
         .then(() => (is3mf ? import3MF(reader.result) : isObj ? importOBJ(reader.result) : importSTL(reader.result)))
         .then((man) => {
           if (!man || man.numTri() === 0) { this._toast(`Import failed — ${fmt} mesh is not watertight`); try { man && man.delete(); } catch { /* freed */ } return; }
+          // An imported part lives in the build tree; if the import was triggered
+          // from the ☰ menu while in code mode it would land invisibly behind the
+          // editor, so switch to build first.
+          if (this.mode !== 'build') this._switchMode('build');
           const id = (is3mf ? '3mf-' : isObj ? 'obj-' : 'stl-') + (this._meshSeq = (this._meshSeq || 0) + 1);
           registerSolid(id, man);
           const node = this.buildTree.add('imported');
