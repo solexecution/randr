@@ -233,6 +233,10 @@ class EventBindings {
     // panel tabs (Parts · Shapes · Settings · Edit)
     this.root.querySelectorAll('.ptab').forEach((b) => b.addEventListener('click', () => this._setPanelTab(b.dataset.ptab)));
 
+    this.root.querySelectorAll('.edit-tool-tab').forEach((b) => b.addEventListener('click', () => {
+      if (!b.hidden) this._setEditToolTab(b.dataset.ttab);
+    }));
+
     // multi-select toggle: a sticky additive mode so a tap (no Shift) adds to the
     // selection. Long-pressing a part in the scene arms the same mode (see
     // viewport.js → onMultiArm); both share this._setMultiSelect.

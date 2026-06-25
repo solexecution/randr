@@ -100,6 +100,7 @@ export class App {
     this.history = [];
     this.histIdx = -1;
     this._restoring = false;
+    this._editToolTab = 'move'; // move | place | multi — tabbed tools in the build edit column
   }
 
   async start() {
@@ -549,33 +550,46 @@ export class App {
     if (lbl) lbl.textContent = `layer ${i + 1} / ${this._layerCount}`;
   }
 
-  // The build tools stay visible so they're always discoverable; their buttons
-  // just disable until the selection meets each tool's requirement (place/array
-  // need 1 part, align/group need 2). The whole build pane is hidden in code
-  // mode, so nothing leaks there.
+  // Tabbed build tools (Move / Place / Multi). Buttons disable until the
+  // selection meets each tool's requirement; Multi tab appears once 2+ parts
+  // exist and auto-opens when 2+ are selected.
+  _setEditToolTab(tab) {
+    this._editToolTab = tab;
+    this.root.querySelectorAll('.edit-tool-tab').forEach((b) => {
+      const on = b.dataset.ttab === tab;
+      b.classList.toggle('on', on);
+      b.setAttribute('aria-selected', on ? 'true' : 'false');
+    });
+    this.root.querySelectorAll('.edit-tool-pane').forEach((p) => {
+      p.classList.toggle('on', p.dataset.ttab === tab);
+    });
+  }
+
   _renderAlignBar() {
     const sel = this.selectedNodes.length;
     const nodes = this.buildTree.nodes;
-    const show = (id, disabled) => {
+    const total = nodes.length;
+    const multiTab = this.root.querySelector('.edit-tool-tab[data-ttab="multi"]');
+    if (multiTab) multiTab.hidden = total < 2;
+    if (sel >= 2 && this._editToolTab !== 'multi') this._setEditToolTab('multi');
+    else if (sel < 2 && this._editToolTab === 'multi') this._setEditToolTab('move');
+
+    const disableBar = (id, disabled) => {
       const bar = this.root.querySelector(id);
       if (!bar) return;
-      bar.classList.remove('hidden');
-      bar.querySelectorAll('button').forEach((b) => { b.disabled = disabled; });
+      bar.querySelectorAll('button, input').forEach((el) => { el.disabled = disabled; });
     };
-    show('#opsbar', sel < 1);
-    show('#arraybar', sel < 1);
-    show('#alignbar', sel < 2);
+    disableBar('#opsbar', sel < 1);
+    disableBar('#arraybar', sel < 1);
+    disableBar('#alignbar', sel < 2);
     const grp = this.root.querySelector('#groupbar');
     if (grp) {
-      grp.classList.remove('hidden');
       const hasGroup = this.selectedNodes.some((i) => nodes[i] && nodes[i].group != null);
       const canGroup = sel >= 2;
       const gb = grp.querySelector('[data-group="group"]');
       const ub = grp.querySelector('[data-group="ungroup"]');
       if (gb) gb.disabled = !canGroup;
       if (ub) ub.disabled = !hasGroup;
-      // boolean-mode buttons: only meaningful for a group; disable (don't hide)
-      // off a group so the option stays discoverable. Highlight the active one.
       const modes = new Set(this.selectedNodes.map((i) => nodes[i]).filter((n) => n && n.group != null).map((n) => n.groupMode || 'union'));
       const active = modes.size === 1 ? [...modes][0] : null;
       grp.querySelectorAll('[data-gmode]').forEach((b) => {

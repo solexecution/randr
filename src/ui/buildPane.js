@@ -18,11 +18,11 @@ class BuildPaneRenderers {
       if (this.multiSelect) hintEl.textContent = sel
         ? `${sel} selected — tap more to add · tap ⊹ multi to finish`
         : 'Multi-select on — tap parts in the scene to add';
-      else if (sel >= 2) hintEl.textContent = `${sel} parts selected — align / group / array below`;
+      else if (sel >= 2) hintEl.textContent = `${sel} selected — use the Multi tab below`;
       else if (sel === 1) {
         const n = nodes[this.selectedNodes[0]];
         const name = n ? (n.kind === 'imported' ? (n.meshName || 'mesh') : (n.kind || 'part')) : 'part';
-        hintEl.textContent = `Editing ${name} — change anything below`;
+        hintEl.textContent = `Editing ${name} — size above, tools below`;
       } else hintEl.textContent = total ? 'Tap a part to edit · tap ⊹ multi to pick several' : 'Tap + to add your first part';
     }
     const clearEl = this.root.querySelector('#clear-canvas');
@@ -41,7 +41,7 @@ class BuildPaneRenderers {
     if (!host) return; // modal not in the DOM yet (e.g. an early call during boot)
     host.innerHTML = '';
     if (this.selectedNodes.length >= 2) {
-      host.innerHTML = `<p class="muted">${this.selectedNodes.length} parts selected — use the tools below to align, group, array or place them.</p>`;
+      host.innerHTML = `<p class="muted edit-multi-hint">${this.selectedNodes.length} parts selected — open the <strong>Multi</strong> tab below to align, group, or array them.</p>`;
       this._renderAlignBar();
       return;
     }
@@ -71,9 +71,9 @@ class BuildPaneRenderers {
         const isCount = COUNT_KEYS.has(f.key);
         return `<label${isCount ? '' : ' data-unit="mm"'}>${f.label}<input type="number" step="${isCount ? 1 : 0.5}" value="${f.value}" data-field="${idx}:${f.key}"></label>`;
       }).join('');
+      const hasMore = supportsClearance(node.kind) || isShellable(node.kind) || supportsFillet(node.kind);
       row.innerHTML = `
         <div class="bn-head">
-          <button class="bn-collapse" data-collapse="${idx}" title="${node.collapsed ? 'Expand' : 'Collapse'}">${node.collapsed ? '▸' : '▾'}</button>
           ${node.group != null ? `<span class="bn-grp" title="Group ${node.group}">G${node.group}</span>` : ''}
           ${node.kind === 'imported'
             ? `<span class="bn-type bn-imported" title="Imported mesh">⬇ ${esc(node.meshName || 'mesh')}</span>`
@@ -98,32 +98,41 @@ class BuildPaneRenderers {
             <button class="bn-ic bn-del" data-del="${idx}" title="Delete">✕</button>
           </div>
         </div>
-        ${isFastener(node.kind) ? `<div class="bn-size">
-          <label>standard size<select data-size="${idx}">
-            <option value="">custom</option>
-            ${METRIC_SIZES.map((s) => `<option value="${s.key}" ${currentMetricSize(node) === s.key ? 'selected' : ''}>${s.key}</option>`).join('')}
-          </select></label>
-          <span class="bn-size-hint">sets Ø + pitch${node.kind === 'thread' ? '' : ' + hex'}</span>
-        </div>` : ''}
-        <div class="bn-fields">${dims}</div>
-        <div class="bn-fields bn-xyz">
-          <label data-unit="mm">x<input type="number" step="0.5" value="${node.pos[0]}" data-pos="${idx}:0"></label>
-          <label data-unit="mm">y<input type="number" step="0.5" value="${node.pos[1]}" data-pos="${idx}:1"></label>
-          <label data-unit="mm">z<input type="number" step="0.5" value="${node.pos[2]}" data-pos="${idx}:2"></label>
-          <label data-unit="°">rx<input type="number" step="15" value="${node.rot[0]}" data-rot="${idx}:0"></label>
-          <label data-unit="°">ry<input type="number" step="15" value="${node.rot[1]}" data-rot="${idx}:1"></label>
-          <label data-unit="°">rz<input type="number" step="15" value="${node.rot[2]}" data-rot="${idx}:2"></label>
+        <div class="bn-sec">
+          <div class="bn-sec-label">Dimensions</div>
+          ${isFastener(node.kind) ? `<div class="bn-size">
+            <label>standard size<select data-size="${idx}">
+              <option value="">custom</option>
+              ${METRIC_SIZES.map((s) => `<option value="${s.key}" ${currentMetricSize(node) === s.key ? 'selected' : ''}>${s.key}</option>`).join('')}
+            </select></label>
+            <span class="bn-size-hint">sets Ø + pitch${node.kind === 'thread' ? '' : ' + hex'}</span>
+          </div>` : ''}
+          <div class="bn-fields">${dims}</div>
         </div>
-        ${(supportsClearance(node.kind) || isShellable(node.kind)) ? `<div class="bn-clear">
-          ${supportsClearance(node.kind) ? `<label>fit clearance<input type="number" step="0.05" value="${node.clearance || 0}" data-clear="${idx}"></label>` : ''}
-          ${isShellable(node.kind) ? `<label>wall (hollow)<input type="number" step="0.2" value="${node.hollow || 0}" data-hollow="${idx}"></label>` : ''}
-          <span class="bn-clear-hint">mm · press-fit / hollow shell</span>
-        </div>` : ''}
-        ${supportsFillet(node.kind) ? `<div class="bn-clear">
-          <label>edge fillet<input type="number" step="0.5" min="0" value="${node.fillet || 0}" data-fillet="${idx}"></label>
-          <label class="bn-bevel-lab"><input type="checkbox" data-bevel="${idx}" ${node.bevel ? 'checked' : ''}> bevel</label>
-          <span class="bn-clear-hint">mm · rounds edges (✓ = chamfer)</span>
-        </div>` : ''}`;
+        <details class="bn-sec">
+          <summary>Position &amp; rotation</summary>
+          <div class="bn-fields bn-xyz">
+            <label data-unit="mm">x<input type="number" step="0.5" value="${node.pos[0]}" data-pos="${idx}:0"></label>
+            <label data-unit="mm">y<input type="number" step="0.5" value="${node.pos[1]}" data-pos="${idx}:1"></label>
+            <label data-unit="mm">z<input type="number" step="0.5" value="${node.pos[2]}" data-pos="${idx}:2"></label>
+            <label data-unit="°">rx<input type="number" step="15" value="${node.rot[0]}" data-rot="${idx}:0"></label>
+            <label data-unit="°">ry<input type="number" step="15" value="${node.rot[1]}" data-rot="${idx}:1"></label>
+            <label data-unit="°">rz<input type="number" step="15" value="${node.rot[2]}" data-rot="${idx}:2"></label>
+          </div>
+        </details>
+        ${hasMore ? `<details class="bn-sec">
+          <summary>More options</summary>
+          ${(supportsClearance(node.kind) || isShellable(node.kind)) ? `<div class="bn-clear">
+            ${supportsClearance(node.kind) ? `<label>fit clearance<input type="number" step="0.05" value="${node.clearance || 0}" data-clear="${idx}"></label>` : ''}
+            ${isShellable(node.kind) ? `<label>wall (hollow)<input type="number" step="0.2" value="${node.hollow || 0}" data-hollow="${idx}"></label>` : ''}
+            <span class="bn-clear-hint">mm · press-fit / hollow shell</span>
+          </div>` : ''}
+          ${supportsFillet(node.kind) ? `<div class="bn-clear">
+            <label>edge fillet<input type="number" step="0.5" min="0" value="${node.fillet || 0}" data-fillet="${idx}"></label>
+            <label class="bn-bevel-lab"><input type="checkbox" data-bevel="${idx}" ${node.bevel ? 'checked' : ''}> bevel</label>
+            <span class="bn-clear-hint">mm · rounds edges (✓ = chamfer)</span>
+          </div>` : ''}
+        </details>` : ''}`;
       row.addEventListener('mousedown', (e) => {
         if (e.target.closest('input, button, select')) return;
         this._selectNode(idx, e.shiftKey || this.multiSelect);

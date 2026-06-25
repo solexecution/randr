@@ -175,66 +175,85 @@ export function appHTML({ addGallery, featuresHtml, gcodeHtml }) {
               </div>
             </div>
             <div class="pcol-edit hidden" id="pcol-edit">
-              <div class="pedit-head">Edit <span id="part-modal-metrics" class="pm-metrics">—</span></div>
-              <div id="part-modal-fields"></div>
-              <div class="card-tools">
-            <div class="xform" id="xform">
-              <button data-xform="translate" class="on" title="Move (W)">↔ move</button>
-              <button data-xform="rotate" title="Rotate (E)">⟳ turn</button>
-              <button data-xform="scale" title="Scale (R)">⤢ size</button>
-              <button id="multi-toggle" class="js-multi" title="Multi-select — or long-press a part in the scene. Tap parts to add; tap empty to finish.">⊹ multi</button>
-            </div>
-            <div class="xform" id="wpbar">
-              <span class="xform-label">plane</span>
-              <button data-wp="face" title="Click a face to build on it">⊞ on face</button>
-              <button data-wp="ground" title="Reset the workplane to the ground">⊞ ground</button>
-            </div>
-            <div class="xform hidden" id="opsbar">
-              <span class="xform-label">place</span>
-              <button data-op-act="drop" title="Drop onto the plate">⤓ base</button>
-              <button data-op-act="center" title="Center on the plate">⊹ center</button>
-              <button data-op-act="level" title="Reset rotation">⟲ level</button>
-              <button data-op-act="scale" title="Reset scale to 1:1">1:1</button>
-              <button data-op-act="stack" title="Rest the last-selected part on top of the others">↥ stack</button>
-              <button data-flip="x" title="Mirror across X">⇋X</button>
-              <button data-flip="y" title="Mirror across Y">⇋Y</button>
-              <button data-flip="z" title="Mirror across Z">⇋Z</button>
-            </div>
-            <div class="xform hidden" id="arraybar">
-              <span class="xform-label">array</span>
-              <label class="arr-f">×<input type="number" id="arr-n" value="4" min="2" max="64" step="1"></label>
-              <label class="arr-f">gap<input type="number" id="arr-gap" value="25" step="1"></label>
-              <button data-arr="x" title="Row along X">↔ X</button>
-              <button data-arr="y" title="Row along Y">↕ Y</button>
-              <button data-arr="polar" title="Ring around the centre">⟳ ring</button>
-            </div>
-            <div class="xform hidden" id="alignbar">
-              <span class="xform-label">align</span>
-              <div class="align-grid">
-                <span class="ag-ax">X</span>
-                <button data-align="x:min" title="Align left (X min)">⊣</button>
-                <button data-align="x:center" title="Center on X">┼</button>
-                <button data-align="x:max" title="Align right (X max)">⊢</button>
-                <span class="ag-ax">Y</span>
-                <button data-align="y:min" title="Align front (Y min)">⊣</button>
-                <button data-align="y:center" title="Center on Y">┼</button>
-                <button data-align="y:max" title="Align back (Y max)">⊢</button>
-                <span class="ag-ax">Z</span>
-                <button data-align="z:min" title="Align down (Z min)">⊣</button>
-                <button data-align="z:center" title="Center on Z">┼</button>
-                <button data-align="z:max" title="Align up (Z max)">⊢</button>
+              <div class="pedit-head">
+                <span class="pedit-label">Selected</span>
+                <span id="part-modal-metrics" class="pm-metrics">—</span>
               </div>
-            </div>
-            <div class="xform hidden" id="groupbar">
-              <span class="xform-label">group</span>
-              <button data-group="group" title="Group selection (Ctrl+G)">▣ group</button>
-              <button data-group="ungroup" title="Ungroup (Ctrl+Shift+G)">▢ ungroup</button>
-              <button data-gmode="union" title="Join (union)">∪</button>
-              <button data-gmode="subtract" title="Subtract — first part minus the rest">∖</button>
-              <button data-gmode="intersect" title="Keep only the overlap (intersection)">∩</button>
-              <button data-gmode="hull" title="Hull — smooth blend / loft across the parts">⬭</button>
-            </div>
-            </div>
+              <div id="part-modal-fields"></div>
+              <div class="edit-tools" id="edit-tools">
+                <div class="edit-tool-tabs" role="tablist" aria-label="Part tools">
+                  <button type="button" class="edit-tool-tab on" data-ttab="move" role="tab" aria-selected="true">Move</button>
+                  <button type="button" class="edit-tool-tab" data-ttab="place" role="tab" aria-selected="false">Place</button>
+                  <button type="button" class="edit-tool-tab" data-ttab="multi" role="tab" aria-selected="false" hidden>Multi</button>
+                </div>
+                <div class="edit-tool-pane on" data-ttab="move" role="tabpanel">
+                  <div class="xform" id="xform">
+                    <button data-xform="translate" class="on" title="Move (W)">↔ move</button>
+                    <button data-xform="rotate" title="Rotate (E)">⟳ turn</button>
+                    <button data-xform="scale" title="Scale (R)">⤢ size</button>
+                    <button id="multi-toggle" class="js-multi" title="Multi-select — or long-press a part in the scene. Tap parts to add; tap empty to finish.">⊹ multi</button>
+                  </div>
+                  <div class="xform xform-sub" id="wpbar">
+                    <span class="xform-label">workplane</span>
+                    <button data-wp="face" title="Click a face to build on it">⊞ on face</button>
+                    <button data-wp="ground" title="Reset the workplane to the ground">⊞ ground</button>
+                  </div>
+                </div>
+                <div class="edit-tool-pane" data-ttab="place" role="tabpanel">
+                  <p class="edit-tool-hint">Seat, centre, or mirror the selected part on the plate.</p>
+                  <div class="tool-chip-grid" id="opsbar">
+                    <button data-op-act="drop" title="Drop onto the plate">⤓ on base</button>
+                    <button data-op-act="center" title="Center on the plate">⊹ centre</button>
+                    <button data-op-act="level" title="Reset rotation">⟲ level</button>
+                    <button data-op-act="scale" title="Reset scale to 1:1">1:1 scale</button>
+                    <button data-op-act="stack" title="Rest on top of other parts">↥ stack</button>
+                    <button data-flip="x" title="Mirror across X">⇋ X</button>
+                    <button data-flip="y" title="Mirror across Y">⇋ Y</button>
+                    <button data-flip="z" title="Mirror across Z">⇋ Z</button>
+                  </div>
+                </div>
+                <div class="edit-tool-pane" data-ttab="multi" role="tabpanel">
+                  <p class="edit-tool-hint">Pick 2+ parts, then align, group, or array them.</p>
+                  <div class="edit-tool-block">
+                    <span class="edit-tool-block-title">Align</span>
+                    <div class="align-grid" id="alignbar">
+                      <span class="ag-ax">X</span>
+                      <button data-align="x:min" title="Align left (X min)">⊣</button>
+                      <button data-align="x:center" title="Center on X">┼</button>
+                      <button data-align="x:max" title="Align right (X max)">⊢</button>
+                      <span class="ag-ax">Y</span>
+                      <button data-align="y:min" title="Align front (Y min)">⊣</button>
+                      <button data-align="y:center" title="Center on Y">┼</button>
+                      <button data-align="y:max" title="Align back (Y max)">⊢</button>
+                      <span class="ag-ax">Z</span>
+                      <button data-align="z:min" title="Align down (Z min)">⊣</button>
+                      <button data-align="z:center" title="Center on Z">┼</button>
+                      <button data-align="z:max" title="Align up (Z max)">⊢</button>
+                    </div>
+                  </div>
+                  <div class="edit-tool-block">
+                    <span class="edit-tool-block-title">Group &amp; combine</span>
+                    <div class="tool-chip-grid" id="groupbar">
+                      <button data-group="group" title="Group selection (Ctrl+G)">▣ group</button>
+                      <button data-group="ungroup" title="Ungroup (Ctrl+Shift+G)">▢ ungroup</button>
+                      <button data-gmode="union" title="Join (union)">∪ union</button>
+                      <button data-gmode="subtract" title="Subtract — first part minus the rest">∖ subtract</button>
+                      <button data-gmode="intersect" title="Keep only the overlap">∩ intersect</button>
+                      <button data-gmode="hull" title="Hull — smooth blend">⬭ hull</button>
+                    </div>
+                  </div>
+                  <div class="edit-tool-block">
+                    <span class="edit-tool-block-title">Array</span>
+                    <div class="tool-chip-grid" id="arraybar">
+                      <label class="arr-f">×<input type="number" id="arr-n" value="4" min="2" max="64" step="1"></label>
+                      <label class="arr-f">gap mm<input type="number" id="arr-gap" value="25" step="1"></label>
+                      <button data-arr="x" title="Row along X">↔ row X</button>
+                      <button data-arr="y" title="Row along Y">↕ row Y</button>
+                      <button data-arr="polar" title="Ring around the centre">⟳ ring</button>
+                    </div>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
         </div>

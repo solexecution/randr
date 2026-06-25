@@ -19,10 +19,14 @@ import {
 //     drives viewport.onSelect -> _setPanelTab('edit'), opening that editor.
 //   - The compact roster #build-list ALSO carries a [data-op]/[data-del] per row, so
 //     per-part selectors are scoped to '#part-modal-fields' to stay unambiguous.
-//   - The tool bars #opsbar/#arraybar (need 1 sel), #alignbar/#groupbar (need 2 sel)
-//     un-hide + enable via _renderAlignBar based on selectedNodes.length.
+//   - Tool bars live in tabbed edit-tools: Place (#opsbar), Multi (#alignbar/#groupbar/#arraybar).
+//     _renderAlignBar enables/disables buttons; Multi tab auto-opens when 2+ parts are selected.
 
 const PART = '#part-modal-fields';
+
+async function openEditToolTab(page, tab) {
+  await page.click(`.edit-tool-tab[data-ttab="${tab}"]`);
+}
 
 // Select two nodes: first non-additive (opens edit/parts), then additive to add
 // the second, leaving a 2-part selection that the align/group bars react to.
@@ -176,7 +180,7 @@ test.describe('place operations', () => {
     }, i);
     expect(raisedBase).toBeGreaterThan(1);
 
-    // #opsbar appears for a single selection — click drop-to-base.
+    await openEditToolTab(page, 'place');
     await expect(page.locator('#opsbar [data-op-act="drop"]')).toBeVisible();
     await page.click('#opsbar [data-op-act="drop"]');
 
@@ -203,6 +207,7 @@ test.describe('place operations', () => {
     const sx0 = (await getNode(page, i)).scale[0];
     expect(sx0).toBeGreaterThan(0);
 
+    await openEditToolTab(page, 'place');
     await expect(page.locator('#opsbar [data-flip="x"]')).toBeVisible();
     await page.click('#opsbar [data-flip="x"]');
     await page.waitForFunction(
@@ -253,8 +258,9 @@ test.describe('align (multi-select)', () => {
     await gotoApp(page);
     await ensureBuildMode(page);
     const i = await addShape(page, 'box');
+    await addShape(page, 'box'); // Multi tab needs 2+ parts in the scene
     await selectNode(page, i);
-    // visible (always discoverable) but its buttons are disabled until 2+ selected
+    await openEditToolTab(page, 'multi');
     await expect(page.locator('#alignbar [data-align="x:min"]')).toBeVisible();
     expect(await page.locator('#alignbar [data-align="x:min"]').isDisabled()).toBe(true);
   });
@@ -330,10 +336,11 @@ test.describe('array (multi-select)', () => {
     await gotoApp(page);
     await ensureBuildMode(page);
     const i = await addShape(page, 'box');
+    await addShape(page, 'box'); // Multi tab (array lives there) needs 2+ parts in the scene
     await selectNode(page, i);
     const before = await partCount(page);
 
-    // Set count = 4 and gap, then array along X -> +3 parts.
+    await openEditToolTab(page, 'multi');
     await expect(page.locator('#arr-n')).toBeVisible();
     await page.locator('#arr-n').fill('4');
     await page.locator('#arr-gap').fill('25');
