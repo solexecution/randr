@@ -335,6 +335,11 @@ body.view-result #part-card { display: none; }
   transition: transform .2s ease, width .2s ease;
 }
 .part-card.hidden { display: none; }
+.part-card.dock-left, .part-card.dock-right {
+  width: var(--sidebar-w, 360px);
+  max-width: calc(100vw - var(--rail-w) - 8px);
+  min-width: 280px;
+}
 .part-card.dock-left  { top: 46px; left: var(--rail-w);  bottom: 0; max-height: none; border-radius: 0 12px 12px 0; }
 .part-card.dock-right { top: 46px; right: 0; bottom: 0; max-height: none; border-radius: 12px 0 0 12px; }
 .part-card.float { top: 80px; left: 80px; }
@@ -378,24 +383,21 @@ body.view-result #part-card { display: none; }
    hidden; in build mode #pane-code is .hidden (by mode) and the columns show */
 .part-card.dom-code .pcol-main,
 .part-card.dom-code #pcol-edit { display: none !important; }
-.part-card.dom-code {
-  width: var(--code-card-w, 440px);
-  max-width: calc(100vw - var(--rail-w) - 8px);
-  min-width: 280px;
-}
+
 /* #pane-code beats .pane.hidden on specificity — must hide explicitly in build mode */
 .part-card #pane-code { flex: 1 1 auto; min-height: 0; overflow: hidden; flex-direction: column; }
 .part-card #pane-code:not(.hidden) { display: flex; }
 .part-card #pane-code.hidden { display: none !important; }
-/* code-mode panel width drag handle (inner edge of the docked sidebar) */
+/* Sidebar width drag handle (inner edge of the docked panel — code or build) */
 .card-resize {
   display: none; position: absolute; top: 0; bottom: 0; width: 14px;
   cursor: col-resize; touch-action: none; z-index: 6;
 }
-.part-card.dom-code:not(.collapsed) .card-resize { display: block; }
+.part-card.dock-left:not(.collapsed) .card-resize,
+.part-card.dock-right:not(.collapsed) .card-resize { display: block; }
 body.layout-bottom .card-resize { display: none !important; }
-.part-card.dock-right.dom-code .card-resize { left: 0; }
-.part-card.dock-left.dom-code .card-resize { right: 0; }
+.part-card.dock-right .card-resize { left: 0; }
+.part-card.dock-left .card-resize { right: 0; }
 .card-resize::before {
   content: ''; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
   width: 4px; height: 36px; border-radius: 3px;

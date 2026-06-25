@@ -285,6 +285,14 @@ test('code editor: params panel toggles and line gutter renders', async ({ page 
   expect(lines).toBeGreaterThan(3);
 });
 
+test('sidebar resize handle is available in build and code modes', async ({ page }) => {
+  await gotoApp(page);
+  const visible = () => page.locator('#card-resize').evaluate((el) => getComputedStyle(el).display !== 'none');
+  await expect.poll(visible).toBe(true);
+  await page.locator('#card-mode-build').click();
+  await expect.poll(visible).toBe(true);
+});
+
 test('code and build panels are mutually exclusive in the part card', async ({ page }) => {
   await gotoApp(page);
   await expect(page.locator('#pane-code')).toBeVisible();

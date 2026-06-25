@@ -2,7 +2,8 @@
 
 const LS_WIDTH = 'randr.paramsPaneW';
 const LS_COLLAPSED = 'randr.paramsPaneCollapsed';
-const LS_CODE_CARD_W = 'randr.codeCardW';
+const LS_SIDEBAR_W = 'randr.sidebarW';
+const LS_CODE_CARD_W = 'randr.codeCardW'; // legacy key
 const DEFAULT_PARAMS_W = 200;
 const MIN_PARAMS_W = 140;
 const MIN_CODE_CARD_W = 280;
@@ -185,21 +186,22 @@ export function installCodeEditor(app) {
 
   let paramsW = DEFAULT_PARAMS_W;
   let paramsCollapsed = false;
-  let codeCardW = DEFAULT_CODE_CARD_W;
+  let sidebarW = DEFAULT_CODE_CARD_W;
   try {
     const w = parseFloat(localStorage.getItem(LS_WIDTH));
     const maxP = maxParamsW(workspace);
     if (w >= MIN_PARAMS_W && w <= maxP) paramsW = w;
     paramsCollapsed = localStorage.getItem(LS_COLLAPSED) === '1';
-    const cw = parseFloat(localStorage.getItem(LS_CODE_CARD_W));
-    if (cw >= MIN_CODE_CARD_W) codeCardW = Math.min(cw, maxCodeCardW());
+    const sw = parseFloat(localStorage.getItem(LS_SIDEBAR_W))
+      ?? parseFloat(localStorage.getItem(LS_CODE_CARD_W));
+    if (sw >= MIN_CODE_CARD_W) sidebarW = Math.min(sw, maxCodeCardW());
   } catch { /* quota */ }
 
-  function applyCodeCardWidth() {
+  function applySidebarWidth() {
     if (!card) return;
-    codeCardW = Math.min(maxCodeCardW(), Math.max(MIN_CODE_CARD_W, codeCardW));
-    card.style.setProperty('--code-card-w', `${codeCardW}px`);
-    try { localStorage.setItem(LS_CODE_CARD_W, String(Math.round(codeCardW))); } catch { /* quota */ }
+    sidebarW = Math.min(maxCodeCardW(), Math.max(MIN_CODE_CARD_W, sidebarW));
+    card.style.setProperty('--sidebar-w', `${sidebarW}px`);
+    try { localStorage.setItem(LS_SIDEBAR_W, String(Math.round(sidebarW))); } catch { /* quota */ }
     // params sidebar can't be wider than the workspace
     const cap = maxParamsW(workspace);
     if (paramsW > cap) {
@@ -208,8 +210,8 @@ export function installCodeEditor(app) {
     }
   }
 
-  applyCodeCardWidth();
-  window.addEventListener('resize', applyCodeCardWidth);
+  applySidebarWidth();
+  window.addEventListener('resize', applySidebarWidth);
 
   function applyParamsLayout() {
     workspace.classList.toggle('params-collapsed', paramsCollapsed);
@@ -244,15 +246,16 @@ export function installCodeEditor(app) {
     app._toast?.('Comments removed — Ctrl+Z to undo');
   });
 
-  // --- resizable code panel (inner edge of the docked card) ---
+  // --- resizable sidebar (inner edge of the docked card — code or build) ---
   if (cardResize && card) {
     let drag = null;
+    const isDocked = () => card.classList.contains('dock-left') || card.classList.contains('dock-right');
     const dockSide = () => (card.classList.contains('dock-left') ? 'left' : 'right');
     const onMove = (e) => {
       if (!drag) return;
       const dx = dockSide() === 'right' ? drag.x - e.clientX : e.clientX - drag.x;
-      codeCardW = Math.min(maxCodeCardW(), Math.max(MIN_CODE_CARD_W, drag.w + dx));
-      card.style.setProperty('--code-card-w', `${codeCardW}px`);
+      sidebarW = Math.min(maxCodeCardW(), Math.max(MIN_CODE_CARD_W, drag.w + dx));
+      card.style.setProperty('--sidebar-w', `${sidebarW}px`);
     };
     const onUp = () => {
       if (!drag) return;
@@ -261,13 +264,13 @@ export function installCodeEditor(app) {
       document.body.style.cursor = '';
       document.removeEventListener('pointermove', onMove);
       document.removeEventListener('pointerup', onUp);
-      applyCodeCardWidth();
+      applySidebarWidth();
     };
     cardResize.addEventListener('pointerdown', (e) => {
-      if (!card.classList.contains('dom-code') || card.classList.contains('collapsed')) return;
+      if (!isDocked() || card.classList.contains('collapsed')) return;
       e.preventDefault();
       e.stopPropagation();
-      drag = { x: e.clientX, w: codeCardW };
+      drag = { x: e.clientX, w: sidebarW };
       cardResize.classList.add('dragging');
       document.body.style.cursor = 'col-resize';
       cardResize.setPointerCapture(e.pointerId);
@@ -277,11 +280,13 @@ export function installCodeEditor(app) {
     cardResize.addEventListener('dblclick', (e) => {
       e.preventDefault();
       e.stopPropagation();
-      codeCardW = maxCodeCardW();
-      applyCodeCardWidth();
+      sidebarW = maxCodeCardW();
+      applySidebarWidth();
       app._toast?.('Panel expanded to full width');
     });
   }
+
+  app._applySidebarWidth = applySidebarWidth;
 
   // --- resizable params sidebar ---
   if (splitter) {
