@@ -1,6 +1,7 @@
 // Code-pane chrome: line numbers, params sidebar resize/collapse, editor shortcuts.
 
 const LS_HEIGHT = 'randr.paramsPaneH';
+const LS_EDITOR_H = 'randr.codeEditorPaneH';
 const LS_WIDTH = 'randr.paramsPaneW'; // legacy (side layout)
 const LS_COLLAPSED = 'randr.paramsPaneCollapsed';
 const LS_WRAP = 'randr.editorWrap';
@@ -222,10 +223,24 @@ function maxCodeCardW() {
   return Math.max(MIN_CODE_CARD_W, window.innerWidth - rail - 8);
 }
 
+function workspaceH(workspace) {
+  return workspace?.getBoundingClientRect().height ?? 0;
+}
+
 function maxParamsH(workspace) {
   if (!workspace) return 280;
-  const h = workspace.getBoundingClientRect().height;
+  const h = workspaceH(workspace);
   return Math.max(MIN_PARAMS_H, h - MIN_EDITOR_H);
+}
+
+function clampParamsH(workspace, h) {
+  return Math.min(maxParamsH(workspace), Math.max(MIN_PARAMS_H, h));
+}
+
+function paramsHForEditorPane(workspace, editorPaneH, splitterPx) {
+  const h = workspaceH(workspace);
+  if (h <= 0) return DEFAULT_PARAMS_H;
+  return clampParamsH(workspace, h - splitterPx - editorPaneH);
 }
 
 /** Wire line gutter, params split pane, and in-editor shortcuts onto App. */
@@ -247,10 +262,13 @@ export function installCodeEditor(app) {
   if (!editor || !workspace || !paramsPane) return;
 
   let paramsH = DEFAULT_PARAMS_H;
+  let editorPaneH = null;
   let paramsCollapsed = false;
   let wrapOn = false;
   let sidebarW = DEFAULT_CODE_CARD_W;
   try {
+    const ep = parseFloat(localStorage.getItem(LS_EDITOR_H));
+    if (ep >= MIN_EDITOR_H) editorPaneH = ep;
     const h = parseFloat(localStorage.getItem(LS_HEIGHT))
       ?? parseFloat(localStorage.getItem(LS_WIDTH));
     const maxP = maxParamsH(workspace);
@@ -262,31 +280,75 @@ export function installCodeEditor(app) {
     if (sw >= MIN_CODE_CARD_W) sidebarW = Math.min(sw, maxCodeCardW());
   } catch { /* quota */ }
 
+  const splitterPx = () => splitter?.offsetHeight ?? 12;
+
+  function syncEditorPaneH() {
+    const h = workspaceH(workspace);
+    if (h > 0) editorPaneH = Math.max(MIN_EDITOR_H, h - splitterPx() - paramsH);
+  }
+
+  function persistParamsSize() {
+    try {
+      localStorage.setItem(LS_HEIGHT, String(paramsH));
+      if (editorPaneH != null) localStorage.setItem(LS_EDITOR_H, String(Math.round(editorPaneH)));
+    } catch { /* quota */ }
+  }
+
+  function setParamsH(next, { persist = false, syncEditor = false } = {}) {
+    paramsH = clampParamsH(workspace, next);
+    paramsPane.style.setProperty('--params-pane-h', `${paramsH}px`);
+    if (syncEditor) syncEditorPaneH();
+    if (persist) persistParamsSize();
+  }
+
+  /** Keep the editor block size stable; params bar absorbs workspace height changes. */
+  function applyParamsFromEditorAnchor() {
+    if (paramsCollapsed) return;
+    const h = workspaceH(workspace);
+    if (h <= 0) return;
+    if (editorPaneH == null) syncEditorPaneH();
+    setParamsH(paramsHForEditorPane(workspace, editorPaneH, splitterPx()));
+  }
+
   function applySidebarWidth() {
     if (!card) return;
     sidebarW = Math.min(maxCodeCardW(), Math.max(MIN_CODE_CARD_W, sidebarW));
     card.style.setProperty('--sidebar-w', `${sidebarW}px`);
     try { localStorage.setItem(LS_SIDEBAR_W, String(Math.round(sidebarW))); } catch { /* quota */ }
-    const cap = maxParamsH(workspace);
-    if (paramsH > cap) {
-      paramsH = cap;
-      paramsPane.style.setProperty('--params-pane-h', `${paramsH}px`);
-    }
   }
 
   applySidebarWidth();
-  window.addEventListener('resize', applySidebarWidth);
+
+  function onWorkspaceResize() {
+    applyParamsFromEditorAnchor();
+  }
+
+  window.addEventListener('resize', () => {
+    applySidebarWidth();
+    onWorkspaceResize();
+  });
+
+  if (typeof ResizeObserver !== 'undefined') {
+    const workspaceRo = new ResizeObserver(() => onWorkspaceResize());
+    workspaceRo.observe(workspace);
+  }
 
   function applyParamsLayout() {
     workspace.classList.toggle('params-collapsed', paramsCollapsed);
-    paramsH = Math.min(maxParamsH(workspace), Math.max(MIN_PARAMS_H, paramsH));
-    paramsPane.style.setProperty('--params-pane-h', `${paramsH}px`);
-    if (showBtn) showBtn.hidden = !paramsCollapsed;
-    if (hideBtn) hideBtn.hidden = paramsCollapsed;
-    try {
-      localStorage.setItem(LS_HEIGHT, String(paramsH));
-      localStorage.setItem(LS_COLLAPSED, paramsCollapsed ? '1' : '0');
-    } catch { /* quota */ }
+    if (paramsCollapsed) {
+      if (showBtn) showBtn.hidden = false;
+      if (hideBtn) hideBtn.hidden = true;
+    } else {
+      if (editorPaneH != null) {
+        setParamsH(paramsHForEditorPane(workspace, editorPaneH, splitterPx()));
+      } else {
+        setParamsH(paramsH);
+      }
+      if (showBtn) showBtn.hidden = true;
+      if (hideBtn) hideBtn.hidden = false;
+    }
+    try { localStorage.setItem(LS_COLLAPSED, paramsCollapsed ? '1' : '0'); } catch { /* quota */ }
+    if (!paramsCollapsed) persistParamsSize();
   }
 
   function applyWrap() {
@@ -367,8 +429,7 @@ export function installCodeEditor(app) {
     const onMove = (e) => {
       if (!drag) return;
       const dy = e.clientY - drag.y;
-      paramsH = Math.min(maxParamsH(workspace), Math.max(MIN_PARAMS_H, drag.h + dy));
-      paramsPane.style.setProperty('--params-pane-h', `${paramsH}px`);
+      setParamsH(drag.h + dy);
     };
     const onUp = () => {
       if (!drag) return;
@@ -377,7 +438,7 @@ export function installCodeEditor(app) {
       document.body.style.cursor = '';
       document.removeEventListener('pointermove', onMove);
       document.removeEventListener('pointerup', onUp);
-      try { localStorage.setItem(LS_HEIGHT, String(paramsH)); } catch { /* quota */ }
+      setParamsH(paramsH, { persist: true, syncEditor: true });
     };
     splitter.addEventListener('pointerdown', (e) => {
       if (paramsCollapsed) return;

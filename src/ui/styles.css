@@ -491,7 +491,7 @@ body.layout-bottom .card-resize { display: none !important; }
   .part-card.dock-left, .part-card.dock-right, .part-card.float {
     top: auto; left: calc(var(--rail-w) + 8px); right: 8px; bottom: 8px; width: auto; max-height: 52vh; border-radius: 12px;
   }
-  .part-card.dom-code .code-params-pane { max-height: 42%; }
+
 }
 
 /* ===== bottom-bar layout (mode 4): the inspector docks to the bottom ====== */
