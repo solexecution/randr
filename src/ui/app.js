@@ -273,6 +273,7 @@ export class App {
     this._highlightBuildRows();
     this._renderAlignBar();
     this._updatePartsHeader();
+    this._syncGroupTransformFields();
     this._runPendingSeamCheck();
   }
 
@@ -438,6 +439,55 @@ export class App {
       for (let k = 0; k < 3; k++) { mn[k] = Math.min(mn[k], b.min[k]); mx[k] = Math.max(mx[k], b.max[k]); }
     });
     return any ? { min: mn, max: mx } : null;
+  }
+
+  _selectionCentre(indices) {
+    const bb = this._selectionBounds(indices);
+    if (!bb) return null;
+    return [
+      (bb.min[0] + bb.max[0]) / 2,
+      (bb.min[1] + bb.max[1]) / 2,
+      (bb.min[2] + bb.max[2]) / 2,
+    ];
+  }
+
+  _moveGroupCentre(axis, target) {
+    const ts = this._transformSet();
+    const bb = this._selectionBounds(ts);
+    if (!bb) return;
+    const cur = (bb.min[axis] + bb.max[axis]) / 2;
+    const delta = target - cur;
+    if (Math.abs(delta) < 0.0005) return;
+    const rnd = (v) => Math.round(v * 100) / 100 || 0;
+    const nodes = this.buildTree.nodes;
+    ts.forEach((i) => { const n = nodes[i]; if (n) n.pos[axis] = rnd(n.pos[axis] + delta); });
+    this.viewport.setSelection(this.selectedNodes, ts);
+    this._scheduleRecompile();
+  }
+
+  _rotateGroupAboutCentre(axis, deltaDeg) {
+    if (!deltaDeg) return;
+    const rad = (deltaDeg * Math.PI) / 180;
+    const ts = this._transformSet();
+    const c = this._selectionCentre(ts);
+    if (!c) return;
+    const [cx, cy, cz] = c;
+    const ca = Math.cos(rad), sa = Math.sin(rad);
+    const rnd = (v) => Math.round(v * 100) / 100 || 0;
+    const rotPt = (x, y, z) => {
+      const dx = x - cx, dy = y - cy, dz = z - cz;
+      if (axis === 0) return [rnd(x), rnd(cy + dy * ca - dz * sa), rnd(cz + dy * sa + dz * ca)];
+      if (axis === 1) return [rnd(cx + dx * ca + dz * sa), rnd(y), rnd(cz - dx * sa + dz * ca)];
+      return [rnd(cx + dx * ca - dy * sa), rnd(cy + dx * sa + dy * ca), rnd(z)];
+    };
+    const nodes = this.buildTree.nodes;
+    ts.forEach((i) => {
+      const n = nodes[i];
+      n.pos = rotPt(n.pos[0], n.pos[1], n.pos[2]);
+      n.rot[axis] = rnd(n.rot[axis] + deltaDeg);
+    });
+    this.viewport.setSelection(this.selectedNodes, ts);
+    this._scheduleRecompile();
   }
 
   // Single source of truth for the additive ("multi") selection mode, shared by
@@ -1182,6 +1232,22 @@ export class App {
         if (pel && document.activeElement !== pel) pel.value = m.pos[+a];
         if (rel && document.activeElement !== rel) rel.value = m.rot[+a];
       });
+    });
+    this._syncGroupTransformFields();
+  }
+
+  _syncGroupTransformFields() {
+    if (!this._isUnifiedGroupSelection()) return;
+    const host = this.root.querySelector('#part-modal-fields');
+    const c = this._selectionCentre(this._transformSet());
+    const n = this.buildTree.nodes[this.selectedNode];
+    if (!host || !c || !n) return;
+    const r = (v) => (Math.round(v * 10) / 10).toFixed(1);
+    ['0', '1', '2'].forEach((a) => {
+      const pel = host.querySelector(`input[data-gpos="${a}"]`);
+      const rel = host.querySelector(`input[data-grot="${a}"]`);
+      if (pel && document.activeElement !== pel) pel.value = r(c[+a]);
+      if (rel && document.activeElement !== rel) rel.value = n.rot[+a];
     });
   }
 

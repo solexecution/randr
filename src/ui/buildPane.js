@@ -93,6 +93,29 @@ class BuildPaneRenderers {
       return `<label${isCount ? '' : ' data-unit="mm"'}>${f.label}<input type="text" inputmode="decimal" autocomplete="off" spellcheck="false" pattern="[0-9]*[.,]?[0-9]*" value="${f.value}" data-field="${idx}:${f.key}"></label>`;
     };
     const hex = (c) => '#' + ((c >>> 0) & 0xffffff).toString(16).padStart(6, '0');
+    const isGroup = this._isUnifiedGroupSelection?.();
+    if (isGroup) {
+      const ts = this._transformSet();
+      const c = this._selectionCentre(ts) || [0, 0, 0];
+      const ref = this.buildTree.nodes[this.selectedNode];
+      const r = (v) => (Math.round(v * 10) / 10).toFixed(1);
+      const grp = document.createElement('div');
+      grp.className = 'build-node group-xform-panel';
+      grp.innerHTML = `
+        <div class="bn-sec">
+          <div class="bn-sec-label">Group position &amp; rotation</div>
+          <span class="bn-clear-hint">Centre (mm) and angles (°) — whole group moves together</span>
+          <div class="bn-fields bn-xyz">
+            <label data-unit="mm">cx<input type="text" inputmode="decimal" autocomplete="off" spellcheck="false" value="${r(c[0])}" data-gpos="0"></label>
+            <label data-unit="mm">cy<input type="text" inputmode="decimal" autocomplete="off" spellcheck="false" value="${r(c[1])}" data-gpos="1"></label>
+            <label data-unit="mm">cz<input type="text" inputmode="decimal" autocomplete="off" spellcheck="false" value="${r(c[2])}" data-gpos="2"></label>
+            <label data-unit="°">rx<input type="text" inputmode="decimal" autocomplete="off" spellcheck="false" value="${ref.rot[0]}" data-grot="0"></label>
+            <label data-unit="°">ry<input type="text" inputmode="decimal" autocomplete="off" spellcheck="false" value="${ref.rot[1]}" data-grot="1"></label>
+            <label data-unit="°">rz<input type="text" inputmode="decimal" autocomplete="off" spellcheck="false" value="${ref.rot[2]}" data-grot="2"></label>
+          </div>
+        </div>`;
+      host.appendChild(grp);
+    }
     [this.selectedNode].forEach((idx) => {
       const node = this.buildTree.nodes[idx];
       const row = document.createElement('div');
@@ -141,7 +164,7 @@ class BuildPaneRenderers {
           <div class="bn-fields">${mainDims}</div>
           ${edgeDims ? `<div class="bn-fields bn-edge">${edgeDims}</div><span class="bn-clear-hint">edge size — overall W/D/H stay as above</span>` : ''}
         </div>
-        <details class="bn-sec">
+        <details class="bn-sec"${isGroup ? '' : ' open'}>
           <summary>Position &amp; rotation</summary>
           <div class="bn-fields bn-xyz">
             <label data-unit="mm">x<input type="text" inputmode="decimal" autocomplete="off" spellcheck="false" value="${node.pos[0]}" data-pos="${idx}:0"></label>
@@ -230,6 +253,21 @@ class BuildPaneRenderers {
     }));
     host.querySelectorAll('[data-field], [data-pos], [data-rot], [data-clear], [data-hollow], [data-fillet]').forEach((el) => {
       el.addEventListener('blur', () => { if (!this._partEditorFocused()) this._renderBuildTree(); });
+    });
+    host.querySelectorAll('[data-gpos]').forEach((el) => el.addEventListener('input', () => {
+      onNumInput(el, (v) => this._moveGroupCentre(+el.dataset.gpos, v));
+    }));
+    host.querySelectorAll('[data-grot]').forEach((el) => {
+      let prev = parseFloat(el.value) || 0;
+      el.addEventListener('focus', () => { prev = parseFloat(el.value) || 0; });
+      el.addEventListener('input', () => {
+        const v = numIn(el);
+        if (v == null) return;
+        const axis = +el.dataset.grot;
+        this._rotateGroupAboutCentre(axis, v - prev);
+        prev = v;
+        this._syncGroupTransformFields();
+      });
     });
     host.querySelectorAll('[data-pos]').forEach((el) => el.addEventListener('input', () => {
       const [i, a] = el.dataset.pos.split(':');

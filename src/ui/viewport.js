@@ -878,6 +878,7 @@ export class Viewport {
       }
       if (this._groupXformLocals) {
         if (this.transformMode === 'scale') this._propagateGroupScaleTransform();
+        else if (this.transformMode === 'translate') this._propagateGroupTranslateTransform();
         else this._propagateGroupPivotTransform();
         return;
       }
@@ -908,6 +909,28 @@ export class Viewport {
     this.setTransformMode(mode === 'scale' ? 'translate' : mode);
   }
 
+  // Selection AABB centre in editGroup local space (matches app._selectionBounds).
+  // expandByObject() returns world coords — wrong to assign as a child position
+  // when editGroup is rotated for Z-up display.
+  _transformSetBounds(indices) {
+    const box = new THREE.Box3();
+    let any = false;
+    for (const i of indices) {
+      const em = this.editMeshes.find((e) => e.index === i);
+      if (!em) continue;
+      const g = em.mesh.geometry;
+      g.computeBoundingBox();
+      const mat = new THREE.Matrix4().compose(em.mesh.position, em.mesh.quaternion, em.mesh.scale);
+      const bb = g.boundingBox.clone().applyMatrix4(mat);
+      box.union(bb);
+      any = true;
+    }
+    if (!any || box.isEmpty()) return null;
+    const center = new THREE.Vector3();
+    box.getCenter(center);
+    return { min: box.min, max: box.max, center };
+  }
+
   // With 2+ transform targets (multi-select or a linked group), park the gizmo on a
   // pivot at the selection centre so move/rotate/scale is one rigid body.
   _syncGroupGizmo() {
@@ -926,14 +949,10 @@ export class Viewport {
       this._groupPivot = new THREE.Object3D();
       this.editGroup.add(this._groupPivot);
     }
-    const box = new THREE.Box3();
-    for (const i of ts) {
-      const m = this.editMeshes.find((e) => e.index === i);
-      if (m) { m.mesh.updateMatrixWorld(true); box.expandByObject(m.mesh); }
-    }
-    if (box.isEmpty()) return false;
-    box.getCenter(this._xfCenter);
-    this._groupPivot.position.copy(this._xfCenter);
+    const bounds = this._transformSetBounds(ts);
+    if (!bounds) return false;
+    this._xfCenter.copy(bounds.center);
+    this._groupPivot.position.copy(bounds.center);
     this._groupPivot.rotation.set(0, 0, 0);
     this._groupPivot.scale.set(1, 1, 1);
     this._groupPivot.updateMatrixWorld(true);
@@ -1000,6 +1019,36 @@ export class Viewport {
         pos: [rnd(nx, 2), rnd(ny, 2), rnd(nz, 2)],
         rot: base.rot.map((v) => rnd(v, 2)),
         scale: ns.map((v) => rnd(v, 3)),
+      });
+    }
+    const primary = this.editMeshes.find((e) => e.index === this.selectedIndex);
+    if (primary && this._outline) {
+      this._outline.position.copy(primary.mesh.position);
+      this._outline.rotation.copy(primary.mesh.rotation);
+      this._outline.scale.copy(primary.mesh.scale);
+    }
+    this.onGroupTransform(updates);
+  }
+
+  // Move the group rigidly — translation only, rotation/scale frozen at drag start.
+  _propagateGroupTranslateTransform() {
+    if (!this._groupScaleBaseline || !this._groupPivotCenter || !this.onGroupTransform) return;
+    const d = new THREE.Vector3().subVectors(this._groupPivot.position, this._groupPivotCenter);
+    const rnd = (v, n) => { const x = Math.round(v * 10 ** n) / 10 ** n; return x === 0 ? 0 : x; };
+    const updates = [];
+    const D = 180 / Math.PI;
+    for (const base of this._groupScaleBaseline) {
+      const em = this.editMeshes.find((e) => e.index === base.index);
+      if (!em) continue;
+      const nx = base.pos[0] + d.x, ny = base.pos[1] + d.y, nz = base.pos[2] + d.z;
+      em.mesh.position.set(nx, ny, nz);
+      em.mesh.rotation.set(base.rot[0] / D, base.rot[1] / D, base.rot[2] / D);
+      em.mesh.scale.set(base.scale[0], base.scale[1], base.scale[2]);
+      updates.push({
+        index: base.index,
+        pos: [rnd(nx, 2), rnd(ny, 2), rnd(nz, 2)],
+        rot: base.rot.map((v) => rnd(v, 2)),
+        scale: base.scale.map((v) => rnd(v, 3)),
       });
     }
     const primary = this.editMeshes.find((e) => e.index === this.selectedIndex);
