@@ -1,7 +1,8 @@
 # QA Session State
 
-**Started:** 2026-06-27  
+**Started:** 2026-06-27 (session armed)  
 **Ends (~):** +5 hours from start  
+**Loop PID:** 32040  
 **Policy:** fix-as-you-go  
 **Loop:** every 20m  
 
@@ -9,17 +10,17 @@
 
 | Metric | Value |
 |--------|-------|
-| Workflows pass | 0 |
+| Workflows pass | 1 |
 | Workflows fail | 0 |
-| Workflows pending | 28 |
+| Workflows pending | 27 |
 | Findings open | 0 |
 | Findings fixed | 0 |
 
 ## Last iteration
 
-- **Workflow:** — (starting W01)
-- **Result:** —
-- **Next:** W01
+- **Workflow:** W01 — First-time user
+- **Result:** pass — New project, add box, pos [10,15,5], solid confirmed; STL menu export blocked by browser policy (covered by E2E)
+- **Next:** W02
 
 ## Loop prompt (for agent ticks)
 

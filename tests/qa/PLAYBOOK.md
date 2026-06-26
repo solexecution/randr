@@ -8,7 +8,7 @@ Status legend: `pending` · `pass` · `fail` · `blocked` · `skip`
 
 | ID | Workflow | Status | Last run |
 |----|----------|--------|----------|
-| W01 | First-time user: empty → box → move → STL export | pending | — |
+| W01 | First-time user: empty → box → move → STL export | pass | 2026-06-27 |
 | W02 | Gallery sweep: add one of each primitive category | pending | — |
 | W03 | Solid/hole toggle + H key on selected part | pending | — |
 | W04 | Duplicate, delete, undo/redo chain | pending | — |
@@ -48,7 +48,7 @@ Status legend: `pending` · `pass` · `fail` · `blocked` · `skip`
 4. Toggle solid (should default solid)
 5. ☰ → Export → STL — confirm download starts
 **Pass:** No console errors; `buildTree.nodes.length >= 1`; pos values persisted; export does not throw  
-**Status:** pending
+**Status:** pass
 
 ## W02 — Gallery sweep: add one of each primitive category
 **Goal:** Every major shape compiles  
