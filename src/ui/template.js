@@ -204,10 +204,12 @@ export function appHTML({ addGallery, featuresHtml, gcodeHtml }) {
                   <div class="edit-tool-block">
                     <span class="edit-tool-block-title">Laser cut</span>
                     <p class="edit-tool-hint cut-plane-hint" id="cut-plane-hint" hidden>Move/turn the red plane with ↔ move / ⟳ turn, then <strong>cut here</strong>. Point: <span id="cut-plane-readout">—</span></p>
+                    <p class="edit-tool-hint seam-hint">Seam gap (2 parts): <span id="seam-readout">—</span> · a dark line is often just edge outlines, not a gap</p>
                     <div class="tool-chip-grid" id="cutbar">
                       <button data-cut-plane="toggle" title="Show a movable cut plane across the plate">⚡ laser</button>
                       <button data-cut-plane="apply" title="Split the part along the plane">✂ cut here</button>
                       <button data-cut-plane="reset" title="Level the plane through the selection centre">⟲ level plane</button>
+                      <button data-cut-plane="check" title="Measure closest distance between two selected parts">📏 check seam</button>
                     </div>
                   </div>
                   <div class="tool-chip-grid" id="opsbar">

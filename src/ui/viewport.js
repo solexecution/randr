@@ -1101,6 +1101,35 @@ export class Viewport {
     return { min: [bb.min.x + p.x, bb.min.y + p.y, bb.min.z + p.z], max: [bb.max.x + p.x, bb.max.y + p.y, bb.max.z + p.z] };
   }
 
+  // Subsampled world-space vertices for gap checks (keeps seam checks fast).
+  _meshWorldVerts(mesh, max = 360) {
+    const attr = mesh.geometry?.attributes?.position;
+    if (!attr) return [];
+    mesh.updateMatrixWorld(true);
+    const step = Math.max(1, Math.floor(attr.count / max));
+    const v = new THREE.Vector3();
+    const out = [];
+    for (let i = 0; i < attr.count; i += step) {
+      v.fromBufferAttribute(attr, i).applyMatrix4(mesh.matrixWorld);
+      out.push(v.clone());
+    }
+    return out;
+  }
+
+  // Closest distance between two parts' surfaces (mm). Good for "is there a gap
+  // at the cut seam?" — values under ~0.02 mm mean face-to-face contact.
+  measureMeshGap(a, b) {
+    const emA = this.editMeshes.find((e) => e.index === a);
+    const emB = this.editMeshes.find((e) => e.index === b);
+    if (!emA || !emB) return null;
+    const va = this._meshWorldVerts(emA.mesh);
+    const vb = this._meshWorldVerts(emB.mesh);
+    if (!va.length || !vb.length) return null;
+    let min = Infinity;
+    for (const p of va) for (const q of vb) min = Math.min(min, p.distanceTo(q));
+    return min === Infinity ? null : min;
+  }
+
   // --- magnetic snap (drag parts together) ----------------------------------
   // The dragged part's XY box relative to its own origin (rotation + scale baked
   // in), and the same for a fixed part but in absolute editGroup coordinates.

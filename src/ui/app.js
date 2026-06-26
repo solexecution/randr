@@ -92,6 +92,7 @@ export class App {
     this.selectedNodes = []; // the selection set; selectedNode (primary) derives from it
     this.workplane = null; // {origin,normal,rot} build frame, or null for ground
     this.cutPlaneMode = false; // movable laser-cut plane in the build viewport
+    this._pendingSeamCheck = null; // { a, b } — run gap readout after next mesh rebuild
     this.viewMode = 'edit'; // build view: 'edit' (parts + ghost) | 'result' (combined solid)
     this.multiSelect = false; // sticky additive selection (touch-friendly — taps add to the selection)
     this._layerMode = false;  // layer-preview (slice) view active
@@ -272,6 +273,7 @@ export class App {
     this._highlightBuildRows();
     this._renderAlignBar();
     this._updatePartsHeader();
+    this._runPendingSeamCheck();
   }
 
   // The ghost preview only helps when the combined result differs from the
@@ -621,6 +623,8 @@ export class App {
     const cutbar = this.root.querySelector('#cutbar');
     if (cutbar) {
       cutbar.querySelectorAll('[data-cut-plane="apply"], [data-cut-plane="reset"]').forEach((b) => { b.disabled = sel < 1; });
+      const chk = cutbar.querySelector('[data-cut-plane="check"]');
+      if (chk) chk.disabled = sel !== 2;
     }
     disableBar('#arraybar', sel < 1);
     disableBar('#alignbar', sel < 2);
@@ -990,7 +994,43 @@ export class App {
     remove.sort((a, b) => b - a).forEach((i) => nodes.splice(i, 1));
     nodes.splice(insertAt, 0, ...pieces);
     this.selectedNodes = pieces.map((_, k) => insertAt + k);
+    if (pieces.length === 2) {
+      this._pendingSeamCheck = { a: insertAt, b: insertAt + 1 };
+    }
     this._renderBuildTree(); this.recompile(); this._pushHistory(); this._renderAlignBar();
+  }
+
+  _formatSeamGap(mm) {
+    if (mm == null) return 'Couldn’t measure — pick two parts';
+    if (mm < 0.02) return `Face to face (${mm.toFixed(3)} mm)`;
+    if (mm < 0.1) return `Tight fit — ${mm.toFixed(2)} mm`;
+    return `Gap — ${mm.toFixed(2)} mm`;
+  }
+
+  _showSeamGap(mm, toast = false) {
+    const el = this.root.querySelector('#seam-readout');
+    const text = this._formatSeamGap(mm);
+    if (el) el.textContent = text;
+    if (toast) this._toast(`Seam: ${text}`);
+    return mm;
+  }
+
+  _checkSeamGap() {
+    if (this.selectedNodes.length !== 2) {
+      this._toast('Select exactly two parts to check the seam');
+      return;
+    }
+    const [a, b] = this.selectedNodes;
+    const mm = this.viewport.measureMeshGap(a, b);
+    this._showSeamGap(mm, true);
+  }
+
+  _runPendingSeamCheck() {
+    const p = this._pendingSeamCheck;
+    if (!p) return;
+    this._pendingSeamCheck = null;
+    const mm = this.viewport.measureMeshGap(p.a, p.b);
+    this._showSeamGap(mm, true);
   }
 
   _validCutHalves(halves) {
@@ -1087,7 +1127,6 @@ export class App {
     const pieces = this._piecesFromManifolds(halves, prep.ref, baseName);
     if (pieces.length < 2) { this._toast('Couldn’t cut this part'); return; }
     this._installCutPieces(prep.ref, prep.remove, pieces);
-    this._toast(`Cut into ${pieces.length} pieces`);
     this.viewport.setCutPlanePose(this._cutPlaneSeedCenter(), plane.normal);
   }
 

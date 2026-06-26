@@ -368,6 +368,7 @@ class EventBindings {
         if (act === 'toggle') this._toggleCutPlane();
         else if (act === 'apply') this._applyCutPlane();
         else if (act === 'reset') this._resetCutPlane();
+        else if (act === 'check') this._checkSeamGap();
       }));
 
     // group / ungroup toolbar + boolean mode
