@@ -135,6 +135,7 @@ export function appHTML({ addGallery, featuresHtml, gcodeHtml }) {
                     <span class="code-file-tab on" title="Model source">model source</span>
                     <div class="code-toolbar-acts">
                       <span class="code-kbd-hint" title="Editor shortcuts">Tab · Ctrl+/ comment · Ctrl+D dup · Ctrl+Enter run</span>
+                      <button type="button" class="code-tb-btn" id="editor-wrap-toggle" title="Toggle line wrap">wrap</button>
                       <button type="button" class="code-tb-btn" id="strip-comments" title="Remove all // comments from the source">strip //</button>
                       <button type="button" class="code-tb-btn" id="params-show" title="Show parameters (Ctrl+\\)" hidden>params</button>
                     </div>
@@ -155,7 +156,7 @@ export function appHTML({ addGallery, featuresHtml, gcodeHtml }) {
                 <aside class="code-params-pane" id="code-params-pane" aria-label="Parameters">
                   <div class="code-params-head">
                     <span class="pane-title">parameters</span>
-                    <button type="button" class="code-tb-btn sm" id="params-hide" title="Hide parameters (Ctrl+\\)">◂</button>
+                    <button type="button" class="code-tb-btn sm" id="params-hide" title="Hide parameters (Ctrl+\\)">▾</button>
                   </div>
                   <div id="params" class="params"></div>
                 </aside>

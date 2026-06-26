@@ -491,22 +491,7 @@ body.layout-bottom .card-resize { display: none !important; }
   .part-card.dock-left, .part-card.dock-right, .part-card.float {
     top: auto; left: calc(var(--rail-w) + 8px); right: 8px; bottom: 8px; width: auto; max-height: 52vh; border-radius: 12px;
   }
-  /* code on a narrow screen: stack editor above params (not side-by-side) */
-  .part-card.dom-code .code-workspace { flex-direction: column; }
-  .part-card.dom-code .code-splitter {
-    width: auto; height: 10px; cursor: row-resize; align-self: stretch;
-  }
-  .part-card.dom-code .code-splitter::before {
-    width: 28px; height: 3px;
-    box-shadow: 0 -5px 0 var(--line), 0 5px 0 var(--line);
-  }
-  .part-card.dom-code .code-splitter:hover::before,
-  .part-card.dom-code .code-splitter.dragging::before {
-    box-shadow: 0 -5px 0 var(--cyan), 0 5px 0 var(--cyan);
-  }
-  .part-card.dom-code .code-params-pane {
-    width: auto !important; max-height: 38%; border-left: 0; border-top: 1px solid var(--line);
-  }
+  .part-card.dom-code .code-params-pane { max-height: 42%; }
 }
 
 /* ===== bottom-bar layout (mode 4): the inspector docks to the bottom ====== */
@@ -568,9 +553,9 @@ body.layout-bottom #card-snap { display: none; } /* dock L/R is meaningless at t
   text-transform: uppercase; color: var(--ink-dim); margin-top: 6px;
 }
 
-/* ===== code workspace (editor + resizable params sidebar) ================ */
+/* ===== code workspace (editor + resizable params bar below) =============== */
 .code-workspace {
-  flex: 1; display: flex; flex-direction: row; min-height: 0; overflow: hidden;
+  flex: 1; display: flex; flex-direction: column; min-height: 0; overflow: hidden;
 }
 .code-main {
   flex: 1 1 0; min-width: 0; display: flex; flex-direction: column;
@@ -603,23 +588,23 @@ body.layout-bottom #card-snap { display: none; } /* dock L/R is meaningless at t
 .code-toolbar { position: relative; z-index: 2; }
 
 .code-splitter {
-  flex: none; width: 12px; cursor: col-resize; touch-action: none;
+  flex: none; height: 12px; width: auto; cursor: row-resize; touch-action: none;
   background: transparent; position: relative; align-self: stretch;
 }
 .code-splitter::before {
   content: ''; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
-  width: 3px; height: 28px; border-radius: 2px;
-  background: var(--line); box-shadow: -5px 0 0 var(--line), 5px 0 0 var(--line);
+  width: 28px; height: 3px; border-radius: 2px;
+  background: var(--line); box-shadow: 0 -5px 0 var(--line), 0 5px 0 var(--line);
   opacity: .65; transition: opacity .15s, background .15s, box-shadow .15s;
 }
 .code-splitter:hover::before, .code-splitter.dragging::before {
-  opacity: 1; background: var(--cyan); box-shadow: -5px 0 0 var(--cyan), 5px 0 0 var(--cyan);
+  opacity: 1; background: var(--cyan); box-shadow: 0 -5px 0 var(--cyan), 0 5px 0 var(--cyan);
 }
 
 .code-params-pane {
-  flex: none; width: var(--params-pane-w, 200px); min-width: 0;
+  flex: none; height: var(--params-pane-h, 168px); width: auto; min-width: 0;
   display: flex; flex-direction: column; min-height: 0;
-  background: var(--editor-gutter-bg); border-left: 1px solid var(--line);
+  background: var(--editor-gutter-bg); border-top: 1px solid var(--line);
   padding: 8px 10px 10px;
 }
 .code-params-head {
@@ -627,7 +612,17 @@ body.layout-bottom #card-snap { display: none; } /* dock L/R is meaningless at t
   display: flex; align-items: center; justify-content: space-between; gap: 6px;
 }
 .code-params-head .pane-title { margin-top: 0; }
-.code-params-pane .params { flex: 1; overflow-y: auto; overscroll-behavior: contain; min-height: 0; }
+.code-params-pane .params {
+  flex: 1; overflow-y: auto; overscroll-behavior: contain; min-height: 0;
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 10px;
+  align-content: start;
+}
+.code-workspace.editor-wrap-on .editor-hl,
+.code-workspace.editor-wrap-on .editor-hl code,
+.code-workspace.editor-wrap-on #editor {
+  white-space: pre-wrap; overflow-wrap: break-word; word-break: break-word;
+  width: 100%; min-width: 0;
+}
 .code-workspace.params-collapsed .code-params-pane,
 .code-workspace.params-collapsed .code-splitter { display: none; }
 

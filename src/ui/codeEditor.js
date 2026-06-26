@@ -1,14 +1,16 @@
 // Code-pane chrome: line numbers, params sidebar resize/collapse, editor shortcuts.
 
-const LS_WIDTH = 'randr.paramsPaneW';
+const LS_HEIGHT = 'randr.paramsPaneH';
+const LS_WIDTH = 'randr.paramsPaneW'; // legacy (side layout)
 const LS_COLLAPSED = 'randr.paramsPaneCollapsed';
+const LS_WRAP = 'randr.editorWrap';
 const LS_SIDEBAR_W = 'randr.sidebarW';
 const LS_CODE_CARD_W = 'randr.codeCardW'; // legacy key
-const DEFAULT_PARAMS_W = 200;
-const MIN_PARAMS_W = 140;
+const DEFAULT_PARAMS_H = 168;
+const MIN_PARAMS_H = 72;
 const MIN_CODE_CARD_W = 280;
 const DEFAULT_CODE_CARD_W = 440;
-const MIN_EDITOR_W = 120;
+const MIN_EDITOR_H = 120;
 
 function $(root, sel) { return root.querySelector(sel); }
 
@@ -161,10 +163,10 @@ function maxCodeCardW() {
   return Math.max(MIN_CODE_CARD_W, window.innerWidth - rail - 8);
 }
 
-function maxParamsW(workspace) {
-  if (!workspace) return 400;
-  const w = workspace.getBoundingClientRect().width;
-  return Math.max(MIN_PARAMS_W, w - MIN_EDITOR_W);
+function maxParamsH(workspace) {
+  if (!workspace) return 280;
+  const h = workspace.getBoundingClientRect().height;
+  return Math.max(MIN_PARAMS_H, h - MIN_EDITOR_H);
 }
 
 /** Wire line gutter, params split pane, and in-editor shortcuts onto App. */
@@ -176,6 +178,7 @@ export function installCodeEditor(app) {
   const splitter = $(root, '#code-splitter');
   const showBtn = $(root, '#params-show');
   const hideBtn = $(root, '#params-hide');
+  const wrapBtn = $(root, '#editor-wrap-toggle');
   const stripBtn = $(root, '#strip-comments');
   const card = $(root, '#part-card');
   const cardResize = $(root, '#card-resize');
@@ -184,14 +187,17 @@ export function installCodeEditor(app) {
   const activeBand = $(root, '#editor-active-line');
   if (!editor || !workspace || !paramsPane) return;
 
-  let paramsW = DEFAULT_PARAMS_W;
+  let paramsH = DEFAULT_PARAMS_H;
   let paramsCollapsed = false;
+  let wrapOn = false;
   let sidebarW = DEFAULT_CODE_CARD_W;
   try {
-    const w = parseFloat(localStorage.getItem(LS_WIDTH));
-    const maxP = maxParamsW(workspace);
-    if (w >= MIN_PARAMS_W && w <= maxP) paramsW = w;
+    const h = parseFloat(localStorage.getItem(LS_HEIGHT))
+      ?? parseFloat(localStorage.getItem(LS_WIDTH));
+    const maxP = maxParamsH(workspace);
+    if (h >= MIN_PARAMS_H && h <= maxP) paramsH = h;
     paramsCollapsed = localStorage.getItem(LS_COLLAPSED) === '1';
+    wrapOn = localStorage.getItem(LS_WRAP) === '1';
     const sw = parseFloat(localStorage.getItem(LS_SIDEBAR_W))
       ?? parseFloat(localStorage.getItem(LS_CODE_CARD_W));
     if (sw >= MIN_CODE_CARD_W) sidebarW = Math.min(sw, maxCodeCardW());
@@ -202,11 +208,10 @@ export function installCodeEditor(app) {
     sidebarW = Math.min(maxCodeCardW(), Math.max(MIN_CODE_CARD_W, sidebarW));
     card.style.setProperty('--sidebar-w', `${sidebarW}px`);
     try { localStorage.setItem(LS_SIDEBAR_W, String(Math.round(sidebarW))); } catch { /* quota */ }
-    // params sidebar can't be wider than the workspace
-    const cap = maxParamsW(workspace);
-    if (paramsW > cap) {
-      paramsW = cap;
-      paramsPane.style.setProperty('--params-pane-w', `${paramsW}px`);
+    const cap = maxParamsH(workspace);
+    if (paramsH > cap) {
+      paramsH = cap;
+      paramsPane.style.setProperty('--params-pane-h', `${paramsH}px`);
     }
   }
 
@@ -215,14 +220,22 @@ export function installCodeEditor(app) {
 
   function applyParamsLayout() {
     workspace.classList.toggle('params-collapsed', paramsCollapsed);
-    paramsW = Math.min(maxParamsW(workspace), Math.max(MIN_PARAMS_W, paramsW));
-    paramsPane.style.setProperty('--params-pane-w', `${paramsW}px`);
+    paramsH = Math.min(maxParamsH(workspace), Math.max(MIN_PARAMS_H, paramsH));
+    paramsPane.style.setProperty('--params-pane-h', `${paramsH}px`);
     if (showBtn) showBtn.hidden = !paramsCollapsed;
     if (hideBtn) hideBtn.hidden = paramsCollapsed;
     try {
-      localStorage.setItem(LS_WIDTH, String(paramsW));
+      localStorage.setItem(LS_HEIGHT, String(paramsH));
       localStorage.setItem(LS_COLLAPSED, paramsCollapsed ? '1' : '0');
     } catch { /* quota */ }
+  }
+
+  function applyWrap() {
+    workspace.classList.toggle('editor-wrap-on', wrapOn);
+    editor.setAttribute('wrap', wrapOn ? 'soft' : 'off');
+    if (wrapBtn) wrapBtn.classList.toggle('on', wrapOn);
+    try { localStorage.setItem(LS_WRAP, wrapOn ? '1' : '0'); } catch { /* quota */ }
+    app._updateEditorGutter?.();
   }
 
   function toggleParams() {
@@ -234,6 +247,7 @@ export function installCodeEditor(app) {
 
   showBtn?.addEventListener('click', toggleParams);
   hideBtn?.addEventListener('click', toggleParams);
+  wrapBtn?.addEventListener('click', () => { wrapOn = !wrapOn; applyWrap(); });
 
   stripBtn?.addEventListener('click', () => {
     const before = editor.value;
@@ -288,14 +302,14 @@ export function installCodeEditor(app) {
 
   app._applySidebarWidth = applySidebarWidth;
 
-  // --- resizable params sidebar ---
+  // --- resizable params bar (drag splitter up/down) ---
   if (splitter) {
     let drag = null;
     const onMove = (e) => {
       if (!drag) return;
-      const dx = drag.side === 'right' ? drag.x - e.clientX : e.clientX - drag.x;
-      paramsW = Math.min(maxParamsW(workspace), Math.max(MIN_PARAMS_W, drag.w + dx));
-      paramsPane.style.setProperty('--params-pane-w', `${paramsW}px`);
+      const dy = e.clientY - drag.y;
+      paramsH = Math.min(maxParamsH(workspace), Math.max(MIN_PARAMS_H, drag.h + dy));
+      paramsPane.style.setProperty('--params-pane-h', `${paramsH}px`);
     };
     const onUp = () => {
       if (!drag) return;
@@ -304,16 +318,14 @@ export function installCodeEditor(app) {
       document.body.style.cursor = '';
       document.removeEventListener('pointermove', onMove);
       document.removeEventListener('pointerup', onUp);
-      try { localStorage.setItem(LS_WIDTH, String(paramsW)); } catch { /* quota */ }
+      try { localStorage.setItem(LS_HEIGHT, String(paramsH)); } catch { /* quota */ }
     };
     splitter.addEventListener('pointerdown', (e) => {
       if (paramsCollapsed) return;
       e.preventDefault();
-      const card = root.querySelector('#part-card');
-      const dockRight = card?.classList.contains('dock-right') || !card?.classList.contains('dock-left');
-      drag = { x: e.clientX, w: paramsW, side: dockRight ? 'right' : 'left' };
+      drag = { y: e.clientY, h: paramsH };
       splitter.classList.add('dragging');
-      document.body.style.cursor = 'col-resize';
+      document.body.style.cursor = 'row-resize';
       splitter.setPointerCapture(e.pointerId);
       document.addEventListener('pointermove', onMove);
       document.addEventListener('pointerup', onUp);
@@ -353,6 +365,7 @@ export function installCodeEditor(app) {
   }
 
   app._updateEditorGutter = updateGutter;
+  applyWrap();
 
   gutter?.addEventListener('click', (e) => {
     const el = e.target.closest('.ln');
