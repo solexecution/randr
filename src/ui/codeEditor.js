@@ -470,7 +470,7 @@ export function installCodeEditor(app) {
     const onMove = (e) => {
       if (!drag) return;
       const dy = e.clientY - drag.y;
-      setParamsH(drag.h + dy);
+      setParamsH(drag.h - dy);
       syncEditorFromParams();
     };
     const onUp = () => {
