@@ -120,6 +120,7 @@ export class Viewport {
     this._layerGroup = null;       // layer-preview line group
     this._layerObjs = null;        // per-layer LineSegments (for the slider)
     this.editMeshes = [];          // [{ index, mesh, op }]
+    this._resultPickMeshes = [];   // coloured result-view meshes (pickable when edit is off)
     this.selectedIndex = -1;
     this.selectedSet = [];
     this.transformSet = [];        // rigid transform targets (selection + group members)
@@ -246,6 +247,15 @@ export class Viewport {
     if (!this.editActive || this.editMeshes.length === 0) return null;
     this._raycaster.setFromCamera(this._ndcFrom(clientX, clientY), this.camera);
     const hits = this._raycaster.intersectObjects(this.editMeshes.map((e) => e.mesh), false);
+    return hits.length ? hits[0] : null;
+  }
+
+  // Pick a build-tree part in result/preview view (coloured per-part meshes).
+  _pickResultShape(clientX, clientY) {
+    if (!this._resultPickMeshes.length) return null;
+    this.modelGroup.updateMatrixWorld(true);
+    this._raycaster.setFromCamera(this._ndcFrom(clientX, clientY), this.camera);
+    const hits = this._raycaster.intersectObjects(this._resultPickMeshes, false);
     return hits.length ? hits[0] : null;
   }
 
@@ -589,7 +599,7 @@ export class Viewport {
 
   _setupControls() {
     let dragging = false, panning = false, shapeDrag = false, downOnCanvas = false, downAdditive = false;
-    let lastX = 0, lastY = 0, downX = 0, downY = 0, moved = 0;
+    let lastX = 0, lastY = 0, downX = 0, downY = 0, moved = 0, downResultPick = null;
     let theta = -Math.PI / 2, phi = (40 * Math.PI) / 180, radius = 200; // open on the home view: front, 50° above the horizon
     const target = new THREE.Vector3(0, 0, 0);
     const dragPlane = new THREE.Plane();
@@ -706,10 +716,16 @@ export class Viewport {
         this._sketchPending = true; startOrbit(x, y, false); return;
       }
       downOnCanvas = true; downAdditive = additive;
-      downX = x; downY = y; moved = 0;
+      downX = x; downY = y; moved = 0; downResultPick = null;
       const hit = pan ? null : this._pickShape(x, y);
       if (hit) beginShapeDrag(hit, additive);
-      else startOrbit(x, y, pan);
+      else if (!pan && !this.editActive) {
+        const rh = this._pickResultShape(x, y);
+        if (rh != null && rh.object.userData.index != null) {
+          downResultPick = rh.object.userData.index;
+          startOrbit(x, y, false);
+        } else startOrbit(x, y, pan);
+      } else startOrbit(x, y, pan);
       // Long-press a shape (held still) to arm multi-select — the touch way to
       // build a selection without a Shift key. A move or quick release cancels.
       clearTimeout(this._lpTimer);
@@ -750,6 +766,8 @@ export class Viewport {
         shapeDrag = false;
         this._clearSnapGuides();
         this._magnetTargets = null; this._dragBox = null;
+      } else if (downResultPick != null && moved < 4) {
+        if (this.onSelect) this.onSelect(downResultPick, downAdditive);
       } else if (this.editActive && moved < 4) {
         const onEmpty = !this._pickShape(downX, downY);
         if (onEmpty && this.multiSelect) {
@@ -764,6 +782,7 @@ export class Viewport {
           if (this.onCanvasEmptyTap) this.onCanvasEmptyTap();
         }
       }
+      downResultPick = null;
       dragging = false; panning = false;
     };
 
@@ -776,7 +795,8 @@ export class Viewport {
     c.addEventListener('contextmenu', (e) => {
       e.preventDefault();
       if (moved > 4) return; // it was a right-drag (pan), not a click
-      const hit = this._pickShape(e.clientX, e.clientY);
+      const hit = this._pickShape(e.clientX, e.clientY)
+        || this._pickResultShape(e.clientX, e.clientY);
       if (this.onContext) this.onContext(hit ? hit.object.userData.index : -1, e.clientX, e.clientY);
     });
 
@@ -1434,6 +1454,7 @@ export class Viewport {
   // materials. Shared materials (model/overhang/edge) are kept — only the
   // unique ones made by setColoredModel/highlightSolid get disposed.
   _wipeModelGroup() {
+    this._resultPickMeshes = [];
     while (this.modelGroup.children.length) {
       const child = this.modelGroup.children.pop();
       child.geometry?.dispose();
@@ -1494,7 +1515,12 @@ export class Viewport {
         mat.polygonOffsetFactor = -i;
         mat.polygonOffsetUnits = -i;
       }
-      this.modelGroup.add(new THREE.Mesh(geom, mat));
+      const mesh = new THREE.Mesh(geom, mat);
+      if (p.pickIndex != null) {
+        mesh.userData.index = p.pickIndex;
+        this._resultPickMeshes.push(mesh);
+      }
+      this.modelGroup.add(mesh);
       if (showEdges) this.modelGroup.add(new THREE.LineSegments(edgesGeometry(geom), this.edgeMaterial));
       geom.computeBoundingBox();
       if (geom.boundingBox.min.y < minY) minY = geom.boundingBox.min.y;

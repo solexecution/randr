@@ -111,6 +111,10 @@ export class App {
     await loadKernel();
     this.viewport = new Viewport(this.root.querySelector('#viewport-canvas'));
     this.viewport.onSelect = (i, additive) => {
+      if (i >= 0 && this.viewMode === 'result') {
+        if (this.mode !== 'build') this._switchMode('build');
+        this._setSidebarOpen(true);
+      }
       this._selectNode(i, additive);
       if (i >= 0 && !additive) this._setPanelTab('edit');
       else if (i < 0 && !additive && this._panelTab === 'edit') this._setPanelTab('parts');
@@ -327,7 +331,7 @@ export class App {
     if (!this._coloredParts) {
       this._coloredParts = buildColoredParts(this.buildTree)
         .map((p) => {
-          try { const m = compile(p.source, {}).result; return m ? { manifold: m, color: p.color } : null; }
+          try { const m = compile(p.source, {}).result; return m ? { manifold: m, color: p.color, pickIndex: p.pickIndex } : null; }
           catch { return null; }
         })
         .filter(Boolean);

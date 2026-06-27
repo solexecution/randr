@@ -218,6 +218,8 @@ describe('buildColoredParts', () => {
     }
     expect(parts[0].color).toBe(a.color);
     expect(parts[1].color).toBe(b.color);
+    expect(parts[0].pickIndex).toBe(0);
+    expect(parts[1].pickIndex).toBe(1);
     expect(parts[0].source).toContain('box(');
     expect(parts[1].source).toContain('cylinder(');
   });

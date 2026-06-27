@@ -312,13 +312,14 @@ export function buildColoredParts(tree) {
   const parts = [];
   for (const n of loose.filter((n) => n.op !== 'hole')) {
     const s = placedCall(n);
-    if (s) parts.push({ source: cut(s), color: n.color });
+    if (s) parts.push({ source: cut(s), color: n.color, pickIndex: tree.nodes.indexOf(n) });
   }
   for (const nodes of groups.values()) {
     const body = groupBlock(nodes);
     if (!body) continue;
     const firstSolid = nodes.find((n) => n.op !== 'hole');
-    parts.push({ source: cut(body), color: firstSolid ? firstSolid.color : 0xcccccc });
+    const pickIndex = firstSolid ? tree.nodes.indexOf(firstSolid) : tree.nodes.indexOf(nodes[0]);
+    parts.push({ source: cut(body), color: firstSolid ? firstSolid.color : 0xcccccc, pickIndex });
   }
   return parts;
 }

@@ -47,3 +47,25 @@ test.describe('result view — coincident-face z-fighting fix', () => {
     expect(errors, errors.join('\n')).toEqual([]);
   });
 });
+
+test.describe('result view — pick to edit', () => {
+  test('clicking a part in result preview selects it and opens edit', async ({ page }) => {
+    await gotoApp(page);
+    await ensureBuildMode(page);
+    const i = await addShape(page, 'box');
+    await page.waitForFunction(() => !!window.__forgeApp.currentModel);
+    await page.evaluate(() => window.__forgeApp._setViewMode('result'));
+
+    const pickIdx = await page.evaluate(() => {
+      const v = window.__forgeApp.viewport;
+      const r = v.canvas.getBoundingClientRect();
+      const hit = v._pickResultShape(r.left + r.width / 2, r.top + r.height / 2);
+      return hit?.object?.userData?.index ?? null;
+    });
+    expect(pickIdx).toBe(i);
+
+    await page.evaluate((idx) => window.__forgeApp.viewport.onSelect(idx, false), i);
+    await expect.poll(() => page.evaluate(() => window.__forgeApp.viewMode)).toBe('edit');
+    expect(await page.evaluate(() => window.__forgeApp.selectedNodes)).toContain(i);
+  });
+});
