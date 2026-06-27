@@ -73,7 +73,14 @@ const KNOWN_IDS = new Set(TOOLBAR_TOOLS.map((t) => t.id));
 
 function defaultToolbarState() {
   // 'dodge' = floats opposite the parts card (placed by CSS, like the nav cube)
-  return { version: TOOLBAR_VERSION, dock: 'dodge', x: 80, y: 110, layout: JSON.parse(JSON.stringify(TOOLBAR_DEFAULT)) };
+  return {
+    version: TOOLBAR_VERSION,
+    dock: 'dodge',
+    x: 80,
+    y: 110,
+    display: 'icons', // 'icons' | 'labeled'
+    layout: JSON.parse(JSON.stringify(TOOLBAR_DEFAULT)),
+  };
 }
 
 // The single place that brings a persisted toolbar blob (any older version, or
@@ -98,6 +105,7 @@ export function migrateToolbar(saved) {
     dock: ['right', 'float', 'dodge', 'left'].includes(saved.dock) ? saved.dock : 'dodge',
     x: Number.isFinite(saved.x) ? saved.x : 80,
     y: Number.isFinite(saved.y) ? saved.y : 110,
+    display: saved.display === 'labeled' ? 'labeled' : 'icons',
     layout,
   };
 }
@@ -130,6 +138,7 @@ export class Toolbar {
     this._st = { mode: 'code', curveQuality: 64 };
     // placement, persisted in randr.toolbar:
     this.dock = 'left'; this.x = 80; this.y = 110;
+    this.display = 'icons'; // 'icons' | 'labeled'
     this.layout = [];
     this._nodes = {};   // id → wired button node (parked in #tool-store when off)
     this._store = null; // hidden parking lot that keeps handlers alive off the bar
@@ -149,8 +158,9 @@ export class Toolbar {
     let saved = null;
     try { saved = JSON.parse(localStorage.getItem('randr.toolbar')); } catch { /* ignore */ }
     const tb = migrateToolbar(saved); // one place handles defaults, pruning, and version upgrades
-    this.dock = tb.dock; this.x = tb.x; this.y = tb.y; this.layout = tb.layout;
+    this.dock = tb.dock; this.x = tb.x; this.y = tb.y; this.display = tb.display; this.layout = tb.layout;
     this._applyDock();
+    this._applyDisplay();
 
     // managed tool nodes → a hidden store; the bar is then rendered from layout.
     this._nodes = {};
@@ -196,7 +206,7 @@ export class Toolbar {
       this._save();
     };
     grip.addEventListener('pointerdown', (e) => {
-      if (e.target.closest('button')) return; // let the ✎ customize button work
+      if (e.target.closest('button')) return; // let the ✎ / ▣ display buttons work
       const r = el.getBoundingClientRect();
       sx = e.clientX; sy = e.clientY; ox = r.left; oy = r.top; moved = false;
       window.addEventListener('pointermove', onMove);
@@ -209,6 +219,11 @@ export class Toolbar {
   // keep their App-bound handlers and are merely re-parented. Bound once on the
   // live nodes — the binding survives being moved into a group.
   _wireButtons() {
+    this.root.querySelector('#tools-display')?.addEventListener('click', () => {
+      this.display = this.display === 'labeled' ? 'icons' : 'labeled';
+      this._applyDisplay();
+      this._save();
+    });
     this.root.querySelector('#tools-edit')?.addEventListener('click', () => this._openModal());
     this.root.querySelector('#v-quality')?.addEventListener('click', () => {
       const i = QUALITY_LEVELS.findIndex((q) => q.v === this._st.curveQuality);
@@ -269,9 +284,52 @@ export class Toolbar {
     }
   }
 
+  _applyDisplay() {
+    const el = this._el;
+    if (!el) return;
+    el.classList.toggle('tb-icons', this.display === 'icons');
+    el.classList.toggle('tb-labeled', this.display === 'labeled');
+    const btn = this.root.querySelector('#tools-display');
+    if (btn) {
+      btn.classList.toggle('on', this.display === 'labeled');
+      btn.title = this.display === 'labeled'
+        ? 'Icons + labels — tap for icons only'
+        : 'Icons only — tap for icons + labels';
+      btn.textContent = this.display === 'labeled' ? 'Aa' : '▣';
+    }
+  }
+
+  // Keep a floating toolbar from sitting under a side-docked parts panel.
+  syncCardDock(cardDock, panelVisible) {
+    const el = this._el;
+    if (!el || !panelVisible || this.dock !== 'float') return;
+    const card = this.root.querySelector('#part-card');
+    if (!card || card.classList.contains('collapsed')) return;
+    const panelW = card.getBoundingClientRect().width || 360;
+    const r = el.getBoundingClientRect();
+    if (cardDock === 'left' && r.left < panelW - 4) {
+      this.x = Math.round(panelW + 12);
+      el.style.left = `${this.x}px`;
+      el.style.right = 'auto';
+      this._save();
+    } else if (cardDock === 'right' && (window.innerWidth - r.right) < panelW - 4) {
+      this.x = Math.round(window.innerWidth - panelW - r.width - 12);
+      el.style.left = `${this.x}px`;
+      el.style.right = 'auto';
+      this._save();
+    }
+  }
+
   _save() {
     try {
-      localStorage.setItem('randr.toolbar', JSON.stringify({ version: TOOLBAR_VERSION, dock: this.dock, x: this.x, y: this.y, layout: this.layout }));
+      localStorage.setItem('randr.toolbar', JSON.stringify({
+        version: TOOLBAR_VERSION,
+        dock: this.dock,
+        x: this.x,
+        y: this.y,
+        display: this.display,
+        layout: this.layout,
+      }));
     } catch { /* quota */ }
   }
 
@@ -325,7 +383,9 @@ export class Toolbar {
     const q = this.root.querySelector('#v-quality');
     if (q) {
       const lvl = QUALITY_LEVELS.find((x) => x.v === this._st.curveQuality) || QUALITY_LEVELS[2];
-      q.textContent = lvl.glyph;
+      const glyph = q.querySelector('.rail-glyph');
+      if (glyph) glyph.textContent = lvl.glyph;
+      else q.textContent = lvl.glyph;
       q.title = `Curve quality: ${lvl.name} — tap to cycle`;
     }
   }
@@ -384,7 +444,10 @@ export class Toolbar {
 
   _tbReset() {
     this.layout = JSON.parse(JSON.stringify(TOOLBAR_DEFAULT));
-    this.dock = 'dodge'; this._applyDock(); // back to floating opposite the card
+    this.dock = 'dodge';
+    this.display = 'icons';
+    this._applyDock();
+    this._applyDisplay();
     this._tbApply();
   }
 

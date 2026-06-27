@@ -598,6 +598,7 @@ export class App {
     const visible = sideDock && this.viewMode === 'edit';
     stage.classList.toggle('cardleft', visible && dock === 'left');
     stage.classList.toggle('cardright', visible && dock === 'right');
+    this.toolbar?.syncCardDock?.(dock, visible);
     const minBtn = this.root.querySelector('#card-min');
     if (minBtn) {
       minBtn.textContent = dock === 'right' ? '»' : '«';

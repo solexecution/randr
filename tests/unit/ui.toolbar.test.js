@@ -65,9 +65,14 @@ describe('migrateToolbar', () => {
     expect(group.items).toEqual(['v-grid']);            // unknown id dropped, real one kept
   });
 
+  it('preserves display mode on a current-version blob', () => {
+    const tb = migrateToolbar({ version: TOOLBAR_VERSION, display: 'labeled', layout: [{ type: 'tool', id: 'rail-home' }] });
+    expect(tb.display).toBe('labeled');
+    const tb2 = migrateToolbar({ version: TOOLBAR_VERSION, layout: [{ type: 'tool', id: 'rail-home' }] });
+    expect(tb2.display).toBe('icons');
+  });
+
   it('keeps a deliberately-removed tool removed on a current-version blob', () => {
-    // user turned v-theme off and saved at the current version → no version step
-    // re-runs, so it must stay off
     const layout = [
       { type: 'tool', id: 'rail-home' },
       { type: 'tool', id: 'v-grid' },

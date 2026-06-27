@@ -94,10 +94,11 @@ export function appHTML({ addGallery, featuresHtml, gcodeHtml }) {
           </div>
         </nav>
 
-        <nav class="toolbar dock-left" id="tools" aria-label="View and build tools">
+        <nav class="toolbar" id="tools" aria-label="View and build tools">
           <div class="toolbar-grip" id="tools-grip" title="Drag to move the toolbar">
             <span class="grip-dots" aria-hidden="true">⠿</span>
-            <button class="toolbar-edit" id="tools-edit" title="Customize toolbar — add or group tools">✎</button>
+            <button type="button" class="toolbar-edit" id="tools-display" title="Icons only — tap for icons + labels">▣</button>
+            <button type="button" class="toolbar-edit" id="tools-edit" title="Customize toolbar — add or group tools">✎</button>
           </div>
           <!-- tool buttons are generated from the TOOLBAR_TOOLS registry; the
                toolbar then parks them and lays out the bar per the saved/default
