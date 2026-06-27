@@ -605,6 +605,7 @@ export class App {
       minBtn.title = 'Preview result (hide panel)';
     }
     this._syncWorkspaceUI();
+    this._applyParamsAnchor?.();
   }
 
   _saveCardDock() {

@@ -11,7 +11,8 @@ const DEFAULT_PARAMS_H = 168;
 const MIN_PARAMS_H = 72;
 const MIN_CODE_CARD_W = 280;
 const DEFAULT_CODE_CARD_W = 440;
-const MIN_EDITOR_H = 120;
+/** Minimum height of `.code-main` (toolbar + padding + a usable editor strip). */
+const MIN_EDITOR_H = 204;
 
 function $(root, sel) { return root.querySelector(sel); }
 
@@ -237,10 +238,44 @@ function clampParamsH(workspace, h) {
   return Math.min(maxParamsH(workspace), Math.max(MIN_PARAMS_H, h));
 }
 
+/** Keep the editor block height within what the workspace can actually fit. */
+function clampEditorPaneH(workspace, editorH, splitterH) {
+  const wh = workspaceH(workspace);
+  if (wh <= 0) return Math.max(MIN_EDITOR_H, editorH);
+  const maxEd = wh - splitterH - MIN_PARAMS_H;
+  return Math.max(MIN_EDITOR_H, Math.min(editorH, maxEd));
+}
+
 function paramsHForEditorPane(workspace, editorPaneH, splitterPx) {
   const h = workspaceH(workspace);
   if (h <= 0) return DEFAULT_PARAMS_H;
   return clampParamsH(workspace, h - splitterPx - editorPaneH);
+}
+
+/** Restore the editor anchor from localStorage, preferring a consistent editor+params pair. */
+function loadEditorAnchor(workspace, paramsH, splitterH) {
+  const wh = workspaceH(workspace);
+  let savedEditor = null;
+  let savedParams = null;
+  try {
+    const ep = parseFloat(localStorage.getItem(LS_EDITOR_H));
+    if (ep >= MIN_EDITOR_H) savedEditor = ep;
+    const ph = parseFloat(localStorage.getItem(LS_HEIGHT))
+      ?? parseFloat(localStorage.getItem(LS_WIDTH));
+    if (ph >= MIN_PARAMS_H) savedParams = ph;
+  } catch { /* quota */ }
+  if (savedEditor != null && savedParams != null
+      && Math.abs((wh - splitterH - savedEditor) - savedParams) <= 2) {
+    return clampEditorPaneH(workspace, savedEditor, splitterH);
+  }
+  if (savedEditor != null && wh > 0) {
+    return clampEditorPaneH(workspace, savedEditor, splitterH);
+  }
+  if (savedParams != null && wh > 0) {
+    return clampEditorPaneH(workspace, wh - splitterH - savedParams, splitterH);
+  }
+  if (wh > 0) return clampEditorPaneH(workspace, wh - splitterH - paramsH, splitterH);
+  return MIN_EDITOR_H;
 }
 
 /** Wire line gutter, params split pane, and in-editor shortcuts onto App. */
@@ -267,8 +302,6 @@ export function installCodeEditor(app) {
   let wrapOn = false;
   let sidebarW = DEFAULT_CODE_CARD_W;
   try {
-    const ep = parseFloat(localStorage.getItem(LS_EDITOR_H));
-    if (ep >= MIN_EDITOR_H) editorPaneH = ep;
     const h = parseFloat(localStorage.getItem(LS_HEIGHT))
       ?? parseFloat(localStorage.getItem(LS_WIDTH));
     const maxP = maxParamsH(workspace);
@@ -282,9 +315,11 @@ export function installCodeEditor(app) {
 
   const splitterPx = () => splitter?.offsetHeight ?? 12;
 
+  editorPaneH = loadEditorAnchor(workspace, paramsH, splitterPx());
+
   function syncEditorPaneH() {
     const h = workspaceH(workspace);
-    if (h > 0) editorPaneH = Math.max(MIN_EDITOR_H, h - splitterPx() - paramsH);
+    if (h > 0) editorPaneH = clampEditorPaneH(workspace, h - splitterPx() - paramsH, splitterPx());
   }
 
   function persistParamsSize() {
@@ -307,7 +342,8 @@ export function installCodeEditor(app) {
     const h = workspaceH(workspace);
     if (h <= 0) return;
     if (editorPaneH == null) syncEditorPaneH();
-    setParamsH(paramsHForEditorPane(workspace, editorPaneH, splitterPx()));
+    else editorPaneH = clampEditorPaneH(workspace, editorPaneH, splitterPx());
+    setParamsH(paramsHForEditorPane(workspace, editorPaneH, splitterPx()), { persist: true });
   }
 
   function applySidebarWidth() {
@@ -339,11 +375,8 @@ export function installCodeEditor(app) {
       if (showBtn) showBtn.hidden = false;
       if (hideBtn) hideBtn.hidden = true;
     } else {
-      if (editorPaneH != null) {
-        setParamsH(paramsHForEditorPane(workspace, editorPaneH, splitterPx()));
-      } else {
-        setParamsH(paramsH);
-      }
+      editorPaneH = clampEditorPaneH(workspace, editorPaneH ?? MIN_EDITOR_H, splitterPx());
+      setParamsH(paramsHForEditorPane(workspace, editorPaneH, splitterPx()));
       if (showBtn) showBtn.hidden = true;
       if (hideBtn) hideBtn.hidden = false;
     }
@@ -422,6 +455,7 @@ export function installCodeEditor(app) {
   }
 
   app._applySidebarWidth = applySidebarWidth;
+  app._applyParamsAnchor = applyParamsFromEditorAnchor;
 
   // --- resizable params bar (drag splitter up/down) ---
   if (splitter) {
@@ -638,3 +672,12 @@ export function installCodeEditor(app) {
 
   updateGutter();
 }
+
+export {
+  clampEditorPaneH,
+  clampParamsH,
+  paramsHForEditorPane,
+  loadEditorAnchor,
+  MIN_EDITOR_H,
+  MIN_PARAMS_H,
+};

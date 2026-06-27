@@ -655,7 +655,7 @@ body.layout-bottom #card-snap { display: none; } /* dock L/R is meaningless at t
 
 /* code editor shell: gutter + coloured layer + transparent textarea */
 .editor-shell {
-  flex: 1 1 auto; min-height: 200px; display: flex; min-width: 0;
+  flex: 1 1 auto; min-height: 0; display: flex; min-width: 0;
   border: 1px solid var(--line); border-radius: 8px;
   background: var(--editor-bg); overflow: hidden;
 }
