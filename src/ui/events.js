@@ -371,6 +371,8 @@ class EventBindings {
     // place toolbar (drop to base, center, level, reset scale)
     this.root.querySelectorAll('[data-op-act]').forEach((b) =>
       b.addEventListener('click', () => this._placeOp(b.dataset.opAct)));
+    this.root.querySelector('[data-print-ready]')?.addEventListener('click', () => this._printReady());
+    this.root.querySelector('[data-prep-group]')?.addEventListener('click', () => this._group());
 
     // cut selection in half along X / Y / Z
     this.root.querySelectorAll('[data-cut-half]').forEach((b) =>

@@ -151,6 +151,10 @@ body {
 /* left sidebar toolbar (view + build tools) — draggable, dockable, customizable */
 .toolbar { position: fixed; z-index: 20; display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 2px 4px 4px; background: transparent; border: none; border-radius: 0; box-shadow: none; }
 .toolbar .rail-btn { width: 32px; height: 32px; font-size: 14px; border-radius: 8px; }
+.toolbar .rail-btn.rail-labeled { width: auto; min-width: 44px; height: auto; min-height: 36px; padding: 3px 5px 4px; display: flex; flex-direction: column; align-items: center; gap: 1px; line-height: 1; }
+.toolbar .rail-btn.rail-labeled .rail-glyph { font-size: 14px; line-height: 1; }
+.toolbar .rail-btn.rail-labeled .rail-lab { font-size: 8px; font-weight: 600; letter-spacing: 0.02em; color: var(--ink-dim); max-width: 52px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.toolbar .rail-btn.rail-labeled.on .rail-lab { color: var(--cyan); }
 .toolbar.dock-left  { top: 220px; left: 8px; right: auto; }
 .toolbar.dock-right { top: 220px; right: 8px; left: auto; }
 .toolbar.float { /* top/left come from inline styles set while dragging */ }
@@ -458,6 +462,19 @@ body.layout-bottom .card-resize { display: none !important; }
 .pl-row.sel .pl-ico, .pl-name:hover .pl-ico { color: inherit; }
 .pl-row.is-hole .pl-name { color: var(--ink-dim); font-style: italic; }
 .pl-grp { font-family: var(--mono); font-size: 9px; color: var(--ink-dim); border: 1px solid var(--line); border-radius: 4px; padding: 1px 4px; flex: none; }
+.pl-grp.union { border-color: rgba(77, 208, 225, .45); color: var(--cyan); }
+.pl-grp.subtract { border-color: rgba(239, 83, 80, .45); color: #ef5350; }
+.pl-grp.intersect { border-color: rgba(255, 183, 77, .45); color: #ffb74d; }
+.pl-grp.hull { border-color: rgba(167, 113, 247, .45); color: #a371f7; }
+.pl-name .pl-nlab { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.print-prep-strip { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; margin: 10px 0 4px; padding: 8px; background: var(--surface-2); border: 1px solid var(--line); border-radius: 8px; }
+.print-prep-title { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--ink-dim); width: 100%; margin-bottom: 2px; }
+.prep-chip { font-family: var(--mono); font-size: 11px; padding: 5px 8px; border-radius: 6px; border: 1px solid var(--line); background: var(--btn-bg); color: var(--ink); cursor: pointer; }
+.prep-chip:hover { border-color: var(--cyan); color: var(--cyan); }
+.prep-chip.prep-go { border-color: rgba(102, 187, 106, .5); color: #66bb6a; }
+.prep-chip.prep-go:hover { background: rgba(102, 187, 106, .12); }
+.bn-name-lab { display: flex; flex-direction: column; gap: 2px; font-size: 10px; color: var(--ink-dim); flex: 1; min-width: 0; }
+.bn-name-in { font: inherit; font-size: 13px; color: var(--ink); background: var(--surface); border: 1px solid var(--line); border-radius: 6px; padding: 4px 6px; width: 100%; }
 .pl-op { flex: none; font-family: var(--mono); font-size: 10px; letter-spacing: .04em; text-transform: uppercase; color: var(--ink-dim); background: var(--bg); border: 1px solid var(--line); border-radius: 6px; padding: 4px 8px; cursor: pointer; }
 .pl-op.hole { color: var(--amber); border-color: var(--amber); }
 .pl-del { flex: none; width: 24px; height: 24px; display: grid; place-items: center; font-size: 12px; color: var(--ink-dim); background: none; border: 0; cursor: pointer; border-radius: 6px; }

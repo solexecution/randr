@@ -27,6 +27,9 @@ export class CommandPalette {
     add('Toggle light / dark theme', '', 'View', () => clickBtn('#v-theme'));
     add('Switch layout (side / bottom)', '', 'View', () => A._toggleLayout());
     add('Toggle wireframe', '', 'View', () => clickBtn('#v-wire'));
+    add('Print ready check', 'centre · on bed · fit', 'Prep', () => A._printReady());
+    add('Drop on bed', 'place', 'Prep', () => A._placeOp('drop'));
+    add('Centre on plate', 'place', 'Prep', () => A._placeOp('center'));
     add('Auto-orient for printing', 'least support', 'Prep', () => A._autoOrient());
     add('Scale to fit the plate', '', 'Prep', () => A._scaleToFit());
     add('Cut in half', 'two glue-able pieces', 'Prep', () => clickBtn('#v-cut'));

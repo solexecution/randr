@@ -32,7 +32,9 @@ export function createNode(kind) {
     hollow: 0, // wall thickness (mm): >0 turns the solid into a shell
     fillet: 0, // edge radius (mm): >0 rounds (or bevels) the part's convex edges
     bevel: false, // fillet style: false = round, true = chamfer
+    name: '', // optional user label (shown in the parts roster)
     group: null, // group id; members combine (and scope their holes) together
+    groupLabel: '', // optional friendly name for the group badge
     groupMode: 'union', // how a group combines: union | subtract | intersect | hull
     collapsed: false, // UI: part card folded to just its header
     fields,

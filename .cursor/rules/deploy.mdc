@@ -1,0 +1,27 @@
+---
+description: Always commit and push forge-cad (R&R) changes to deploy live
+alwaysApply: true
+---
+
+# Deploy to live (R&R / forge-cad)
+
+After any code change in `forge-cad/`, **commit and push to `main`** before considering the task done. Local-only changes are not live.
+
+## Required end-of-task workflow
+
+1. Run tests if you changed behavior (`npm run test:unit` at minimum).
+2. `git status` — confirm what changed.
+3. `git add` + `git commit` with a clear message.
+4. `git push origin main`.
+5. Tell the user the commit SHA and that GitHub Pages will redeploy in 1–3 min.
+
+## Live URLs (auto-deploy on push to `main`)
+
+- PWA: https://solexecution.github.io/randr/
+- Single-file: https://solexecution.github.io/randr/RandR.html
+
+## Notes
+
+- Git repo root is `forge-cad/` (not the parent `3d/` folder).
+- CI builds `RandR.html` on deploy (`.github/workflows/deploy.yml`); push source only.
+- Do not leave completed work uncommitted unless the user explicitly asks to hold it.

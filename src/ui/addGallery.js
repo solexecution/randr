@@ -22,6 +22,7 @@ const ADD_GALLERY = [
     _t('soap dish', 'soapDish'), _t('pen cup', 'penCup'), _t('coaster', 'coaster'),
     _t('stacking bin', 'stackingBin'), _t('bolt & nut', 'bolt_nut'), _t('washer', 'washer'),
     _t('L-bracket', 'lBracket'), _t('knob', 'knob'), _t('fit test', 'fitTest'),
+    _t('phone stand', 'phoneStand'),
   ]],
   ['import', 'Import', [{ id: 'modal-import', art: 'import', label: 'STL / OBJ / 3MF…' }]],
 ];

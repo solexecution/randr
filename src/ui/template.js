@@ -181,6 +181,13 @@ export function appHTML({ addGallery, featuresHtml, gcodeHtml }) {
                 <span id="part-modal-metrics" class="pm-metrics">—</span>
               </div>
               <div id="part-modal-fields"></div>
+              <div class="print-prep-strip" id="print-prep-strip">
+                <span class="print-prep-title">Print prep</span>
+                <button type="button" data-op-act="drop" class="prep-chip" title="Seat selection on the build plate">⤓ on bed</button>
+                <button type="button" data-op-act="center" class="prep-chip" title="Centre selection on plate origin (0,0)">⊹ centre</button>
+                <button type="button" data-print-ready class="prep-chip prep-go" title="Centre, drop, and check fit">✓ print ready</button>
+                <button type="button" data-prep-group class="prep-chip" title="Group selected parts">▣ group</button>
+              </div>
               <div class="edit-tools" id="edit-tools">
                 <div class="edit-tool-tabs" role="tablist" aria-label="Part tools">
                   <button type="button" class="edit-tool-tab on" data-ttab="move" role="tab" aria-selected="true">Move</button>

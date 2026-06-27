@@ -1,6 +1,7 @@
 import { esc } from './escape.js';
 import { isFastener, METRIC_SIZES, currentMetricSize, supportsClearance, isShellable, supportsFillet, setNodeKind, applyMetricSize, isSizeField, resetScaleOnSizeEdit } from './buildtree.js';
 import { ADDABLE_KINDS } from './primitives.js';
+import { partDisplayName, partListLabel, partKindLabel, groupBadgeText, groupBadgeTitle } from './partNames.js';
 
 // App's build-pane renderers (the part-editor tree + the compact parts list),
 // split out of app.js. Authored as class methods so they move verbatim and
@@ -24,7 +25,7 @@ class BuildPaneRenderers {
       } else if (sel >= 2) hintEl.textContent = `${sel} selected — use the Multi tab below`;
       else if (sel === 1) {
         const n = nodes[this.selectedNodes[0]];
-        const name = n ? (n.kind === 'imported' ? (n.meshName || 'mesh') : (n.kind || 'part')) : 'part';
+        const name = n ? partDisplayName(n) : 'part';
         hintEl.textContent = `Editing ${name} — size above, tools below`;
       } else hintEl.textContent = total ? 'Tap a part to edit · tap ⊹ multi to pick several' : 'Tap + to add your first part';
     }
@@ -180,14 +181,14 @@ class BuildPaneRenderers {
       grp.innerHTML = `
         <div class="bn-sec">
           <div class="bn-sec-label">Group position &amp; rotation</div>
-          <span class="bn-clear-hint">Centre (mm) and angles (°) — whole group moves together</span>
+          <span class="bn-clear-hint">Centre on plate (mm) and angles (°) — whole group moves together</span>
           <div class="bn-fields bn-xyz">
-            <label data-unit="mm">cx<input type="text" inputmode="decimal" autocomplete="off" spellcheck="false" value="${r(c[0])}" data-gpos="0"></label>
-            <label data-unit="mm">cy<input type="text" inputmode="decimal" autocomplete="off" spellcheck="false" value="${r(c[1])}" data-gpos="1"></label>
-            <label data-unit="mm">cz<input type="text" inputmode="decimal" autocomplete="off" spellcheck="false" value="${r(c[2])}" data-gpos="2"></label>
-            <label data-unit="°">rx<input type="text" inputmode="decimal" autocomplete="off" spellcheck="false" value="${ref.rot[0]}" data-grot="0"></label>
-            <label data-unit="°">ry<input type="text" inputmode="decimal" autocomplete="off" spellcheck="false" value="${ref.rot[1]}" data-grot="1"></label>
-            <label data-unit="°">rz<input type="text" inputmode="decimal" autocomplete="off" spellcheck="false" value="${ref.rot[2]}" data-grot="2"></label>
+            <label data-unit="mm">X<input type="text" inputmode="decimal" autocomplete="off" spellcheck="false" value="${r(c[0])}" data-gpos="0"></label>
+            <label data-unit="mm">Y<input type="text" inputmode="decimal" autocomplete="off" spellcheck="false" value="${r(c[1])}" data-gpos="1"></label>
+            <label data-unit="mm">Z<input type="text" inputmode="decimal" autocomplete="off" spellcheck="false" value="${r(c[2])}" data-gpos="2"></label>
+            <label data-unit="°">Rx<input type="text" inputmode="decimal" autocomplete="off" spellcheck="false" value="${ref.rot[0]}" data-grot="0"></label>
+            <label data-unit="°">Ry<input type="text" inputmode="decimal" autocomplete="off" spellcheck="false" value="${ref.rot[1]}" data-grot="1"></label>
+            <label data-unit="°">Rz<input type="text" inputmode="decimal" autocomplete="off" spellcheck="false" value="${ref.rot[2]}" data-grot="2"></label>
           </div>
         </div>`;
       host.appendChild(grp);
@@ -204,7 +205,8 @@ class BuildPaneRenderers {
       const hasMore = supportsClearance(node.kind) || isShellable(node.kind) || supportsFillet(node.kind);
       row.innerHTML = `
         <div class="bn-head">
-          ${node.group != null ? `<span class="bn-grp" title="Group ${node.group}">G${node.group}</span>` : ''}
+          <label class="bn-name-lab">name<input type="text" class="bn-name-in" data-name="${idx}" value="${esc(partDisplayName(node))}" spellcheck="false" maxlength="40"></label>
+          ${node.group != null ? `<span class="bn-grp" title="${esc(groupBadgeTitle(node, this.buildTree.nodes.filter((x) => x.group === node.group).length))}">${esc(groupBadgeText(node, this.buildTree.nodes.filter((x) => x.group === node.group).length))}</span>` : ''}
           ${node.kind === 'imported'
             ? `<span class="bn-type bn-imported" title="Imported mesh">⬇ ${esc(node.meshName || 'mesh')}</span>`
             : node.kind === 'extrusion'
@@ -245,12 +247,12 @@ class BuildPaneRenderers {
           : `<details class="bn-sec" open>
           <summary>Position &amp; rotation</summary>
           <div class="bn-fields bn-xyz">
-            <label data-unit="mm">x<input type="text" inputmode="decimal" autocomplete="off" spellcheck="false" value="${node.pos[0]}" data-pos="${idx}:0"></label>
-            <label data-unit="mm">y<input type="text" inputmode="decimal" autocomplete="off" spellcheck="false" value="${node.pos[1]}" data-pos="${idx}:1"></label>
-            <label data-unit="mm">z<input type="text" inputmode="decimal" autocomplete="off" spellcheck="false" value="${node.pos[2]}" data-pos="${idx}:2"></label>
-            <label data-unit="°">rx<input type="text" inputmode="decimal" autocomplete="off" spellcheck="false" value="${node.rot[0]}" data-rot="${idx}:0"></label>
-            <label data-unit="°">ry<input type="text" inputmode="decimal" autocomplete="off" spellcheck="false" value="${node.rot[1]}" data-rot="${idx}:1"></label>
-            <label data-unit="°">rz<input type="text" inputmode="decimal" autocomplete="off" spellcheck="false" value="${node.rot[2]}" data-rot="${idx}:2"></label>
+            <label data-unit="mm">X<input type="text" inputmode="decimal" autocomplete="off" spellcheck="false" value="${node.pos[0]}" data-pos="${idx}:0"></label>
+            <label data-unit="mm">Y<input type="text" inputmode="decimal" autocomplete="off" spellcheck="false" value="${node.pos[1]}" data-pos="${idx}:1"></label>
+            <label data-unit="mm">Z<input type="text" inputmode="decimal" autocomplete="off" spellcheck="false" value="${node.pos[2]}" data-pos="${idx}:2"></label>
+            <label data-unit="°">Rx<input type="text" inputmode="decimal" autocomplete="off" spellcheck="false" value="${node.rot[0]}" data-rot="${idx}:0"></label>
+            <label data-unit="°">Ry<input type="text" inputmode="decimal" autocomplete="off" spellcheck="false" value="${node.rot[1]}" data-rot="${idx}:1"></label>
+            <label data-unit="°">Rz<input type="text" inputmode="decimal" autocomplete="off" spellcheck="false" value="${node.rot[2]}" data-rot="${idx}:2"></label>
           </div>
         </details>`}
         ${hasMore ? `<details class="bn-sec">
@@ -385,6 +387,8 @@ class BuildPaneRenderers {
     const nodes = this.buildTree.nodes;
     host.innerHTML = '';
     if (!nodes.length) return;
+    const groupCounts = {};
+    nodes.forEach((n) => { if (n.group != null) groupCounts[n.group] = (groupCounts[n.group] || 0) + 1; });
     const KIND_LABEL = { roundedBox: 'rounded', roundedCylinder: 'r-cyl', chamferedBox: 'cham-box', chamferedCylinder: 'cham-cyl', thread: 'rod' };
     // small type glyph per shape — mirrors the Add gallery so they read the same
     const KIND_ICON = {
@@ -396,9 +400,6 @@ class BuildPaneRenderers {
       imported: '⬚', extrusion: '✎', revolution: '◓',
     };
     const iconOf = (n) => KIND_ICON[n.kind] || '◆';
-    const nameOf = (n) => n.kind === 'imported' ? (n.meshName || 'mesh')
-      : n.kind === 'extrusion' ? 'sketch' : n.kind === 'revolution' ? 'lathe'
-      : (KIND_LABEL[n.kind] || n.kind);
     const hex = (c) => '#' + ((c >>> 0) & 0xffffff).toString(16).padStart(6, '0');
     const sel = new Set(this.selectedNodes);
     nodes.forEach((node, idx) => {
@@ -409,8 +410,8 @@ class BuildPaneRenderers {
       row.innerHTML = `
         <button class="pl-sel${on ? ' on' : ''}" data-sel="${idx}" title="Add to / remove from selection" aria-pressed="${on}">${on ? '◉' : '◯'}</button>
         <input type="color" class="pl-color" data-rcolor="${idx}" value="${hex(node.color)}" title="Colour" ${node.op === 'hole' ? 'disabled' : ''}>
-        <button class="pl-name" data-edit="${idx}" title="Edit this part"><span class="pl-ico" aria-hidden="true">${iconOf(node)}</span>${esc(nameOf(node))}</button>
-        ${node.group != null ? `<span class="pl-grp" title="Group ${node.group}">G${node.group}</span>` : ''}
+        <button class="pl-name" data-edit="${idx}" title="Edit · double-click to rename"><span class="pl-ico" aria-hidden="true">${iconOf(node)}</span><span class="pl-nlab">${esc(partListLabel(node))}</span></button>
+        ${node.group != null ? `<span class="pl-grp pl-grp-${node.groupMode || 'union'}" title="${esc(groupBadgeTitle(node, groupCounts[node.group] || 1))}">${esc(groupBadgeText(node, groupCounts[node.group] || 1))}</span>` : ''}
         <button class="pl-op ${node.op}" data-op="${idx}" title="Toggle solid / hole">${node.op}</button>
         <button class="pl-ic${node.locked ? ' on' : ''}" data-rlock="${idx}" title="Lock position">${node.locked ? '🔒' : '🔓'}</button>
         <button class="pl-ic" data-rhide="${idx}" title="${node.hidden ? 'Show' : 'Hide'}">${node.hidden ? '🚫' : '👁'}</button>
@@ -419,12 +420,27 @@ class BuildPaneRenderers {
       host.appendChild(row);
     });
     host.querySelectorAll('[data-sel]').forEach((el) => el.addEventListener('click', () => this._selectNode(+el.dataset.sel, true)));
-    host.querySelectorAll('[data-edit]').forEach((el) => el.addEventListener('click', () => {
-      const i = +el.dataset.edit;
-      const rect = el.getBoundingClientRect(); // capture before the list re-renders
-      if (this.selectedNodes.length <= 1 || !this.selectedNodes.includes(i)) this._selectNode(i, false);
-      this._openPartModal(rect);
-    }));
+    host.querySelectorAll('[data-edit]').forEach((el) => {
+      el.addEventListener('click', () => {
+        const i = +el.dataset.edit;
+        const rect = el.getBoundingClientRect();
+        if (this.selectedNodes.length <= 1 || !this.selectedNodes.includes(i)) this._selectNode(i, false);
+        this._openPartModal(rect);
+      });
+      el.addEventListener('dblclick', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        const i = +el.dataset.edit;
+        const n = this.buildTree.nodes[i];
+        if (!n) return;
+        this._promptName('Rename part', partDisplayName(n), (name) => {
+          const s = (name || '').trim();
+          n.name = s === partKindLabel(n) ? '' : s;
+          this._renderBuildTree();
+          this._pushHistory();
+        });
+      });
+    });
     host.querySelectorAll('[data-op]').forEach((el) => el.addEventListener('click', () => {
       const n = this.buildTree.nodes[+el.dataset.op]; n.op = n.op === 'hole' ? 'solid' : 'hole';
       this._renderBuildTree(); this.recompile(); this._pushHistory();
@@ -438,6 +454,14 @@ class BuildPaneRenderers {
     }));
     host.querySelectorAll('[data-rhide]').forEach((el) => el.addEventListener('click', () => {
       const n = this.buildTree.nodes[+el.dataset.rhide]; n.hidden = !n.hidden; this._renderBuildTree(); this.recompile(); this._pushHistory();
+    }));
+    host.querySelectorAll('[data-name]').forEach((el) => el.addEventListener('change', () => {
+      const n = this.buildTree.nodes[+el.dataset.name];
+      if (!n) return;
+      const s = el.value.trim();
+      n.name = s === partKindLabel(n) ? '' : s;
+      this._renderBuildTree();
+      this._pushHistory();
     }));
     host.querySelectorAll('[data-rdup]').forEach((el) => el.addEventListener('click', () => this._duplicateNode(+el.dataset.rdup)));
   }

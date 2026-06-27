@@ -11,6 +11,7 @@ import { loadKernel, inspect, meshSolid, importSTL, importOBJ, import3MF, regist
 import { compile } from '../lang/compile.js';
 import { exportSTL, exportOBJ, export3MF, export3MFColored } from '../kernel/export.js';
 import { Viewport, BUILD_VOLUME } from './viewport.js';
+import { applyLevel, printReadyReport } from './placeOps.js';
 import { buildTreeToSource, buildColoredParts, BuildTree, bakeNodeScale } from './buildtree.js';
 import { ADDABLE_KINDS } from './primitives.js';
 import { nodeToGeometry } from './nodeGeometry.js';
@@ -109,8 +110,16 @@ export class App {
     this._render();
     await loadKernel();
     this.viewport = new Viewport(this.root.querySelector('#viewport-canvas'));
-    this.viewport.onSelect = (i, additive) => { this._selectNode(i, additive); if (i >= 0 && !additive) this._setPanelTab('edit'); else if (i < 0 && this._panelTab === 'edit') this._setPanelTab('parts'); };
+    this.viewport.onSelect = (i, additive) => {
+      this._selectNode(i, additive);
+      if (i >= 0 && !additive) this._setPanelTab('edit');
+      else if (i < 0 && !additive && this._panelTab === 'edit') this._setPanelTab('parts');
+    };
     this.viewport.onMultiArm = (on) => this._onMultiArm(on);
+    // Tuck the parts panel on empty canvas tap (tablet); part picks keep it open.
+    this.viewport.onCanvasEmptyTap = () => {
+      if (this.mode === 'build' && this.viewMode === 'edit') this._setSidebarOpen(false);
+    };
     this.viewport.onContext = (i, x, y) => this._showContextMenu(i, x, y);
     this.viewport.onShapeMove = (i, pos) => this._onShapeMove(i, pos);
     this.viewport.onShapeMoveEnd = (i, pos) => this._onShapeMoveEnd(i, pos);
@@ -737,11 +746,17 @@ export class App {
     if (sel.length < 2) return;
     const nodes = this.buildTree.nodes;
     const id = nodes.reduce((m, n) => (n.group != null && n.group > m ? n.group : m), 0) + 1;
-    sel.forEach((i) => { if (nodes[i]) nodes[i].group = id; });
+    const label = `Group ${id}`;
+    sel.forEach((i) => {
+      if (nodes[i]) {
+        nodes[i].group = id;
+        if (!(nodes[i].groupLabel || '').trim()) nodes[i].groupLabel = label;
+      }
+    });
     this.selectedNodes = this._members(sel[sel.length - 1]);    this._renderBuildTree();
     this.recompile();
     this._pushHistory();
-    this._toast(`Grouped ${sel.length} parts`);
+    this._toast(`Grouped ${sel.length} parts as ${label}`);
   }
 
   // Dissolve any groups represented in the selection back into loose parts.
@@ -895,12 +910,16 @@ export class App {
         n.pos[1] = rnd(n.pos[1] - cy);
       });
     } else {
-      sel.forEach((i) => {
-        const n = nodes[i];
-        if (!n) return;
-        if (act === 'level') n.rot = [0, 0, 0];
-        else if (act === 'scale') n.scale = [1, 1, 1];
-      });
+      if (act === 'level') {
+        const skipped = applyLevel(nodes, sel);
+        if (skipped) this._toast(`Level skipped ${skipped} hole part(s) — pin orientation kept`);
+      } else {
+        sel.forEach((i) => {
+          const n = nodes[i];
+          if (!n) return;
+          if (act === 'scale') n.scale = [1, 1, 1];
+        });
+      }
     }
     this._renderBuildTree();
     this.recompile();
@@ -1741,9 +1760,6 @@ export class App {
     }
   }
 
-  // Scale the whole model down uniformly so it fits the build plate (2% margin),
-  // applied as a print scale wrapped at compile (undoable). Accounts for the
-  // current print orientation. No-op (resets to 100%) if it already fits.
   _scaleToFit() {
     // measure the model at its print orientation (rotation only) — scale is what
     // we're about to compute, so it must not already be wrapped in.
@@ -1764,6 +1780,23 @@ export class App {
     this._pushHistory();
     if (this.mode === 'build' && this.viewMode !== 'result') this._setViewMode('result');
     this._toast(`Scaled to ${Math.round(this.printScale * 100)}% to fit the plate`);
+  }
+
+  // Centre, drop on bed, and report print-readiness (on bed + A1 mini volume).
+  _printReady() {
+    const nodes = this.buildTree.nodes;
+    if (!nodes.length) { this._toast('Nothing on the plate yet — tap + to add a part'); return; }
+    const all = nodes.map((_, i) => i);
+    this.selectedNodes = all;
+    this._placeOp('level');
+    this._placeOp('center');
+    this._placeOp('drop');
+    this.recompile();
+    this._pushHistory();
+    const bb = this._selectionBounds(all);
+    const report = printReadyReport(bb, BUILD_VOLUME.x);
+    this._toast(report.message);
+    if (report.ok) this.viewport.homeView();
   }
 
   // Build the 3MF blob. In build mode with several distinctly-coloured parts we

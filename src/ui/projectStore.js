@@ -51,13 +51,19 @@ export class ProjectStore {
     const app = this.app;
     const clean = (name || '').trim();
     if (!clean) return;
-    if (app.project) { app._prevProjectId = app.project.id; app._saveCurrent(); } // checkpoint the source project first
-    const meta = { id: Projects.newId(), name: app._uniqueName(clean), created: Date.now(), modified: Date.now(), seconds: app._workSeconds };
+    if (app.project) { app._prevProjectId = app.project.id; app._saveCurrent(); }
+    const requested = clean;
+    const finalName = app._uniqueName(clean);
+    const meta = { id: Projects.newId(), name: finalName, created: Date.now(), modified: Date.now(), seconds: app._workSeconds };
     app.project = meta;
     const entry = Projects.saveProject(meta, app._serializeDesign());
     Projects.setCurrentId(meta.id);
     app._updateProjectName();
-    app._toast(entry ? `Saved as “${meta.name}”` : 'Save failed — local storage full');
+    if (finalName !== requested) {
+      app._toast(`Name taken — saved as “${finalName}”. Click the project name to rename.`);
+    } else {
+      app._toast(entry ? `Saved as “${finalName}”` : 'Save failed — local storage full');
+    }
   }
 
   openProject(id) {

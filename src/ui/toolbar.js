@@ -117,7 +117,7 @@ export function toggleMenu(root, menu) {
 // App to wire (by id) and for render() to place.
 export function toolbarSeedHTML() {
   return TOOLBAR_TOOLS
-    .map((t) => `<button class="rail-btn${t.on ? ' on' : ''}" id="${t.id}" title="${esc(t.title || t.label)}">${t.glyph}</button>`)
+    .map((t) => `<button class="rail-btn rail-labeled${t.on ? ' on' : ''}" id="${t.id}" title="${esc(t.title || t.label)}"><span class="rail-glyph" aria-hidden="true">${t.glyph}</span><span class="rail-lab">${esc(t.label)}</span></button>`)
     .join('\n          ');
 }
 

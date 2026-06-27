@@ -143,6 +143,7 @@ export class Viewport {
     this._cutPlaneActive = false;
     this.onCutPlaneChange = null;    // ({ origin, normal }) while the plane moves
     this.onMultiArm = null;        // (on) — long-press armed / disarmed multi-select
+    this.onCanvasEmptyTap = null;  // () — clean click on empty canvas (not on a part)
     this._lpTimer = null;          // long-press timer (touch multi-select)
     this._raycaster = new THREE.Raycaster();
     this._ndc = new THREE.Vector2();
@@ -516,12 +517,35 @@ export class Viewport {
     if (last && last[0] === p.x && last[1] === p.y) return; // ignore a no-move repeat
     pts.push([p.x, p.y]);
     this._renderSketch();
+    this._updateSketchHint();
   }
 
   _sketchHover(clientX, clientY) {
     if (!this._sketch.on) return;
     const p = this._groundPoint(clientX, clientY);
-    if (p) { this._sketch.cursor = [p.x, p.y]; this._renderSketch(); }
+    if (p) { this._sketch.cursor = [p.x, p.y]; this._renderSketch(); this._updateSketchHint(); }
+  }
+
+  _updateSketchHint() {
+    const el = document.getElementById('sketch-hint');
+    if (!el || !this._sketch.on) return;
+    const pts = this._sketch.pts;
+    let text = 'tap points · tap the first dot to close';
+    if (pts.length >= 2) {
+      const a = pts[pts.length - 2], b = pts[pts.length - 1];
+      text += ` · last ${Math.hypot(b[0] - a[0], b[1] - a[1]).toFixed(1)} mm`;
+    }
+    if (pts.length >= 1 && this._sketch.cursor) {
+      const a = pts[pts.length - 1], b = this._sketch.cursor;
+      text += ` · next ${Math.hypot(b[0] - a[0], b[1] - a[1]).toFixed(1)} mm`;
+    }
+    if (pts.length >= 3) {
+      let peri = 0;
+      for (let i = 1; i < pts.length; i++) peri += Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1]);
+      peri += Math.hypot(pts[0][0] - pts[pts.length - 1][0], pts[0][1] - pts[pts.length - 1][1]);
+      text += ` · perimeter ≈ ${peri.toFixed(0)} mm`;
+    }
+    el.textContent = text;
   }
 
   _sketchMats() {
@@ -733,9 +757,11 @@ export class Viewport {
           this.multiSelect = false;
           if (this.onMultiArm) this.onMultiArm(false);
           if (this.onSelect) this.onSelect(-1, false);
-        } else if (onEmpty && !downAdditive && this.onSelect) {
+          if (this.onCanvasEmptyTap) this.onCanvasEmptyTap();
+        } else if (onEmpty && !downAdditive) {
           // a plain click on empty space clears the selection
-          this.onSelect(-1, false);
+          if (this.onSelect) this.onSelect(-1, false);
+          if (this.onCanvasEmptyTap) this.onCanvasEmptyTap();
         }
       }
       dragging = false; panning = false;
@@ -1618,15 +1644,20 @@ export class Viewport {
 
     for (const it of items) {
       const isHole = it.op === 'hole';
-      // DoubleSide so a mirrored (negative-scale) shape still renders lit.
-      const mat = isHole
-        ? new THREE.MeshStandardMaterial({
-            color: COLORS.hole, transparent: true, opacity: 0.4, side: THREE.DoubleSide,
-            roughness: 0.6, metalness: 0, depthWrite: false, wireframe: this._wire })
-        : new THREE.MeshStandardMaterial({
-            color: it.color || COLORS.model, metalness: 0.1, roughness: 0.55,
-            side: THREE.DoubleSide, wireframe: this._wire });
-      const mesh = new THREE.Mesh(it.geometry, mat);
+      let mesh;
+      if (isHole) {
+        // Wireframe cut preview — avoids misleading solid "rods" for horizontal pin holes.
+        const wire = new THREE.WireframeGeometry(it.geometry);
+        const mat = new THREE.LineBasicMaterial({
+          color: COLORS.hole, transparent: true, opacity: 0.85, depthTest: true,
+        });
+        mesh = new THREE.LineSegments(wire, mat);
+      } else {
+        const mat = new THREE.MeshStandardMaterial({
+          color: it.color || COLORS.model, metalness: 0.1, roughness: 0.55,
+          side: THREE.DoubleSide, wireframe: this._wire });
+        mesh = new THREE.Mesh(it.geometry, mat);
+      }
       mesh.position.set(it.pos[0], it.pos[1], it.pos[2]);
       const r = it.rot || [0, 0, 0];
       // Match manifold's rotate(x,y,z) (extrinsic X->Y->Z) so the preview and the
@@ -1657,11 +1688,16 @@ export class Viewport {
     this._clearOutline();
     for (const e of this.editMeshes) {
       const sel = this.transformSet.includes(e.index);
-      const glow = e.op === 'hole' ? COLORS.glowHole : COLORS.glowSolid;
-      e.mesh.material.emissive.setHex(sel ? glow : 0x000000);
+      if (e.mesh.material.emissive) {
+        const glow = e.op === 'hole' ? COLORS.glowHole : COLORS.glowSolid;
+        e.mesh.material.emissive.setHex(sel ? glow : 0x000000);
+      } else if (e.op === 'hole') {
+        e.mesh.material.color.setHex(sel ? COLORS.hole : 0xef5350);
+        e.mesh.material.opacity = sel ? 1 : 0.65;
+      }
     }
     const em = this.editMeshes.find((e) => e.index === this.selectedIndex);
-    if (em) {
+    if (em && em.op !== 'hole' && em.mesh.isMesh) {
       const line = new THREE.LineSegments(
         new THREE.EdgesGeometry(em.mesh.geometry, 20),
         new THREE.LineBasicMaterial({ color: 0xffffff }));
