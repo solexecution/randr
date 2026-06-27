@@ -107,4 +107,60 @@ union() {
   translate([0, 0, 6]) roundedCylinder(10, 11, 4);
 }
 `,
+  'phone stand': `// Fold-flat phone stand — print on bed, lip holds phone, foot props it up
+param pw = 73; param h = 95; param t = 3.2; param lip = 6;
+union() {
+  translate([0, 0, t/2]) roundedBox(pw, h, t, 2);
+  translate([0, -h/2 - 2, t + lip/2]) roundedBox(pw, 4, lip, 1);
+  translate([0, h/2 - 18, t/2]) roundedBox(pw * 0.5, 32, t, 1.5);
+}
+`,
+  'hinged box': `// Hinged rounded box — 68×48×5 mm, split at mid-height.
+// Two print-in-place pin hinges on the back edge. After printing, flex each
+// hinge a few times to break the built-in clearance, then the lid opens.
+param width = 68;
+param depth = 48;
+param height = 5;
+param cornerR = 1.5;
+param hingeX = 24;
+param knuckleR = 2.0;
+param pinR = 0.8;
+param gap = 0.35;
+param knuckleW = 2.6;
+param pinSpan = 3.0;
+halfH = height / 2;
+hingeY = -(depth / 2) + knuckleR + 1;
+pinZ = -gap - pinR;
+socketZ = gap + knuckleR;
+
+union() {
+  intersection() {
+    roundedBox(width, depth, height, cornerR);
+    translate([0, 0, -halfH / 2]) box(width + 2, depth + 2, halfH);
+  }
+  intersection() {
+    roundedBox(width, depth, height, cornerR);
+    translate([0, 0, halfH / 2]) box(width + 2, depth + 2, halfH);
+  }
+  mirror([1, 0, 0]) union() {
+    translate([-hingeX - knuckleW - pinSpan / 2, hingeY, -halfH + knuckleR]) {
+      rotate([0, 90, 0]) cylinder(knuckleW, knuckleR);
+    }
+    translate([-hingeX + knuckleW + pinSpan / 2, hingeY, -halfH + knuckleR]) {
+      rotate([0, 90, 0]) cylinder(knuckleW, knuckleR);
+    }
+    translate([-hingeX, hingeY, pinZ]) {
+      rotate([0, 90, 0]) cylinder(pinSpan, pinR);
+    }
+    difference() {
+      translate([-hingeX, hingeY, socketZ]) {
+        rotate([0, 90, 0]) cylinder(pinSpan + 2 * knuckleW, knuckleR);
+      }
+      translate([-hingeX, hingeY, socketZ]) {
+        rotate([0, 90, 0]) cylinder(pinSpan + 0.4, pinR + gap);
+      }
+    }
+  }
+}
+`,
 };
