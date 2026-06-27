@@ -18,6 +18,7 @@ import {
   partCount,
   addShape,
   ensureBuildMode,
+  selectNode,
   collectConsoleErrors,
 } from './_helpers.js';
 
@@ -107,6 +108,28 @@ test('undo and redo step the build tree back and forth', async ({ page }) => {
     timeout: 5000,
   });
   expect(await partCount(page)).toBe(before + 1);
+});
+
+test('undo keeps the current selection', async ({ page }) => {
+  await gotoApp(page);
+  await ensureBuildMode(page);
+  const i = await addShape(page, 'box');
+  await selectNode(page, i);
+  const rotBefore = (await page.evaluate((i) => window.__forgeApp.buildTree.nodes[i].rot[0], i));
+
+  await page.evaluate((i) => {
+    const a = window.__forgeApp;
+    a.buildTree.nodes[i].rot[0] = 45;
+    a.recompile();
+    a._pushHistory();
+  }, i);
+
+  await page.click('#v-undo');
+  await page.waitForFunction((i) => window.__forgeApp.buildTree.nodes[i].rot[0] === 0, i);
+
+  const sel = await page.evaluate(() => window.__forgeApp.selectedNodes);
+  expect(sel).toContain(i);
+  expect(await page.evaluate((i) => window.__forgeApp.buildTree.nodes[i].rot[0], i)).toBe(rotBefore);
 });
 
 test('grid toggle flips its .on state', async ({ page }) => {

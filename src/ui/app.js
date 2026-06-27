@@ -1413,7 +1413,6 @@ export class App {
     this.printRot = d.printRot || [0, 0, 0];
     this.printScale = d.printScale || 1;
     this.printCut = d.printCut || 0;
-    this.selectedNodes = [];
     this.overrides = {};
     this.root.querySelector('#pane-code').classList.toggle('hidden', this.mode !== 'code');
     this.root.querySelector('#editor').value = this.source;
