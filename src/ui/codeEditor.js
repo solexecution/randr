@@ -105,7 +105,9 @@ function caretBandTop(editor, measureEl, wrapOn) {
   const mark = document.createElement('span');
   mark.textContent = '\u200b';
   measureEl.appendChild(mark);
-  return padY + mark.offsetTop;
+  // measureEl carries the editor's full padding (see syncMeasureEl), so mark.offsetTop
+  // already includes the top padding \u2014 don't add padY again or the band drifts down a row.
+  return mark.offsetTop;
 }
 
 function scrollEditorToLine(editor, lineNum) {
