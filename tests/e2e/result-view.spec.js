@@ -78,3 +78,37 @@ test.describe('result view — pick to edit', () => {
     expect(await page.evaluate(() => window.__forgeApp.selectedNodes)).toContain(i);
   });
 });
+
+test.describe('result view — keeps edit-mode coordinates', () => {
+  test('a part sunk below the plate stays sunk in the result (no snap to bed)', async ({ page }) => {
+    await gotoApp(page);
+    await ensureBuildMode(page);
+    const i = await addShape(page, 'box');
+    // Sink the box well below the plate.
+    await page.evaluate((idx) => {
+      const a = window.__forgeApp;
+      a.buildTree.nodes[idx].pos[2] = -8;
+      a.recompile();
+    }, i);
+    await page.waitForFunction(() => !!window.__forgeApp.currentModel);
+    await page.evaluate(() => window.__forgeApp._setViewMode('result'));
+    await page.waitForFunction(
+      () => window.__forgeApp.viewMode === 'result'
+        && window.__forgeApp.viewport.modelGroup.children.some((c) => c.isMesh),
+    );
+    const r = await page.evaluate(() => {
+      const mg = window.__forgeApp.viewport.modelGroup;
+      let worldMinY = Infinity;
+      mg.children.forEach((c) => {
+        if (!c.isMesh) return;
+        c.geometry.computeBoundingBox();
+        worldMinY = Math.min(worldMinY, mg.position.y + c.geometry.boundingBox.min.y);
+      });
+      return { posY: mg.position.y, worldMinY };
+    });
+    // The result must not be translated to seat it on the bed, so the sunk part's
+    // lowest point is still below the plate (y = 0).
+    expect(r.posY).toBe(0);
+    expect(r.worldMinY).toBeLessThan(-1);
+  });
+});

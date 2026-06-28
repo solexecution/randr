@@ -1497,9 +1497,10 @@ export class Viewport {
       this.modelGroup.add(edges);
     }
 
-    geom.computeBoundingBox();
-    const bb = geom.boundingBox;
-    this.modelGroup.position.y = -bb.min.y; // drop onto the plate
+    // Show the result at the SAME coordinates as edit mode — a part the user sank
+    // below the plate (or floated above it) stays put instead of snapping to the
+    // bed. Bed-seating for printing is handled by print-prep / export, not the view.
+    this.modelGroup.position.y = 0;
   }
 
   // Like setModel, but draws each top-level part in its own colour (build
@@ -1512,7 +1513,6 @@ export class Viewport {
     this._wipeModelGroup();
     if (!parts || !parts.length) return;
 
-    let minY = Infinity;
     for (const [i, p] of parts.entries()) {
       if (!p || !p.manifold) continue;
       const geom = manifoldToGeometry(p.manifold);
@@ -1539,10 +1539,9 @@ export class Viewport {
       }
       this.modelGroup.add(mesh);
       if (showEdges) this.modelGroup.add(new THREE.LineSegments(edgesGeometry(geom), this.edgeMaterial));
-      geom.computeBoundingBox();
-      if (geom.boundingBox.min.y < minY) minY = geom.boundingBox.min.y;
     }
-    this.modelGroup.position.y = Number.isFinite(minY) ? -minY : 0; // drop onto the plate
+    // Match edit-mode coordinates — don't snap a sunk/floated part to the bed (see setModel).
+    this.modelGroup.position.y = 0;
   }
 
   // A translucent overlay of the combined result, shown over the editable parts
