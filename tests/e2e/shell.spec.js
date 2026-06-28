@@ -359,3 +359,30 @@ test('code editor: line numbers align with code rows', async ({ page }) => {
     expect(d).toBeLessThan(2); // sub-pixel rounding only
   }
 });
+
+test('code editor: typing does not yank the caret when the partial code errors', async ({ page }) => {
+  await gotoApp(page);
+  await page.evaluate(() => {
+    const e = document.querySelector('#editor');
+    e.focus();
+    e.setSelectionRange(e.value.length, e.value.length);
+  });
+  // Type an incomplete expression — it parses with an error on every pause.
+  await page.keyboard.type('\nbox(');
+  const typedTo = await page.evaluate(() => document.querySelector('#editor').selectionStart);
+  // Let the debounced recompile fire and surface the error.
+  await page.waitForFunction(() => !!document.querySelector('#editor-ln .ln.error-line'), null, { timeout: 5000 });
+  // The caret must stay where the user typed (the error display must not select/scroll the editor).
+  const after = await page.evaluate(() => {
+    const e = document.querySelector('#editor');
+    return { sel: e.selectionStart, selEnd: e.selectionEnd };
+  });
+  expect(after.sel).toBe(typedTo);
+  expect(after.selEnd).toBe(typedTo);
+
+  // But clicking the error banner (not typing) still jumps to the error line.
+  await page.evaluate(() => document.querySelector('#editor').blur());
+  await page.locator('#error').click();
+  const jumped = await page.evaluate(() => document.querySelector('#editor').selectionStart);
+  expect(jumped).toBeLessThan(typedTo);
+});

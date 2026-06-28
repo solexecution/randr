@@ -574,7 +574,9 @@ export function installCodeEditor(app) {
   app._setErrorLine = (line) => {
     errorLine = line;
     updateGutter();
-    if (line) scrollEditorToLine(editor, line);
+    // Don't yank the caret to the error line while the user is typing — a partial
+    // edit (e.g. "box(") errors on every pause; the gutter still marks the row.
+    if (line && document.activeElement !== editor) scrollEditorToLine(editor, line);
   };
 
   const errEl = $(root, '#error');
@@ -611,7 +613,9 @@ export function installCodeEditor(app) {
           () => app._toast?.('Could not copy — select the text instead'),
         );
       });
-      scrollEditorToLine(editor, parsed.line);
+      // Auto-jump to the error only when the user isn't actively typing — otherwise
+      // a transient parse error mid-edit would steal the caret to the error line.
+      if (document.activeElement !== editor) scrollEditorToLine(editor, parsed.line);
     } else {
       errEl.classList.remove('has-row');
       errEl.textContent = message;
